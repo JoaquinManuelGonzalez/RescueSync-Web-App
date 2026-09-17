@@ -9,16 +9,6 @@ ofertas de ayuda de ONGs, adjudicar esas ofertas y hacer seguimiento de la ejecu
 integrándose con un motor de procesos (Bonita) y con una API Nacional externa para validar y
 reservar recursos.
 
-## Integrantes del equipo
-
-| Apellido, Nombre | Padrón |
-|---|---|
-| Cellini, Lara | 16237/5 |
-| Felder, León | 21182/1 |
-| González, Iván | 21816/3 |
-| Gonzalez, Joaquín Manuel | 21247/1 |
-| Rabasa, Ulises | 23813/9 |
-
 ## Stack tecnológico
 
 | Componente | Tecnología | Versión |
