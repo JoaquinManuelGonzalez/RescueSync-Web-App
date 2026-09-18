@@ -1,0 +1,4 @@
+node_modules/
+estaticos/css/app.css
+estaticos/css/app.css.map
+npm-debug.log*

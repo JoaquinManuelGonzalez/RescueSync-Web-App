@@ -1,0 +1,66 @@
+# Entorno de desarrollo de RescueSync.
+#
+#   docker compose build      una sola vez, o al cambiar dependencias
+#   docker compose up -d      levanta db + web + tailwind
+#
+# Bonita y la API Nacional quedan FUERA de este archivo:
+# son componentes externos con su propio ciclo de vida. El README explica como instalar y
+# arrancar Bonita en local.
+
+name: rescuesync
+
+services:
+  db:
+    image: postgres:18-trixie
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-rescuesync}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      # Volumen nombrado: El punto de montaje es /var/lib/postgresql
+      - datos_postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./backend
+      target: desarrollo
+    env_file:
+      - .env
+    ports:
+      - "${APP_PORT:-5000}:${APP_PORT:-5000}"
+    volumes:
+      - ./backend:/app
+      # Solo lectura: la aplicacion lee las plantillas y el CSS, el que escribe es tailwind.
+      - ./frontend:/frontend:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "/app/healthcheck.py"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      # Margen para que corran las migraciones antes del primer chequeo.
+      start_period: 40s
+    restart: "no"
+
+  tailwind:
+    build:
+      context: ./frontend
+    volumes:
+      - ./frontend:/frontend
+    environment:
+      INTERVALO_WATCH_S: "${INTERVALO_WATCH_S:-2}"
+    restart: unless-stopped
+
+volumes:
+  datos_postgres:

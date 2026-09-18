@@ -11,10 +11,11 @@ raíz del repositorio.
 |---|---|---|---|---|
 | `APP_ENV` | N | `local` | Identifica el entorno de ejecución (`local`, `evaluacion`, `produccion`) | Todos |
 | `SECRET_KEY` | S | — | Clave secreta de Flask para firmar sesión y tokens CSRF | Todos |
-| `APP_PORT` | N | `5000` | Puerto en el que escucha la aplicación dentro del contenedor | Todos |
+| `APP_PORT` | N | `5000` | Puerto en el que escucha la aplicación dentro del contenedor, y en el que Compose la publica en el host | Todos |
 | `LOG_LEVEL` | N | `INFO` | Nivel mínimo de log (`DEBUG`, `INFO`, `WARN`, `ERROR`) | Todos |
 | `POSTGRES_HOST` | N | `db` | Host del servicio de PostgreSQL según `docker-compose.yml` | Todos |
-| `POSTGRES_PORT` | N | `5432` | Puerto de PostgreSQL | Todos |
+| `POSTGRES_PORT` | N | `5432` | Puerto de PostgreSQL dentro de la red de contenedores | Todos |
+| `POSTGRES_HOST_PORT` | N | `5432` | Puerto del host en el que `docker-compose.yml` publica PostgreSQL. Se cambia cuando el 5432 del host ya está ocupado. La consume únicamente Compose: la aplicación nunca la lee | Todos |
 | `POSTGRES_DB` | N | `rescuesync` | Nombre de la base de datos | Todos |
 | `POSTGRES_USER` | S | — | Usuario de PostgreSQL | Todos |
 | `POSTGRES_PASSWORD` | S | — | Contraseña de PostgreSQL | Todos |

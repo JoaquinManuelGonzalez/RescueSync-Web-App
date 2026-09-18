@@ -224,3 +224,12 @@ __marimo__/
 *.key
 *.p12
 secrets/
+
+# Frontend (Node / Tailwind)
+node_modules/
+frontend/estaticos/css/app.css
+frontend/estaticos/css/app.css.map
+npm-debug.log*
+
+# uv
+.uv-cache/

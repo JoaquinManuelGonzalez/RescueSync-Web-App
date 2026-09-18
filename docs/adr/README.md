@@ -33,11 +33,13 @@ de versión fijada), `Alternativas consideradas` y `Consecuencias`.
 | 004 | Motor de base de datos | Aceptado | 2026-09-15 | [ADR-004-motor-base-de-datos.md](./ADR-004-motor-base-de-datos.md) |
 | 005 | Estilo arquitectónico | Aceptado | 2026-09-15 | [ADR-005-estilo-arquitectonico.md](./ADR-005-estilo-arquitectonico.md) |
 | 006 | Contrato de errores, logs y configuración | Aceptado | 2026-09-15 | [ADR-006-contrato-errores-logs-configuracion.md](./ADR-006-contrato-errores-logs-configuracion.md) |
+| 007 | Estructura del esqueleto ejecutable y cadena de build de frontend | Propuesto | 2026-09-17 | [ADR-007-estructura-esqueleto-ejecutable.md](./ADR-007-estructura-esqueleto-ejecutable.md) |
+| 008 | Gestión de dependencias de Python con uv | Propuesto | 2026-09-17 | [ADR-008-gestion-dependencias-uv.md](./ADR-008-gestion-dependencias-uv.md) |
 
 La numeración es correlativa y nunca se reutiliza: si un ADR queda
 reemplazado u obsoleto, su número no vuelve a asignarse a una decisión
 distinta. El siguiente ADR que se escriba, sea nuevo o reemplace a uno
-existente, usa el número `007` en adelante.
+existente, usa el número `009` en adelante.
 
 ## Ciclo de vida de un ADR
 
@@ -132,3 +134,40 @@ procedimiento.
 
 Este procedimiento es el mismo sin importar qué ADR cambie, y es el que
 mantiene el historial de decisiones confiable a lo largo de las 5 entregas.
+
+## Enmienda parcial
+
+El procedimiento de arriba asume que la decisión de fondo de un ADR cambió por
+completo. En la práctica aparece un caso intermedio: un ADR nuevo contradice
+**una cláusula puntual** de un ADR aceptado, mientras el resto de esa decisión
+sigue plenamente vigente.
+
+El ejemplo real es el ADR-008: cambia dónde se declaran las dependencias de
+Python, cláusula que fijaban el ADR-002 y el ADR-005. Pero el ADR-002 también
+decidió Flask y Python 3.14, y el ADR-005 decidió el monolito modular, y nada
+de eso cambió. Marcar esos dos ADRs como `Reemplazado por ADR-008` sería
+falso: daría a entender que Flask o el monolito modular dejaron de estar
+vigentes.
+
+En ese caso el procedimiento es:
+
+1. El ADR nuevo se escribe igual que cualquier otro, pero deja `Reemplaza a:
+   —`, porque no reemplaza nada.
+2. El ADR nuevo incluye una sección final **`Relación con ADRs previos`** que
+   nombra, uno por uno, cada ADR afectado y **cita la cláusula exacta** que
+   enmienda, indicando explícitamente qué de ese ADR sigue vigente.
+3. El ADR nuevo abre con una nota al pie del encabezado que remite a esa
+   sección, para que nadie lo lea como una decisión aislada.
+4. El ADR anterior **no se toca en absoluto**: ni su contenido ni su `Estado`.
+   Sigue en `Aceptado`, porque sigue siendo la decisión vigente en todo lo
+   demás.
+5. En el índice de este documento, el ADR anterior tampoco cambia de estado.
+
+La diferencia práctica con el reemplazo es esta: en un reemplazo, el ADR viejo
+deja de aplicar y queda como registro histórico; en una enmienda parcial, el
+ADR viejo **sigue vigente** y hay que leerlo junto con el que lo enmienda.
+
+Ante la duda entre enmendar parcialmente y reemplazar, vale esta regla: si
+después del ADR nuevo alguien todavía necesita leer el viejo para saber qué
+hacer, es enmienda parcial; si el viejo ya no le sirve para nada, es
+reemplazo.

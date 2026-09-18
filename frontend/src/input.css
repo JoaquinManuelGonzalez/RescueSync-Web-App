@@ -1,0 +1,17 @@
+/* Hoja de entrada de Tailwind CSS 4.
+ *
+ * Tailwind 4 se configura desde el propio CSS: no hay tailwind.config.js.
+ * La salida compilada es estaticos/css/app.css, que esta ignorada por git porque la genera
+ * el contenedor "tailwind" en cada arranque.
+ */
+
+@import "tailwindcss";
+
+/* Que archivos escanea Tailwind para decidir que clases incluir. Las rutas son relativas
+ * a este archivo.
+ *
+ * Si alguna vez se escriben clases de Tailwind dentro del backend (por ejemplo en el
+ * render_kw de un formulario WTForms), hay que agregar aca otra linea @source apuntando a
+ * esos archivos .py. Ojo al escribirla: un patron glob dentro de un comentario CSS cierra
+ * el comentario antes de tiempo, asi que va como directiva, nunca comentada. */
+@source "../plantillas/**/*.html";
