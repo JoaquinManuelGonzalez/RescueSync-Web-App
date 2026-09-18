@@ -1,0 +1,14 @@
+{
+  "name": "rescuesync-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plantillas Jinja, estaticos y cadena de build de Tailwind CSS de RescueSync.",
+  "scripts": {
+    "build": "tailwindcss -i ./src/input.css -o ./estaticos/css/app.css --minify",
+    "watch": "tailwindcss -i ./src/input.css -o ./estaticos/css/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.3",
+    "tailwindcss": "4.3.3"
+  }
+}

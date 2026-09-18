@@ -10,7 +10,7 @@ por supuestos distintos.
 1. Idioma del código
 2. Nomenclatura por capa
 3. Estructura de carpetas
-4. Formato y verificación (Ruff)
+4. Entorno local, formato y verificación (uv + Ruff)
 5. Nomenclatura de ramas
 6. Revisión obligatoria antes del merge
 7. Commits y vínculo con el backlog
@@ -29,14 +29,6 @@ toleran de forma consistente (por ejemplo `adjudicacion`, `anio`, en vez de `adj
 identificador: comentarios, docstrings, documentación (`.md`), mensajes de log legibles por
 humanos y textos de la interfaz (labels, mensajes de error al usuario, etc.).
 
-Ejemplo:
-
-```python
-# Calcula la cantidad de dias habiles restantes hasta el cierre de la convocatoria.
-def calcular_dias_habiles_restantes(convocatoria: Convocatoria) -> int:
-    anio_actual = convocatoria.fecha_cierre.year
-    ...
-```
 
 ## 2. Nomenclatura por capa
 
@@ -59,56 +51,68 @@ def calcular_dias_habiles_restantes(convocatoria: Convocatoria) -> int:
 | Índices y restricciones | `ix_`/`uq_`/`fk_`/`ck_` + tabla + columnas | `ix_ofertas_de_ayuda_convocatoria_id` |
 | Tests | `test_<unidad>.py` / `test_<caso>_<resultado>` | `test_registrar_oferta_fuera_de_ventana_falla` |
 
-Más ejemplos de dominio para fijar el criterio, cubriendo las entidades reales de RescueSync
-(emergencias, lotes de necesidad, convocatorias, ofertas de ayuda, adjudicación, consorcios):
-
-- Modelos: `Emergencia`, `LoteDeNecesidad`, `Convocatoria`, `OfertaDeAyuda`, `Adjudicacion`,
-  `Consorcio`, `UsuarioRol`.
-- Servicios: `crear_emergencia`, `cerrar_convocatoria`, `listar_ofertas_de_convocatoria`,
-  `adjudicar_lote`, `conformar_consorcio`.
-- Tablas: `emergencias`, `lotes_de_necesidad`, `convocatorias`, `ofertas_de_ayuda`,
-  `adjudicaciones`, `consorcios`, `usuarios_roles`.
-- Columnas booleanas: `es_consorcio`, `es_activa`, `tiene_adjudicacion_vigente`.
-- Columnas de fecha: `fecha_creacion`, `fecha_cierre`, `fecha_adjudicacion`,
-  `fecha_vencimiento_ventana`.
-- Endpoints: `emergencias.crear`, `emergencias.detalle`, `ofertas.crear`, `ofertas.listar`,
-  `adjudicacion.confirmar`.
-- Restricciones: `uq_ofertas_de_ayuda_convocatoria_id_ong_id`,
-  `fk_ofertas_de_ayuda_convocatoria_id`, `ck_lotes_de_necesidad_cantidad_positiva`.
 
 ## 3. Estructura de carpetas
 
+El repositorio se divide en dos carpetas: `backend/` es 100 % Python y `frontend/`
+es 100 % presentación (ver [ADR-007](docs/adr/ADR-007-estructura-esqueleto-ejecutable.md)).
+
 ```
-app/
-  core/              configuracion, errores, logging, seguridad,
+backend/
+  pyproject.toml     dependencias (uv) y configuracion de Ruff
+  uv.lock            arbol de dependencias fijado, se versiona
+  migrations/        migraciones de Alembic (Flask-Migrate)
+  tests/
+  app/
+    __init__.py      app factory: create_app()
+    wsgi.py          objeto que levantan flask y gunicorn
+    extensiones.py   db, migrate, login_manager
+    cli.py           comandos `flask <comando>` (por ejemplo, seed)
+    core/            configuracion, errores, logging, seguridad, salud, semillas,
                       integraciones/{bonita,api_nacional}  -> clientes HTTP compartidos
-  modulos/
-    usuarios_roles/    alta y gestion de usuarios, roles y permisos (RBAC)
-    emergencias/       alta y ciclo de vida de una emergencia
-    lotes_convocatorias/  lotes de necesidad y convocatorias asociadas a una emergencia
-    ofertas/           carga y listado de ofertas de ayuda de las ONG
-    adjudicacion/       logica de adjudicacion de ofertas a lotes/convocatorias
-    ejecucion_cierre/   seguimiento de ejecucion y cierre del proyecto
-    indicadores/        dashboard de metricas y reportes (solo lectura)
-    <cada modulo>/
-      rutas.py          blueprint Flask: define los endpoints HTTP
-      servicios.py       logica de negocio del modulo (unico punto de entrada para otros modulos)
-      modelos.py         modelos SQLAlchemy y consultas propias del modulo
-      formularios.py     formularios WTForms (validacion de entrada)
-      plantillas/         plantillas Jinja propias del modulo (modulo/accion.html)
-  plantillas/          layout base y parciales compartidos por todos los modulos
-  estaticos/           CSS compilado por Tailwind, imagenes y otros estaticos
+    modulos/
+      usuarios_roles/    alta y gestion de usuarios, roles y permisos (RBAC)
+      emergencias/       alta y ciclo de vida de una emergencia
+      lotes_convocatorias/  lotes de necesidad y convocatorias asociadas a una emergencia
+      ofertas/           carga y listado de ofertas de ayuda de las ONG
+      adjudicacion/       logica de adjudicacion de ofertas a lotes/convocatorias
+      ejecucion_cierre/   seguimiento de ejecucion y cierre del proyecto
+      indicadores/        dashboard de metricas y reportes (solo lectura)
+      <cada modulo>/
+        rutas.py          blueprint Flask: define los endpoints HTTP
+        servicios.py       logica de negocio del modulo (unico punto de entrada para otros modulos)
+        modelos.py         modelos SQLAlchemy y consultas propias del modulo
+        formularios.py     formularios WTForms (validacion de entrada)
+
+frontend/
+  plantillas/
+    base.html        layout base
+    parciales/       parciales compartidos (_nav.html, etc.)
+    <modulo>/        plantillas del modulo, una por accion (modulo/accion.html)
+  estaticos/
+    css/app.css      CSS compilado por Tailwind. NO se versiona: lo genera el contenedor
+    img/
+  src/input.css      hoja de entrada de Tailwind (configuracion CSS-first, sin config.js)
+  observar.sh        bucle que recompila el CSS cuando cambia una plantilla
+  package.json       dependencias de Node, con version exacta
+  Dockerfile         contenedor que compila Tailwind
 ```
 
 Cada carpeta de `modulos/` reproduce siempre el mismo esqueleto interno
-(`rutas.py`, `servicios.py`, `modelos.py`, `formularios.py`, `plantillas/`), lo que hace
-predecible dónde buscar o agregar algo.
+(`rutas.py`, `servicios.py`, `modelos.py`, `formularios.py`), lo que hace predecible dónde
+buscar o agregar algo.
+
+**Las plantillas no van dentro del módulo.** Un módulo es código Python; sus vistas viven en
+`frontend/plantillas/<modulo>/`. La convención de nombres no cambia: una plantilla se sigue
+llamando `modulo/accion.html` y se sigue invocando con
+`render_template("emergencias/alta.html")`. Un archivo `.html` dentro de `backend/` es un
+error de revisión.
 
 ### ¿Dónde escribo una funcionalidad nueva?
 
 - ¿Es una operación de negocio dentro de un módulo existente (por ejemplo, una nueva regla de
   adjudicación)? Va en `servicios.py` del módulo correspondiente, con su endpoint en `rutas.py`
-  y, si aplica, su plantilla en `plantillas/`.
+  y, si aplica, su plantilla en `frontend/plantillas/<modulo>/`.
 - ¿Es una entidad de dominio nueva (una tabla nueva)? El modelo va en `modelos.py` del módulo
   dueño de esa entidad, nunca en otro módulo.
 - ¿Necesito datos de otro módulo? Se piden a través de la capa `servicios` de ese módulo, nunca
@@ -121,21 +125,55 @@ predecible dónde buscar o agregar algo.
 - ¿Necesita llamar a Bonita o a la API Nacional? Siempre a través de los clientes de
   `core/integraciones/`, nunca con una llamada HTTP directa desde el módulo.
 
-## 4. Formato y verificación (Ruff)
+## 4. Entorno local, formato y verificación (uv + Ruff)
 
-RescueSync usa **Ruff 0.16.7** como linter y formateador único.
+### Entorno local con uv
+
+Las dependencias de Python se gestionan con **uv 0.12.13**
+([ADR-008](docs/adr/ADR-008-gestion-dependencias-uv.md)): se declaran con versión exacta en
+`backend/pyproject.toml` y el árbol transitivo completo queda fijado en `backend/uv.lock`, que
+se versiona. uv tiene que estar instalado en tu máquina; el README explica cómo, en
+[Requisitos previos](README.md#requisitos-previos).
+
+Después de clonar, y cada vez que alguien cambie las dependencias en `main`:
+
+```bash
+cd backend
+uv sync --locked
+```
+
+Eso crea `backend/.venv` con las mismas versiones que instala la imagen de Docker, incluidas
+Ruff y pytest. `--locked` hace que falle si el lock no está sincronizado con `pyproject.toml`,
+en lugar de regenerarlo por su cuenta. `backend/.venv` está en `.gitignore` y no se commitea.
+
+Reglas al tocar dependencias:
+
+- Se agregan con `uv add "paquete==1.2.3"` desde `backend/`, **siempre con versión exacta**,
+  nunca con un rango.
+- Las que solo sirven para desarrollar (linters, tests) van con `uv add --dev`, para que no
+  entren en la imagen de producción.
+- `uv.lock` **no se edita a mano**. Ante un conflicto de merge se regenera con `uv lock`.
+- `pyproject.toml` y `uv.lock` se commitean **juntos**, en el mismo commit, y la dependencia
+  nueva se agrega a la tabla de stack tecnológico del README en el mismo PR.
+- Después de cambiar dependencias hay que reconstruir la imagen:
+  `docker compose build web && docker compose up -d web`.
+
+### Formato y verificación (Ruff)
+
+RescueSync usa **Ruff 0.16.7** como linter y formateador único. Los comandos se corren desde
+`backend/`, con `uv run`, que usa el Ruff del entorno del proyecto y no uno instalado suelto.
 
 Formatear el código antes de commitear:
 
 ```bash
-ruff format .
+uv run ruff format .
 ```
 
 Verificar sin modificar archivos (se usa antes de abrir un PR y en cualquier revisión):
 
 ```bash
-ruff format --check .
-ruff check .
+uv run ruff format --check .
+uv run ruff check .
 ```
 
 Cuando `ruff check` encuentra un problema, la salida tiene el formato
@@ -148,7 +186,7 @@ Found 2 errors.
 [*] 1 error corregible automaticamente con `ruff check --fix`.
 ```
 
-Configuración que la épica del esqueleto ejecutable debe volcar en `pyproject.toml`:
+La configuración vive en `backend/pyproject.toml` y es esta:
 
 ```toml
 [tool.ruff]
@@ -159,11 +197,23 @@ target-version = "py314"
 select = ["E", "F", "I", "N", "UP", "B"]
 ```
 
-> **Nota importante:** hasta que exista `pyproject.toml` en este repositorio (se crea en la
-> épica del esqueleto ejecutable, junto con el `Dockerfile`, `docker-compose.yml` y
-> `requirements.txt`), estos comandos están documentados pero **todavía no son ejecutables**
-> en este repositorio: no hay archivo de configuración que `ruff` pueda leer ni código Python
-> sobre el cual correr. Apenas exista, esta sección queda vigente sin cambios.
+A eso se le sumaron dos excepciones acotadas, cada una con su motivo comentado en el archivo:
+
+- `migrations/*` ignora `F401`, `E501`, `N999`, `I001` y `UP035`, porque esos archivos los
+  genera Alembic con su propia plantilla y su nombre empieza con un número.
+- `app/core/errores.py` ignora `N818`, que exige que las excepciones terminen en `Error`. El
+  código del proyecto está en español y la palabra va adelante: `ErrorDeAplicacion`, no
+  `AplicacionError`.
+
+Los mismos comandos se pueden correr dentro del contenedor, si preferís no usar el entorno
+local o si querés verificar exactamente lo que ve la imagen. Es equivalente: las dos rutas
+instalan el mismo `uv.lock`.
+
+```bash
+docker compose exec web ruff format .
+docker compose exec web ruff format --check .
+docker compose exec web ruff check .
+```
 
 ## 5. Nomenclatura de ramas
 
@@ -198,24 +248,6 @@ Reglas del equipo:
 - La rama debe estar al día con `main` antes de mergear (rebase o merge de `main` en la rama
   si quedó desactualizada).
 
-Estas reglas se hacen cumplir con un **Ruleset de GitHub** sobre `main`. Procedimiento paso a
-paso para configurarlo (lo aplica Joaquín desde la web del repositorio):
-
-1. Ir a **Settings → Rules → Rulesets → New branch ruleset**.
-2. Ponerle un nombre descriptivo, por ejemplo `Proteccion de main`.
-3. **Enforcement status:** `Active`.
-4. **Target branches:** incluir `main` (usar la opción "Include default branch").
-5. Activar **Require a pull request before merging**, con:
-   - **Required approvals:** `1`.
-   - **Dismiss stale pull request approvals when new commits are pushed:** activado.
-6. Activar **Block force pushes**.
-7. Activar **Restrict deletions**.
-8. Guardar el ruleset.
-
-> En cuenta GitHub Free, los Rulesets están disponibles tanto en repositorios públicos como
-> privados, así que esto no depende de pasar el repo a público. Se recomienda adjuntar una
-> captura de pantalla del ruleset activo (la lista de reglas tildadas) como evidencia para la
-> cátedra.
 
 ## 7. Commits y vínculo con el backlog
 
@@ -228,25 +260,6 @@ Formato:
 <tipo>(<alcance>): <descripcion en minuscula> (HU-XX)
 ```
 
-Ejemplo: `feat(ofertas): agrega formulario de carga de ofertas (HU-07)`
-
-Cuando el asunto queda largo y no entra la referencia a la HU, se agrega al pie del mensaje:
-
-```
-feat(adjudicacion): implementa regla de desempate por antiguedad de la ONG
-
-Refs: HU-15
-```
-
-| Mensaje | Válido / Inválido | Motivo |
-|---|---|---|
-| `feat(ofertas): agrega formulario de carga de ofertas (HU-07)` | Válido | tipo, alcance, descripción en minúscula, HU referenciada |
-| `fix(emergencias): corrige calculo de ventana de convocatoria (HU-09)` | Válido | corrige un defecto, referencia clara |
-| `docs(contributing): documenta flujo de ramas y commits (HU-01)` | Válido | cambio documental con HU |
-| `Agrego formulario de ofertas` | Inválido | sin tipo, sin alcance, sin HU, empieza en mayúscula |
-| `feat: cambios varios` | Inválido | no describe qué cambia ni referencia una HU |
-| `fix(ofertas): FIX BUG (HU-07)` | Inválido | descripción no está en minúscula ni es descriptiva |
-
 ## 8. Flujo de trabajo de punta a punta
 
 ```bash
@@ -255,49 +268,33 @@ git checkout main
 git pull origin main
 git checkout -b feat/HU-07-formulario-ofertas
 
-# 2. Trabajar y commitear con Conventional Commits
-git add app/modulos/ofertas/
+# 2. Sincronizar el entorno local por si cambiaron las dependencias en main
+cd backend && uv sync --locked && cd ..
+
+# 3. Trabajar y commitear con Conventional Commits
+git add backend/app/modulos/ofertas/
 git commit -m "feat(ofertas): agrega formulario de carga de ofertas (HU-07)"
 
-# 3. Verificar formato y linter antes de subir (cuando exista pyproject.toml)
-ruff format --check .
-ruff check .
+# 4. Verificar formato, linter y tests antes de subir
+cd backend
+uv run ruff format --check .
+uv run ruff check .
+uv run pytest
+cd ..
 
-# 4. Subir la rama y abrir el Pull Request
+# 5. Subir la rama y abrir el Pull Request
 git push -u origin feat/HU-07-formulario-ofertas
 # El PR se abre desde la web de GitHub: el link aparece en la salida del push.
 # Si tenes instalada la CLI de GitHub, equivale a:
 # gh pr create --base main --title "feat(ofertas): formulario de carga de ofertas (HU-07)" \
 #   --body "Resuelve HU-07. Ver checklist en la plantilla de PR."
 
-# 5. Atender comentarios de revisión con commits adicionales en la misma rama
+# 6. Atender comentarios de revisión con commits adicionales en la misma rama
 git commit -m "fix(ofertas): ajusta validacion de cantidad segun revision (HU-07)"
 git push
 
-# 6. Una vez aprobado, mergear por squash desde GitHub y borrar la rama
+# 7. Una vez aprobado, mergear por squash desde GitHub y borrar la rama
 git checkout main
 git pull origin main
 git branch -d feat/HU-07-formulario-ofertas
 ```
-
-## 9. Guía de revisión
-
-Qué mirar al revisar un PR de un compañero:
-- Que resuelve la HU que dice resolver y nada más (alcance acotado).
-- Que respeta la nomenclatura de la sección 2 y la estructura de carpetas de la sección 3.
-- Que no rompe la regla de dependencia entre módulos (un módulo no importa modelos ni hace
-  consultas directas a las tablas de otro módulo, ni llama a Bonita/API Nacional fuera de
-  `core/integraciones/`).
-- Que los commits siguen Conventional Commits y referencian la HU.
-- Que no se commitean secretos, archivos `.env` ni credenciales.
-- Que la documentación relacionada (README, ADR, docs de contratos) queda actualizada si el
-  cambio la afecta.
-
-Plazo de respuesta: cada integrante se compromete a dar una primera revisión dentro de las
-**24 horas** de abierto el PR (o de la última actualización pedida), para no bloquear al resto
-del equipo dado el calendario de entregas.
-
-Cómo resolver desacuerdos: se discute primero en los comentarios del PR con argumentos
-técnicos concretos; si no hay acuerdo en un intercambio razonable, se lleva el punto a una
-reunión breve del equipo (o al canal de chat del grupo) y decide por mayoría simple, dejando
-constancia de la decisión en el propio PR antes de mergear.
