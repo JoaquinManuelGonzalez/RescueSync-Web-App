@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-
 VARIABLES_MINIMAS: dict[str, str] = {
     "SECRET_KEY": "clave-de-prueba",
     "POSTGRES_USER": "prueba",
