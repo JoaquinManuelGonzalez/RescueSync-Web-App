@@ -16,12 +16,13 @@ import enum
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.extensiones import db
 
 if TYPE_CHECKING:
+    from app.modulos.emergencias.modelos import Item
     from app.modulos.usuarios_roles.modelos import Usuario
 
 
@@ -80,6 +81,112 @@ class Organizacion(db.Model):
         back_populates="organizacion",
         lazy="select",
     )
+    inventario: Mapped[Inventario | None] = relationship(
+        "Inventario",
+        back_populates="organizacion",
+        uselist=False,
+        lazy="select",
+    )
 
     def __repr__(self) -> str:
         return f"<Organizacion id={self.id} nombre={self.nombre!r} tipo={self.tipo.value}>"
+
+
+class Inventario(db.Model):
+    """Stock de recursos disponibles de una organización.
+
+    Cada organización puede tener uno o más inventarios (ej: un almacén
+    central y depósitos regionales). La disponibilidad real de cada recurso
+    se desglosa en InventarioItem.
+    """
+
+    __tablename__ = "inventario"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organizacion_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("organizacion.id"),
+        nullable=False,
+        unique=True,  # 1:1 — cada organizacion tiene un solo inventario
+    )
+    nombre: Mapped[str] = mapped_column(
+        String(150),
+        nullable=False,
+        comment="Nombre descriptivo del inventario (ej: 'Depósito central', 'Almacén norte').",
+    )
+    descripcion: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    creado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    # --- relaciones -----------------------------------------------------------
+    organizacion: Mapped[Organizacion] = relationship(
+        "Organizacion",
+        back_populates="inventarios",
+        lazy="select",
+    )
+    items: Mapped[list[InventarioItem]] = relationship(
+        "InventarioItem",
+        back_populates="inventario",
+        lazy="select",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<Inventario id={self.id} organizacion_id={self.organizacion_id}"
+            f" nombre={self.nombre!r}>"
+        )
+
+
+class InventarioItem(db.Model):
+    """Cantidad disponible de un Item en un Inventario.
+
+    Tabla asociativa entre Inventario e Item con la cantidad actual en stock.
+    """
+
+    __tablename__ = "inventario_item"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    inventario_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("inventario.id"),
+        nullable=False,
+        index=True,
+    )
+    item_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("item.id"),
+        nullable=False,
+        index=True,
+    )
+    cantidad_disponible: Mapped[float] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        default=0,
+        comment="Cantidad del item actualmente disponible en el inventario.",
+    )
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    # --- relaciones -----------------------------------------------------------
+    inventario: Mapped[Inventario] = relationship(
+        "Inventario",
+        back_populates="items",
+        lazy="select",
+    )
+    item: Mapped[Item] = relationship(
+        "Item",
+        lazy="select",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<InventarioItem inventario_id={self.inventario_id}"
+            f" item_id={self.item_id} cantidad={self.cantidad_disponible}>"
+        )
