@@ -220,8 +220,9 @@ de lectura (`indicadores`) que implementa el dashboard.
 
 | Módulo | Responsabilidad | Tablas principales que gobierna |
 |---|---|---|
-| `core` | Configuración por variables de entorno, envelope de errores, logging estructurado, seguridad (autenticación, RBAC), clientes HTTP de integración con Bonita y con la API Nacional | No posee tablas de dominio propias |
-| `usuarios_roles` | Alta y gestión de cuentas, asignación de los cuatro roles RBAC, autenticación y sesión | `usuarios`, `roles`, `usuarios_roles` |
+| `core` | Configuración por variables de entorno, envelope de errores, logging estructurado, seguridad (hasheo de contraseñas, sesión, catálogo de permisos y decoradores de RBAC), clientes HTTP de integración con Bonita y con la API Nacional | No posee tablas de dominio propias |
+| `organizaciones` | Alta y gestión de municipios, ONGs y el centro coordinador, e inventario de cada organización | `organizacion`, `inventario`, `inventario_item` |
+| `usuarios_roles` | Alta y gestión de cuentas, asignación de los cinco roles RBAC, autenticación y sesión | `usuarios`, `roles`, `permisos`, `usuario_rol`, `rol_permiso` |
 | `emergencias` | Registro del alta de una emergencia y disparo de la instanciación del proceso en Bonita | `emergencias` |
 | `lotes_convocatorias` | Definición de lotes de necesidad y apertura de convocatorias con su ventana temporal de ofertas | `lotes_de_necesidad`, `convocatorias` |
 | `ofertas` | Carga de ofertas de ayuda por parte de las ONGs dentro de la ventana vigente, y exposición del endpoint consolidado que consume Bonita (integración 4) | `ofertas_de_ayuda` |
@@ -256,11 +257,13 @@ módulos es la principal defensa contra el acoplamiento cruzado. Se definen cinc
 2. **Todo módulo puede depender de `core`; `core` no depende de ningún módulo.** `core` es la
    única capa verdaderamente transversal.
 3. **Un módulo solo puede depender de los módulos anteriores en la cadena del proceso:**
-   `usuarios_roles` ← `emergencias` ← `lotes_convocatorias` ← `ofertas` ← `adjudicacion` ←
-   `ejecucion_cierre` ← `indicadores`. Las dependencias hacia adelante están prohibidas, de modo
-   que el grafo de dependencias entre módulos queda acíclico. `indicadores` cierra la cadena: al
-   ser de solo lectura puede apoyarse en los servicios de todos los módulos anteriores, y ningún
-   módulo puede depender de él.
+   `organizaciones` ← `usuarios_roles` ← `emergencias` ← `lotes_convocatorias` ← `ofertas` ←
+   `adjudicacion` ← `ejecucion_cierre` ← `indicadores`. Las dependencias hacia adelante están
+   prohibidas, de modo que el grafo de dependencias entre módulos queda acíclico.
+   `organizaciones` abre la cadena porque sin una organización cargada no se puede crear un
+   operador municipal ni un representante de ONG, así que `usuarios_roles` depende de él y no al
+   revés. `indicadores` la cierra: al ser de solo lectura puede apoyarse en los servicios de
+   todos los módulos anteriores, y ningún módulo puede depender de él.
 4. **Un módulo nunca importa modelos ni consultas de otro módulo:** toda comunicación entre
    módulos pasa únicamente por la capa `servicios` del módulo del que se depende.
 5. **Ningún módulo hace HTTP directo a Bonita ni a la API Nacional:** toda llamada externa pasa
@@ -270,6 +273,7 @@ módulos es la principal defensa contra el acoplamiento cruzado. Se definen cinc
 flowchart LR
     CORE["core"]
 
+    ORG["organizaciones"]
     UR["usuarios_roles"]
     EM["emergencias"]
     LC["lotes_convocatorias"]
@@ -278,6 +282,7 @@ flowchart LR
     EC["ejecucion_cierre"]
     IND["indicadores<br/>(dashboard, solo lectura)"]
 
+    ORG --> CORE
     UR --> CORE
     EM --> CORE
     LC --> CORE
@@ -286,6 +291,7 @@ flowchart LR
     EC --> CORE
     IND --> CORE
 
+    UR --> ORG
     EM --> UR
     LC --> EM
     OF --> LC
@@ -295,8 +301,8 @@ flowchart LR
 ```
 
 Todas las flechas apuntan desde el módulo que depende hacia el módulo del que depende; no existe
-ningún ciclo. `core` recibe dependencias de los seis módulos de dominio y no depende de ninguno de
-ellos. La cadena `usuarios_roles → emergencias → lotes_convocatorias → ofertas → adjudicacion →
-ejecucion_cierre → indicadores` refleja el orden real del proceso BPMN: cada módulo solo puede
-apoyarse en los que le preceden, nunca en los que le siguen. `indicadores` queda al final
+ningún ciclo. `core` recibe dependencias de todos los módulos de dominio y no depende de ninguno de
+ellos. La cadena `organizaciones → usuarios_roles → emergencias → lotes_convocatorias → ofertas →
+adjudicacion → ejecucion_cierre → indicadores` refleja el orden real del proceso BPMN: cada módulo
+solo puede apoyarse en los que le preceden, nunca en los que le siguen. `indicadores` queda al final
 justamente porque necesita leer de todos los demás y nadie necesita leer de él.
