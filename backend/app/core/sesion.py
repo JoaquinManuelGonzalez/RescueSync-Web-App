@@ -27,16 +27,33 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from flask import Flask, session
+from flask import Flask, request, session
 from flask_login import current_user, login_user, logout_user
 
-from app.core.errores import NoAutenticado
+from app.core.errores import ConflictoDeEstado, NoAutenticado
 from app.core.logging import id_correlacion_actual, registrar_evento
 from app.extensiones import login_manager
 
 CLAVE_ULTIMA_ACTIVIDAD = "ultima_actividad"
 
 MENSAJE_SESION_EXPIRADA = "Tu sesión expiró por inactividad. Volvé a iniciar sesión."
+MENSAJE_DEBE_CAMBIAR_CONTRASENA = (
+    "Tenés que cambiar tu contraseña antes de poder operar en el sistema."
+)
+
+# Lo unico que puede hacer una cuenta marcada con `debe_cambiar_contrasena`: cambiarla, cerrar
+# la sesion, ver quien es y pedir el token CSRF que necesita para el POST del cambio. Son
+# nombres de endpoint, no imports: `core` sigue sin depender de ningun modulo de dominio.
+ENDPOINTS_PERMITIDOS_SIN_CAMBIAR_CONTRASENA = frozenset(
+    {
+        "sesion.cambiar_contrasena",
+        "sesion.cerrar",
+        "sesion.actual",
+        "sesion.token_csrf",
+        "salud.consultar_salud",
+        "static",
+    }
+)
 
 
 def _ahora() -> datetime:
@@ -126,3 +143,18 @@ def configurar_sesion(app: Flask) -> None:
 
         session.permanent = True
         marcar_actividad()
+
+    @app.before_request
+    def _verificar_cambio_de_contrasena() -> None:
+        """Encierra a la cuenta en el cambio de contrasena hasta que lo haga.
+
+        Sin esto, la marca `debe_cambiar_contrasena` seria decorativa: el usuario ingresaria
+        con la clave que eligio el administrador y podria operar con ella indefinidamente.
+        """
+        if not current_user.is_authenticated:
+            return
+        if not getattr(current_user, "debe_cambiar_contrasena", False):
+            return
+        if request.endpoint in ENDPOINTS_PERMITIDOS_SIN_CAMBIAR_CONTRASENA:
+            return
+        raise ConflictoDeEstado(MENSAJE_DEBE_CAMBIAR_CONTRASENA)
