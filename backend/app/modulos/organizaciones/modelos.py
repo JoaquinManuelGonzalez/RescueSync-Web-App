@@ -124,7 +124,7 @@ class Inventario(db.Model):
     # --- relaciones -----------------------------------------------------------
     organizacion: Mapped[Organizacion] = relationship(
         "Organizacion",
-        back_populates="inventarios",
+        back_populates="inventario",
         lazy="select",
     )
     items: Mapped[list[InventarioItem]] = relationship(
