@@ -116,4 +116,8 @@ def importar_seeders() -> None:
     """
     # from app.modulos.usuarios_roles import semillas as _usuarios_roles  # noqa: F401
     # from app.modulos.emergencias import semillas as _emergencias  # noqa: F401
+
+    from app.modulos.organizaciones import semillas as _organizaciones
+    from app.modulos.usuarios_roles import semillas as _usuarios_roles
+
     return
