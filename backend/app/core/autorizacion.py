@@ -8,8 +8,8 @@ una pantalla nueva no escribe logica de autorizacion, **declara su permiso**.
     def crear():
         ...
 
-Eso es todo. El permiso ya existe en `usuarios_roles/constantes.py`, ya esta asignado a los
-roles que corresponde y ya viajo a la base con `flask seed`.
+Eso es todo. El permiso ya existe en `core/permisos.py`, ya esta asignado a los roles que
+corresponde y ya viajo a la base con `flask seed`.
 
 Por que vive en `core` y no en `usuarios_roles`
 -----------------------------------------------
@@ -18,9 +18,10 @@ RBAC), y la seccion 5 dice que todo modulo puede depender de `core` pero `core` 
 los decoradores vivieran en `usuarios_roles`, `organizaciones` -que esta antes en la cadena de
 dependencias- no podria proteger sus rutas sin crear una dependencia hacia adelante.
 
-Por eso este modulo no importa ni los modelos ni el catalogo de permisos: trabaja contra la
-interfaz que expone el usuario autenticado (`tiene_permiso`, `tiene_rol`) y recibe los codigos
-como strings. Quien llama es el que importa la constante.
+Este modulo tampoco importa el catalogo de `core/permisos.py`: recibe los codigos como strings
+y trabaja contra la interfaz que expone el usuario autenticado (`tiene_permiso`, `tiene_rol`).
+Quien llama es el que importa la constante, y un modulo podria declarar un permiso propio sin
+tocar el mecanismo.
 
 Que NO resuelve
 ---------------

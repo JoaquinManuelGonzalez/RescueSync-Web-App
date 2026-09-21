@@ -8,13 +8,13 @@ Implementa el Control de Accesos Basado en Roles (RBAC) con tablas relacionales:
   - `usuario_rol`: tabla asociativa M:N entre usuarios y roles.
   - `rol_permiso`: tabla asociativa M:N entre roles y permisos.
 
-Los nombres de rol y los códigos de permiso no se escriben acá: viven en `constantes.py`, que
-es la fuente de verdad, y llegan a la base por `semillas.py`.
+Los nombres de rol y los códigos de permiso no se escriben acá: viven en `app/core/permisos.py`,
+que es la fuente de verdad, y llegan a la base por `semillas.py`.
 
 Relación con Organización
 --------------------------
 Un Usuario puede pertenecer a una Organización (Municipio, ONG o Centro Coordinador). Qué rol
-exige qué tipo de organización lo decide `constantes.TIPO_DE_ORGANIZACION_POR_ROL` y lo hace
+exige qué tipo de organización lo decide `permisos.TIPO_DE_ORGANIZACION_POR_ROL` y lo hace
 cumplir `servicios.py`: no es una restricción de base porque cruza tres tablas.
 """
 
@@ -38,8 +38,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.permisos import NombreRol
 from app.extensiones import db
-from app.modulos.usuarios_roles.constantes import NombreRol
 
 if TYPE_CHECKING:
     from app.modulos.organizaciones.modelos import Organizacion
@@ -159,7 +159,7 @@ class Usuario(UserMixin, db.Model):
     nombre_completo: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Obligatoria para operador_municipal, coordinador_regional y representante_ong; NULL para
-    # auditor y administrador. La regla completa vive en constantes.TIPO_DE_ORGANIZACION_POR_ROL.
+    # auditor y administrador. La regla completa vive en core.permisos.
     organizacion_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("organizacion.id"),

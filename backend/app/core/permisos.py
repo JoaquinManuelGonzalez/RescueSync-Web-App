@@ -4,6 +4,18 @@ Este modulo es la **fuente de verdad en codigo** del RBAC. La base de datos no d
 `app/modulos/usuarios_roles/semillas.py` la llena a partir de lo que se declara aca, y
 `flask seed` puede volver a correr las veces que haga falta sin duplicar ni desincronizar.
 
+Por que vive en `core` y no en `usuarios_roles`
+-----------------------------------------------
+Porque lo necesitan todos los modulos, incluido `organizaciones`, que esta *antes* que
+`usuarios_roles` en la cadena de dependencias (sin organizacion cargada no se puede crear un
+operador municipal). Si el catalogo viviera en `usuarios_roles`, declarar un permiso en una
+ruta de `organizaciones` seria una dependencia hacia adelante, prohibida por la regla 3 de
+docs/arquitectura/componentes.md. En `core` lo importa cualquiera sin invertir nada.
+
+`core/autorizacion.py` es el mecanismo que hace cumplir estos permisos; este modulo es el
+vocabulario. Estan separados a proposito: el decorador recibe strings y no conoce el catalogo,
+de modo que un modulo podria declarar un permiso propio sin tocar el mecanismo.
+
 Por que un catalogo y no literales sueltos
 ------------------------------------------
 La hipotesis de beneficio de la epica es que agregar una pantalla nueva no requiera codigo de
