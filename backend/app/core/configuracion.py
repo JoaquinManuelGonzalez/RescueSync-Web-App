@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from datetime import timedelta
 
 from app.core.logging import configurar_logging, registrar_evento
 
@@ -41,6 +42,11 @@ VARIABLES_OPCIONALES: dict[str, str] = {
     "API_NACIONAL_TIMEOUT_S": "10",
     "API_NACIONAL_REINTENTOS": "2",
     "API_NACIONAL_BACKOFF_MS": "500",
+    # Control de acceso (EPIC-17). Ver docs/contratos/autorizacion.md.
+    "SESION_MINUTOS_INACTIVIDAD": "30",
+    "LOGIN_MAX_INTENTOS": "5",
+    "LOGIN_BLOQUEO_MINUTOS": "15",
+    "CONTRASENA_LONGITUD_MINIMA": "10",
 }
 
 
@@ -51,6 +57,10 @@ VARIABLES_ENTERAS: tuple[str, ...] = (
     "API_NACIONAL_TIMEOUT_S",
     "API_NACIONAL_REINTENTOS",
     "API_NACIONAL_BACKOFF_MS",
+    "SESION_MINUTOS_INACTIVIDAD",
+    "LOGIN_MAX_INTENTOS",
+    "LOGIN_BLOQUEO_MINUTOS",
+    "CONTRASENA_LONGITUD_MINIMA",
 )
 
 MENSAJE_FALTANTE = "Falta la variable de entorno obligatoria: {nombre}"
@@ -111,7 +121,36 @@ def construir_configuracion() -> dict[str, object]:
     }
     valores["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+    valores.update(_configuracion_de_sesion(valores))
+
     return valores
+
+
+def _configuracion_de_sesion(valores: dict[str, object]) -> dict[str, object]:
+    """Claves de sesion que Flask lee con nombre propio, derivadas del contrato.
+
+    La expiracion por inactividad a los 30 minutos es un requisito no funcional de la epica de
+    identidad, y se cumple del lado del servidor, no del navegador: Flask le pasa
+    PERMANENT_SESSION_LIFETIME como `max_age` al deserializar la cookie firmada, de modo que una
+    cookie vencida se rechaza aunque el cliente la siga enviando.
+    SESSION_REFRESH_EACH_REQUEST la reemite en cada respuesta, y eso la vuelve deslizante por
+    inactividad en lugar de absoluta desde el ingreso.
+    """
+    minutos = int(str(valores["SESION_MINUTOS_INACTIVIDAD"]))
+    return {
+        "PERMANENT_SESSION_LIFETIME": timedelta(minutes=minutos),
+        "SESSION_REFRESH_EACH_REQUEST": True,
+        "SESSION_COOKIE_HTTPONLY": True,
+        # Lax y no Strict: Strict rompe el retorno desde un enlace externo, y no hace falta
+        # porque no existe ninguna operacion sensible por GET.
+        "SESSION_COOKIE_SAMESITE": "Lax",
+        # En local no hay HTTPS: marcar la cookie como Secure la volveria invisible y nadie
+        # podria iniciar sesion. En cualquier otro entorno se exige.
+        "SESSION_COOKIE_SECURE": valores["APP_ENV"] != "local",
+        # El "recordarme" de Flask-Login sobrevive al cierre del navegador y contradice la
+        # expiracion por inactividad, asi que se deshabilita en toda la aplicacion.
+        "REMEMBER_COOKIE_DURATION": timedelta(0),
+    }
 
 
 def validar_o_terminar() -> None:
