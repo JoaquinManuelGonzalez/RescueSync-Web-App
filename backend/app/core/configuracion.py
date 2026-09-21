@@ -47,6 +47,9 @@ VARIABLES_OPCIONALES: dict[str, str] = {
     "LOGIN_MAX_INTENTOS": "5",
     "LOGIN_BLOQUEO_MINUTOS": "15",
     "CONTRASENA_LONGITUD_MINIMA": "10",
+    # Contrasena de las cuentas de demostracion que carga `flask seed`. No es un secreto de
+    # produccion: el entorno sembrado es descartable y las cuentas son de prueba.
+    "SEMILLA_CONTRASENA": "RescueSync.2026",
 }
 
 

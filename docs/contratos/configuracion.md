@@ -37,6 +37,7 @@ raíz del repositorio.
 | `LOGIN_MAX_INTENTOS` | N | `5` | Intentos de ingreso fallidos consecutivos antes de bloquear temporalmente la cuenta | Todos |
 | `LOGIN_BLOQUEO_MINUTOS` | N | `15` | Duración, en minutos, del bloqueo temporal de la cuenta | Todos |
 | `CONTRASENA_LONGITUD_MINIMA` | N | `10` | Longitud mínima exigida a las contraseñas al crearlas o cambiarlas | Todos |
+| `SEMILLA_CONTRASENA` | N | `RescueSync.2026` | Contraseña de las cuentas de demostración que carga `flask seed`. No es un secreto de producción: el entorno sembrado es descartable | Local y evaluación |
 
 ## 2. Arranque en modo "fail fast"
 
