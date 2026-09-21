@@ -24,7 +24,6 @@ def consultar_salud():
     try:
         db.session.execute(text("SELECT 1"))
     except SQLAlchemyError as error:
-
         db.session.rollback()
         registrar_evento(
             logging.ERROR,

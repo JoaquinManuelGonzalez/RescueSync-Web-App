@@ -6,6 +6,7 @@ y `formularios.py`.
 
 from __future__ import annotations
 
+# pyrefly: ignore [missing-import]
 from flask import Flask
 
 
@@ -16,11 +17,15 @@ def importar_modelos() -> None:
     nadie importa es invisible para `flask db migrate --autogenerate`. Por eso los imports
     se centralizan aca y los llama `migrations/env.py`.
 
-    Todavia vacio: el esquema de dominio esta en definicion.
+    El orden importa: los modulos sin FK van primero para que SQLAlchemy resuelva
+    las relaciones en el orden correcto.
     """
-    # from app.modulos.usuarios_roles import modelos as _usuarios_roles  # noqa: F401
-    # from app.modulos.emergencias import modelos as _emergencias  # noqa: F401
-    return
+    from app.modulos.convocatorias import modelos as _convocatorias  # noqa: F401
+    from app.modulos.emergencias import modelos as _emergencias  # noqa: F401
+    from app.modulos.ofertas import modelos as _ofertas  # noqa: F401
+    from app.modulos.organizaciones import modelos as _organizaciones  # noqa: F401
+    from app.modulos.usuarios_roles import modelos as _usuarios_roles  # noqa: F401
+    # from app.modulos.adjudicaciones import modelos as _adjudicaciones  # noqa: F401
 
 
 def registrar_modulos(app: Flask) -> None:

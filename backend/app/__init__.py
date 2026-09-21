@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+# pyrefly: ignore [missing-import]
 from flask import Flask
 
 from app.cli import registrar_comandos
@@ -20,7 +21,6 @@ from app.core.logging import configurar_logging, registrar_middleware
 from app.core.salud import blueprint_salud
 from app.extensiones import db, login_manager, migrate
 from app.modulos import registrar_modulos
-
 
 RAIZ_FRONTEND = Path(__file__).resolve().parent.parent.parent / "frontend"
 DIRECTORIO_PLANTILLAS = RAIZ_FRONTEND / "plantillas"
