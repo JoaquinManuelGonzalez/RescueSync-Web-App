@@ -14,6 +14,7 @@ from typing import Any
 from flask import Flask
 
 from app.cli import registrar_comandos
+from app.core.autorizacion import registrar_globales_de_plantilla
 from app.core.configuracion import construir_configuracion, validar_o_terminar
 from app.core.errores import registrar_manejadores
 from app.core.inicio import blueprint_inicio
@@ -72,6 +73,7 @@ def create_app(overrides: dict[str, Any] | None = None) -> Flask:
     registrar_middleware(app)
     registrar_manejadores(app)
     registrar_comandos(app)
+    registrar_globales_de_plantilla(app)
 
     app.register_blueprint(blueprint_salud)
     app.register_blueprint(blueprint_inicio)
