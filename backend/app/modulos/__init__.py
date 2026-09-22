@@ -31,11 +31,18 @@ def importar_modelos() -> None:
 def registrar_modulos(app: Flask) -> None:
     """Registra el blueprint de cada modulo de dominio en la aplicacion.
 
-    Todavia vacio: los modulos se crean en las epicas de dominio. El orden de registro no
-    importa; el que importa es el de la cadena de dependencias de arriba.
+    El orden de registro no importa; el que importa es el de la cadena de dependencias de
+    arriba. Los modulos que todavia no tienen rutas se van sumando en sus propias epicas.
     """
     importar_modelos()
 
-    # from app.modulos.usuarios_roles.rutas import blueprint as usuarios_roles
-    # app.register_blueprint(usuarios_roles, url_prefix="/usuarios-roles")
-    return
+    from app.modulos.organizaciones.rutas import blueprint_organizaciones
+    from app.modulos.usuarios_roles.rutas import blueprint_sesion, blueprint_usuarios
+    from app.modulos.usuarios_roles.servicios import instalar_cargador_de_sesion
+
+    # Reemplaza el cargador de respaldo de la app factory por el que resuelve usuarios reales.
+    instalar_cargador_de_sesion()
+
+    app.register_blueprint(blueprint_sesion, url_prefix="/sesion")
+    app.register_blueprint(blueprint_usuarios, url_prefix="/usuarios")
+    app.register_blueprint(blueprint_organizaciones, url_prefix="/organizaciones")
