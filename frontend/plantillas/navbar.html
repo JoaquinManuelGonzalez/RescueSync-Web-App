@@ -1,0 +1,265 @@
+<header class="bg-white">
+    <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 lg:px-8" aria-label="Global">
+      <div class="flex lg:flex-1">
+        <a href="" class="-m-1.5 p-1.5">
+          <span class="sr-only">RescueSync</span>
+          <img class="h-10 w-auto" src="{{ url_for('static', filename='img/RescueSync.png') }}" alt="">
+        </a>
+      </div>
+      <div class="flex lg:hidden">
+        <button  id="menu-button" type="button" class="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-gray-700">
+          <span class="sr-only">Open main menu</span>
+          <svg class="size-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+        </button>
+      </div>
+      
+      <div class="hidden lg:flex lg:flex-1 lg:justify-end items-center gap-3">
+        <!-- NOTIFICACIONES -->
+        <div class="relative">
+
+            <button
+                id="notifications-button"
+                type="button"
+                class="relative flex size-11 items-center justify-center rounded-full text-primario hover:bg-acento/50 active:bg-acento transition-colors"
+                aria-expanded="false"
+                aria-haspopup="true"
+            >
+                <span class="sr-only">Abrir notificaciones</span>
+
+                <svg
+                    class="size-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke-width="1.2"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M14.857 17.082a23.848 23.848 0 0 1-5.714 0
+                          M18 10.5c0-3.314-1.343-6-3-6
+                          h-6c-1.657 0-3 2.686-3 6
+                          0 3.315-1.5 4.5-3 5.25
+                          h18c-1.5-.75-3-1.935-3-5.25Z"
+                    />
+                    <path d="M12.0009 5C13.4331 5 14.8066 5.50571 15.8193 6.40589C16.832 7.30606 17.4009 8.52696 17.4009 9.8C17.4009 11.7691 17.846 13.2436 18.4232 14.3279C19.1606 15.7133 19.5293 16.406 19.5088 16.5642C19.4849 16.7489 19.4544 16.7997 19.3026 16.9075C19.1725 17 18.5254 17 17.2311 17H6.77066C5.47638 17 4.82925 17 4.69916 16.9075C4.54741 16.7997 4.51692 16.7489 4.493 16.5642C4.47249 16.406 4.8412 15.7133 5.57863 14.3279C6.1558 13.2436 6.60089 11.7691 6.60089 9.8C6.60089 8.52696 7.16982 7.30606 8.18251 6.40589C9.19521 5.50571 10.5687 5 12.0009 5ZM12.0009 5V3M9.35489 20C10.0611 20.6233 10.9888 21.0016 12.0049 21.0016C13.0209 21.0016 13.9486 20.6233 14.6549 20" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+
+                <span
+                    class="absolute right-2 top-2 size-2.5 rounded-full bg-red-600 ring-2 ring-white"
+                ></span>
+            </button>
+
+            <!-- Dropdown de notificaciones -->
+            <div
+                id="notifications-menu"
+                class="absolute right-0 top-full mt-2 w-80 rounded-xl bg-white shadow-lg ring-1 ring-black/5 hidden z-20 animate-fade-down"
+            >
+
+                <div class="flex px-4 py-3 border-b border-gray-100">
+                    <h3 class="text-sm font-semibold text-gray-900">
+                        Notificaciones
+                    </h3>
+
+                </div>
+
+                <!-- Notificación no leída -->
+                <a href="" class="flex gap-3 px-4 py-3 bg-acento/30 hover:bg-acento/50 transition-colors">
+                    <span class="mt-1.5 size-2 shrink-0 rounded-full bg-primario"></span>
+
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">
+                            Nueva emergencia registrada
+                        </p>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Hace 5 minutos
+                        </p>
+                    </div>
+                </a>
+
+                <div class="border-t border-gray-100"></div>
+
+                <!-- Notificación leída -->
+                <a href="" class="flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                    <span class="mt-1.5 size-2 shrink-0"></span>
+
+                    <div>
+                        <p class="text-sm text-gray-600">
+                            Emergencia actualizada
+                        </p>
+                        <p class="mt-1 text-xs text-gray-400">
+                            Hace 20 minutos
+                        </p>
+                    </div>
+                </a>
+
+                <div class="border-t border-gray-100"></div>
+
+                <a
+                    href=""
+                    class="block px-4 py-3 text-center text-sm font-semibold text-primario hover:bg-acento/30 transition-colors rounded-b-xl"
+                >
+                    Ver todas las notificaciones
+                </a>
+
+            </div>
+        </div>
+
+
+        <!-- PERFIL -->
+        <div class="relative">
+
+            <button
+                id="profile-button"
+                type="button"
+                class="flex size-11 items-center justify-center rounded-full text-primario hover:bg-acento/50 active:bg-acento transition-colors"
+                aria-expanded="false"
+                aria-haspopup="true"
+            >
+                <span class="sr-only">Abrir menú de perfil</span>
+
+                <svg
+                    class="size-7"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke-width="1.8"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M15.75 6a3.75 3.75 0 1 1-7.5 0
+                          3.75 3.75 0 0 1 7.5 0ZM4.5
+                          20.25a8.25 8.25 0 0 1 15 0"
+                    />
+                </svg>
+            </button>
+
+            <!-- Dropdown de perfil -->
+            <div
+                id="profile-menu"
+                class="absolute right-0 top-full mt-2 w-48 rounded-xl bg-white py-2 shadow-lg ring-1 ring-black/5 hidden z-20 animate-fade-down"
+            >
+
+                <a
+                    href=""
+                    class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-acento/40 transition-colors"
+                >
+                    Mi perfil
+                </a>
+
+                <div class="my-1 border-t border-gray-100"></div>
+
+                <a
+                    href=""
+                    class="block px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                    Cerrar sesión
+                </a>
+
+            </div>
+        </div>
+
+    </div>
+    </nav>
+  </header>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const menuButton = document.querySelector("#menu-button");
+      const menu = document.createElement("div");
+      menu.className = "lg:hidden bg-white p-6 absolute top-16 left-0 right-0 shadow-md hidden z-10 animate-fade-down";
+      menu.innerHTML = `
+
+        <a
+            href=""
+            class="block rounded-lg px-3 py-3 text-sm font-semibold text-gray-700 hover:bg-acento/40 transition-colors"
+        >
+            Mi perfil
+        </a>
+
+        <div class="my-2 border-t border-gray-100"></div>
+
+        <a
+            href=""
+            class="block rounded-lg px-3 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+        >
+            Cerrar sesión
+        </a>
+      `;
+  
+      // Insertar el menú después de la barra de navegación
+      document.querySelector("nav").after(menu);
+  
+      menuButton.addEventListener("click", () => {
+        menu.classList.toggle("hidden");
+      });
+  
+      // Cierra el menú si se hace clic fuera
+      document.addEventListener("click", (e) => {
+        if (!menu.contains(e.target) && !menuButton.contains(e.target)) {
+          menu.classList.add("hidden");
+        }
+      });
+    });
+  </script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+
+        const notificationsButton = document.querySelector("#notifications-button");
+        const notificationsMenu = document.querySelector("#notifications-menu");
+
+        const profileButton = document.querySelector("#profile-button");
+        const profileMenu = document.querySelector("#profile-menu");
+
+
+        // Notificaciones
+        notificationsButton.addEventListener("click", (e) => {
+            e.stopPropagation();
+
+            notificationsMenu.classList.toggle("hidden");
+
+            // Cerrar perfil si estaba abierto
+            profileMenu.classList.add("hidden");
+
+            notificationsButton.setAttribute(
+                "aria-expanded",
+                !notificationsMenu.classList.contains("hidden")
+            );
+
+            profileButton.setAttribute("aria-expanded", "false");
+        });
+
+
+        // Perfil
+        profileButton.addEventListener("click", (e) => {
+            e.stopPropagation();
+
+            profileMenu.classList.toggle("hidden");
+
+            // Cerrar notificaciones si estaban abiertas
+            notificationsMenu.classList.add("hidden");
+
+            profileButton.setAttribute(
+                "aria-expanded",
+                !profileMenu.classList.contains("hidden")
+            );
+
+            notificationsButton.setAttribute("aria-expanded", "false");
+        });
+
+
+        // Cerrar dropdowns haciendo click afuera
+        document.addEventListener("click", () => {
+            notificationsMenu.classList.add("hidden");
+            profileMenu.classList.add("hidden");
+
+            notificationsButton.setAttribute("aria-expanded", "false");
+            profileButton.setAttribute("aria-expanded", "false");
+        });
+
+    });
+  </script>
