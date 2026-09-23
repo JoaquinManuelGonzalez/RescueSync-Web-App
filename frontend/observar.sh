@@ -14,13 +14,13 @@ mkdir -p "$(dirname "$SALIDA")"
 echo "[tailwind] compilacion inicial..."
 tailwindcss -i "$ENTRADA" -o "$SALIDA"
 touch "$MARCA"
-echo "[tailwind] vigilando ./src y ./plantillas cada ${INTERVALO}s"
+echo "[tailwind] vigilando ./src, ./plantillas y ./estaticos/js cada ${INTERVALO}s"
 
 while true; do
     sleep "$INTERVALO"
 
     # -newer detecta tanto archivos modificados como archivos nuevos.
-    if [ -n "$(find ./src ./plantillas -type f -newer "$MARCA" 2>/dev/null)" ]; then
+    if [ -n "$(find ./src ./plantillas ./estaticos/js -type f -newer "$MARCA" 2>/dev/null)" ]; then
         touch "$MARCA"
         echo "[tailwind] cambio detectado, recompilando..."
         tailwindcss -i "$ENTRADA" -o "$SALIDA"
