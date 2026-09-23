@@ -1,12 +1,11 @@
 """Puente entre la entrada HTTP y los formularios WTForms.
 
 RescueSync es una aplicacion renderizada en el servidor: la entrada natural de un formulario
-es `request.form`. Pero la plantilla de la interfaz todavia no existe, asi que las rutas se
-ejercitan por JSON (con `curl` y en los tests).
+es `request.form`, que es lo que manda la interfaz. Las mismas rutas se ejercitan tambien por
+JSON (con `curl` y en los tests).
 
-Este modulo hace que **la misma ruta y el mismo formulario** sirvan a los dos casos. Cuando
-llegue la plantilla no hay que tocar ni el formulario ni el servicio: la ruta suma su
-`render_template(...)` y sigue leyendo del mismo lugar.
+Este modulo hace que **la misma ruta y el mismo formulario** sirvan a los dos casos. Como
+responder a cada uno lo resuelve `app.core.interfaz.vistas`.
 
 Sobre CSRF
 ----------
@@ -19,7 +18,7 @@ y dejarla encendida haria fallar todo POST JSON con un error de validacion engan
 
 from __future__ import annotations
 
-from flask import request
+from flask import g, request
 from flask_wtf import FlaskForm
 
 from app.core.errores import SolicitudInvalida
@@ -30,13 +29,20 @@ def construir_formulario[T: FlaskForm](clase_formulario: type[T]) -> T:
 
     - `Content-Type: application/json` -> se alimenta del objeto JSON.
     - Cualquier otro caso -> comportamiento normal de Flask-WTF sobre `request.form`.
+
+    El formulario queda ademas en `g.formulario_en_curso`: si la vista falla, el manejador de
+    errores lo vuelve a mostrar con sus mensajes (ver
+    `app.core.interfaz.vistas.plantilla_ante_error`).
     """
     if request.is_json:
         datos = request.get_json(silent=True)
         if not isinstance(datos, dict):
             datos = {}
-        return clase_formulario(data=datos, meta={"csrf": False})
-    return clase_formulario()
+        formulario = clase_formulario(data=datos, meta={"csrf": False})
+    else:
+        formulario = clase_formulario()
+    g.formulario_en_curso = formulario
+    return formulario
 
 
 def errores_de(formulario: FlaskForm) -> dict[str, list[str]]:

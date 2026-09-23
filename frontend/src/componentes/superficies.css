@@ -1,0 +1,57 @@
+/* Paginas, tarjetas y bloques de contenido. */
+
+@layer components {
+    .pagina {
+        @apply mx-auto w-full max-w-6xl px-4 py-8 sm:px-6;
+    }
+
+    .pagina-angosta {
+        @apply mx-auto w-full max-w-3xl px-4 py-8 sm:px-6;
+    }
+
+    .pagina-encabezado {
+        @apply mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between;
+    }
+
+    .pagina-titulo {
+        @apply text-2xl font-bold text-gray-900;
+    }
+
+    .pagina-subtitulo {
+        @apply mt-1 text-sm text-gray-500;
+    }
+
+    .tarjeta {
+        @apply overflow-hidden rounded-xl bg-superficie shadow-sm ring-1 ring-gray-200;
+    }
+
+    .tarjeta-cuerpo {
+        @apply p-6;
+    }
+
+    .tarjeta-titulo {
+        @apply mb-4 text-lg font-semibold text-gray-900;
+    }
+
+    .icono-circular {
+        @apply inline-flex items-center justify-center rounded-full bg-acento p-4 text-primario;
+    }
+
+    .estado-vacio {
+        @apply flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-300 bg-superficie
+            px-6 py-12 text-center;
+    }
+
+    /* Lista de pares "dato - valor" de las pantallas de detalle. */
+    .lista-datos {
+        @apply grid gap-x-6 gap-y-4 sm:grid-cols-2;
+    }
+
+    .lista-datos dt {
+        @apply text-xs font-semibold uppercase tracking-wide text-gray-500;
+    }
+
+    .lista-datos dd {
+        @apply mt-1 text-sm text-gray-900;
+    }
+}

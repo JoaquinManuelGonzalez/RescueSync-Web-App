@@ -220,7 +220,7 @@ de lectura (`indicadores`) que implementa el dashboard.
 
 | Módulo | Responsabilidad | Tablas principales que gobierna |
 |---|---|---|
-| `core` | Configuración por variables de entorno, envelope de errores, logging estructurado, seguridad (hasheo de contraseñas, sesión, catálogo de permisos y decoradores de RBAC), clientes HTTP de integración con Bonita y con la API Nacional | No posee tablas de dominio propias |
+| `core` | Configuración por variables de entorno, envelope de errores, logging estructurado, identidad y control de accesos (`core/acceso/`: hasheo de contraseñas, sesión, catálogo de permisos y decoradores de RBAC), capa web compartida (`core/interfaz/`: respuesta HTML/JSON, formularios, menú, paginación), clientes HTTP de integración con Bonita y con la API Nacional | No posee tablas de dominio propias |
 | `organizaciones` | Alta y gestión de municipios, ONGs y el centro coordinador, e inventario de cada organización | `organizacion`, `inventario`, `inventario_item` |
 | `usuarios_roles` | Alta y gestión de cuentas, asignación de los cinco roles RBAC, autenticación y sesión | `usuarios`, `roles`, `permisos`, `usuario_rol`, `rol_permiso` |
 | `emergencias` | Registro del alta de una emergencia y disparo de la instanciación del proceso en Bonita | `emergencias` |
@@ -234,7 +234,11 @@ de lectura (`indicadores`) que implementa el dashboard.
 
 ```
 app/
-  core/            config, errores, logging, seguridad, integraciones/{bonita,api_nacional}
+  core/            configuracion, errores, logging, salud, semillas
+    acceso/        identidad y RBAC: autorizacion, permisos, seguridad, sesion
+    interfaz/      capa web compartida: vistas, formularios, navegacion, paginacion,
+                   plantillas, inicio
+    integraciones/ clientes HTTP: bonita, api_nacional
   modulos/
     usuarios_roles/  {rutas,servicios,modelos,formularios}.py, plantillas/
     emergencias/
@@ -245,6 +249,45 @@ app/
     indicadores/     dashboard: solo lectura, consume servicios de los modulos anteriores
   plantillas/      layout base y parciales compartidos
   estaticos/       css compilado por Tailwind, imágenes
+```
+
+### Organización interna de `core`
+
+`core` se agrupa en subpaquetes para que no crezca como una lista de archivos sueltos. Los
+subpaquetes no reexportan nada en su `__init__`: se importa siempre el módulo concreto.
+
+| Qué | Dónde |
+|---|---|
+| Configuración, errores, logging, `/health`, registro de seeders | `core/` (raíz) |
+| Identidad y control de accesos (RBAC) | `core/acceso/` |
+| Capa web compartida por las pantallas | `core/interfaz/` |
+| Clientes HTTP hacia Bonita y la API Nacional | `core/integraciones/` |
+
+Un archivo nuevo en `core` va en el subpaquete que corresponda; solo va en la raíz si es tan
+transversal como la configuración o el envelope de errores.
+
+**Rutas que cambiaron en la EPIC-17.** Una rama creada antes de esta reorganización que importe
+alguno de estos módulos tiene que actualizar sus imports al mergear (si no, falla al arrancar
+con un `ModuleNotFoundError` que nombra el módulo):
+
+| Antes | Ahora |
+|---|---|
+| `app.core.autorizacion` | `app.core.acceso.autorizacion` |
+| `app.core.permisos` | `app.core.acceso.permisos` |
+| `app.core.seguridad` | `app.core.acceso.seguridad` |
+| `app.core.sesion` | `app.core.acceso.sesion` |
+| `app.core.formularios` | `app.core.interfaz.formularios` |
+| `app.core.inicio` | `app.core.interfaz.inicio` |
+
+(`vistas`, `navegacion`, `paginacion` y `plantillas` nacieron directamente en `core/interfaz/`.)
+Para actualizar una rama de una vez, desde `backend/`:
+
+```bash
+grep -rlE "app\.core\.(autorizacion|permisos|seguridad|sesion|formularios|inicio)\b" app tests \
+  | xargs sed -i -E \
+    -e 's/app\.core\.(autorizacion|permisos|seguridad|sesion)\b/app.core.acceso.\1/g' \
+    -e 's/app\.core\.(formularios|inicio)\b/app.core.interfaz.\1/g'
+uv run ruff check --fix . && uv run ruff format .
 ```
 
 ## 5. Regla de dependencia permitida

@@ -54,7 +54,7 @@ El JWT del enunciado corresponde a la API Nacional, que es un componente aparte.
 
 **Permisos granulares y no un campo `rol` con opciones.** El decorador de cada ruta
 declara un permiso (`emergencias:crear`), no un rol. El vínculo rol → permiso vive en
-una tabla y se declara en un catálogo único, `app/core/permisos.py`. Así, agregar una
+una tabla y se declara en un catálogo único, `app/core/acceso/permisos.py`. Así, agregar una
 pantalla nueva no requiere código de autorización propio: solo declarar el permiso. Y
 cambiar qué puede hacer un perfil es editar la matriz y volver a correr `flask seed`, sin
 tocar una sola ruta. Es lo que la épica pide confirmar, y hay un test que lo verifica de
@@ -65,8 +65,8 @@ incluido `organizaciones`, que está *antes* que `usuarios_roles` en la cadena d
 dependencias (sin una organización cargada no se puede crear un operador municipal).
 Declarar un permiso desde `organizaciones` habría sido una dependencia hacia adelante,
 prohibida por la regla 3 de `docs/arquitectura/componentes.md`. El mecanismo que hace
-cumplir los permisos (`core/autorizacion.py`) queda separado del vocabulario
-(`core/permisos.py`): el decorador recibe strings y no conoce el catálogo.
+cumplir los permisos (`core/acceso/autorizacion.py`) queda separado del vocabulario
+(`core/acceso/permisos.py`): el decorador recibe strings y no conoce el catálogo.
 
 **Registro administrado y no autoservicio.** Todas las cuentas las crea un usuario con
 rol `administrador` desde `/usuarios`. Es la lectura estricta del mínimo privilegio que
@@ -134,12 +134,12 @@ ADR-002 y ADR-007, y esta épica se limita a usarlas.
 - **Toda ruta nueva declara su permiso** con `@requiere_permiso(...)`. Una ruta sin
   decorador es un error de revisión, salvo que sea deliberadamente pública y lo diga en
   su docstring.
-- **Todo permiso nuevo se agrega a `app/core/permisos.py`**, con su descripción y su
+- **Todo permiso nuevo se agrega a `app/core/acceso/permisos.py`**, con su descripción y su
   lugar en la matriz de roles. No se escriben códigos de permiso sueltos en las rutas.
 - **El alcance por organización se verifica en la capa de servicios**, con
   `usuarios_roles.servicios.verificar_alcance_de_organizacion()`. El decorador decide qué
   acción puede ejecutar un rol; no decide sobre qué filas.
-- **Ninguna contraseña se hashea fuera de `app/core/seguridad.py`**, y ninguna se
+- **Ninguna contraseña se hashea fuera de `app/core/acceso/seguridad.py`**, y ninguna se
   registra en los logs.
 - **El endpoint que consume Bonita (integración 4) se exime de CSRF** con
   `@csrf.exempt`: se autentica con `BONITA_CALLBACK_TOKEN` y no con sesión de usuario.

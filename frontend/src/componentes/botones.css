@@ -1,0 +1,51 @@
+/* Botones.
+ *
+ * Siempre se combinan: la base `.btn` con una variante (`.btn-primario`, `.btn-secundario`,
+ * `.btn-peligro`, `.btn-fantasma`) y, si hace falta, un modificador (`.btn-bloque`,
+ * `.btn-icono`). Sirven igual para <button> y para <a>.
+ */
+
+@layer components {
+    .btn {
+        @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm
+            font-semibold transition-all duration-150
+            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario
+            disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0;
+    }
+
+    .btn-primario {
+        @apply bg-primario text-white shadow-md
+            hover:-translate-y-0.5 hover:bg-primario-dark hover:shadow-primario/40
+            active:translate-y-0 active:bg-primario-light active:shadow-sm;
+    }
+
+    .btn-secundario {
+        @apply bg-superficie text-texto shadow-sm ring-1 ring-gray-300
+            hover:bg-acento/40 hover:ring-primario/30
+            active:bg-acento;
+    }
+
+    .btn-peligro {
+        @apply bg-superficie text-red-600 shadow-sm ring-1 ring-red-200
+            hover:bg-red-50
+            active:bg-red-100;
+    }
+
+    .btn-fantasma {
+        @apply text-primario
+            hover:bg-acento/50
+            active:bg-acento;
+    }
+
+    .btn-bloque {
+        @apply w-full;
+    }
+
+    .btn-icono {
+        @apply p-2;
+    }
+
+    .spinner {
+        @apply size-5 animate-spin;
+    }
+}

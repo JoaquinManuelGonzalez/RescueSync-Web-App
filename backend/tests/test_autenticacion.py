@@ -46,13 +46,29 @@ def test_contrasena_incorrecta_y_email_inexistente_dan_la_misma_respuesta(ingres
     assert _mensaje(con_contrasena_mala) == _mensaje(con_email_inexistente)
 
 
-def test_cuenta_desactivada_da_el_mismo_mensaje_generico(app, ingresar) -> None:
-    """Tampoco se revela que la cuenta existe pero está dada de baja."""
+def _desactivar_operador(app) -> None:
     with app.app_context():
         usuario = servicios.obtener_por_email(EMAIL_OPERADOR)
         servicios.cambiar_estado(usuario.id, activo=False)
 
+
+def test_cuenta_desactivada_con_la_contrasena_correcta_avisa_que_esta_desactivada(
+    app, ingresar
+) -> None:
+    """Quien sabe la contraseña es la dueña de la cuenta: se le explica por qué no entra."""
+    _desactivar_operador(app)
+
     respuesta = ingresar(EMAIL_OPERADOR)
+
+    assert respuesta.status_code == 403
+    assert _mensaje(respuesta) == servicios.MENSAJE_INACTIVA
+
+
+def test_cuenta_desactivada_con_otra_contrasena_da_el_mensaje_generico(app, ingresar) -> None:
+    """A quien no sabe la contraseña no se le revela que la cuenta existe y está de baja."""
+    _desactivar_operador(app)
+
+    respuesta = ingresar(EMAIL_OPERADOR, contrasena="no-es-esta-clave")
 
     assert respuesta.status_code == 401
     assert _mensaje(respuesta) == servicios.MENSAJE_CREDENCIALES
@@ -124,3 +140,9 @@ def test_el_formulario_de_ingreso_incompleto_detalla_los_campos(
     detalle = respuesta.get_json()["error"]["detalle"]
     assert "email" in detalle
     assert "contrasena" in detalle
+
+
+def test_el_bloqueo_dura_un_minuto_y_se_activa_a_los_cinco_intentos(app) -> None:
+    """Valores de demostracion: se bloquea rapido y se desbloquea solo en un minuto."""
+    assert app.config["LOGIN_MAX_INTENTOS"] == 5
+    assert app.config["LOGIN_BLOQUEO_MINUTOS"] == 1

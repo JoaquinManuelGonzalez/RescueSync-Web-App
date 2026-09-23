@@ -8,8 +8,8 @@ Implementa el Control de Accesos Basado en Roles (RBAC) con tablas relacionales:
   - `usuario_rol`: tabla asociativa M:N entre usuarios y roles.
   - `rol_permiso`: tabla asociativa M:N entre roles y permisos.
 
-Los nombres de rol y los códigos de permiso no se escriben acá: viven en `app/core/permisos.py`,
-que es la fuente de verdad, y llegan a la base por `semillas.py`.
+Los nombres de rol y los códigos de permiso no se escriben acá: viven en
+`app/core/acceso/permisos.py`, que es la fuente de verdad, y llegan a la base por `semillas.py`.
 
 Relación con Organización
 --------------------------
@@ -38,7 +38,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.permisos import NombreRol
+from app.core.acceso.permisos import NombreRol
 from app.extensiones import db
 
 if TYPE_CHECKING:
@@ -159,7 +159,7 @@ class Usuario(UserMixin, db.Model):
     nombre_completo: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Obligatoria para operador_municipal, coordinador_regional y representante_ong; NULL para
-    # auditor y administrador. La regla completa vive en core.permisos.
+    # auditor y administrador. La regla completa vive en core.acceso.permisos.
     organizacion_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("organizacion.id"),
@@ -255,7 +255,7 @@ class Usuario(UserMixin, db.Model):
     def permisos_efectivos(self) -> frozenset[str]:
         """Unión de los códigos de permiso de todos los roles del usuario.
 
-        Es lo que consultan los decoradores de `app.core.autorizacion` y lo que la interfaz
+        Es lo que consultan los decoradores de `app.core.acceso.autorizacion` y lo que la interfaz
         recibe para decidir qué mostrar. Se calcula sobre las relaciones ya cargadas: `roles`
         es `selectin` y `Rol.permisos` también, así que resolverlo cuesta dos consultas, no N.
         """

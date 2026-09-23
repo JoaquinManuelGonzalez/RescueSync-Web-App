@@ -68,8 +68,11 @@ backend/
     wsgi.py          objeto que levantan flask y gunicorn
     extensiones.py   db, migrate, login_manager
     cli.py           comandos `flask <comando>` (por ejemplo, seed)
-    core/            configuracion, errores, logging, seguridad, salud, semillas,
-                      integraciones/{bonita,api_nacional}  -> clientes HTTP compartidos
+    core/            configuracion, errores, logging, salud, semillas
+      acceso/          identidad y RBAC: autorizacion, permisos, seguridad, sesion
+      interfaz/        capa web compartida: vistas, formularios, navegacion, paginacion,
+                        plantillas, inicio
+      integraciones/   {bonita,api_nacional}  -> clientes HTTP compartidos
     modulos/
       usuarios_roles/    alta y gestion de usuarios, roles y permisos (RBAC)
       emergencias/       alta y ciclo de vida de una emergencia

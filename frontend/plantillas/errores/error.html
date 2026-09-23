@@ -1,0 +1,21 @@
+{#- Pagina de error para el navegador. La renderiza `core/errores.py` con el mismo codigo,
+    mensaje e id de correlacion que llevaria el envelope JSON. -#}
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta">
+  <div class="estado-vacio">
+    <span class="icono-circular">{{ icono(icono_nombre, "size-8") }}</span>
+    <p class="text-sm font-semibold text-primario">Error {{ estado }}</p>
+    <h1 class="pagina-titulo">{{ titulo }}</h1>
+    <p class="max-w-md text-gray-600">{{ mensaje }}</p>
+    {%- if id_correlacion %}
+    <p class="campo-ayuda">Código de referencia: <code>{{ id_correlacion }}</code></p>
+    {%- endif %}
+    <a class="btn btn-primario mt-2" href="{{ url_for('inicio.raiz') }}">{{ icono("inicio") }} Volver al inicio</a>
+  </div>
+</div>
+{% endblock %}

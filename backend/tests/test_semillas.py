@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from app.core.permisos import CATALOGO_DE_PERMISOS, PERMISOS_POR_ROL, NombreRol
+from app.core.acceso.permisos import CATALOGO_DE_PERMISOS, PERMISOS_POR_ROL, NombreRol
 from app.core.semillas import SEEDERS, importar_seeders
 from app.extensiones import db
 from app.modulos.organizaciones.modelos import Organizacion
@@ -80,7 +80,7 @@ def test_un_permiso_agregado_al_catalogo_se_asigna_al_volver_a_sembrar(
 def test_las_cuentas_sembradas_tienen_la_organizacion_que_su_rol_exige(
     app, base_de_datos: None
 ) -> None:
-    from app.core.permisos import TIPO_DE_ORGANIZACION_POR_ROL
+    from app.core.acceso.permisos import TIPO_DE_ORGANIZACION_POR_ROL
 
     with app.app_context():
         for usuario in db.session.execute(select(Usuario)).scalars():

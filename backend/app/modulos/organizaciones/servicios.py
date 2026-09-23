@@ -15,9 +15,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 
 from app.core.errores import ConflictoDeEstado, RecursoNoEncontrado, SolicitudInvalida
+from app.core.interfaz.paginacion import Pagina, paginar
 from app.extensiones import db
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
 
@@ -81,8 +82,26 @@ def listar(
     activo: bool | None = None,
     texto: str | None = None,
 ) -> list[Organizacion]:
-    """Listado filtrable. Los tres filtros son opcionales y se combinan con AND."""
-    consulta = select(Organizacion).order_by(Organizacion.nombre)
+    """Listado completo, sin paginar (por ejemplo, para un select). Filtros con AND."""
+    consulta = _consulta(tipo=tipo, activo=activo, texto=texto)
+    return list(db.session.execute(consulta).scalars())
+
+
+def paginar_listado(
+    *,
+    pagina: int,
+    por_pagina: int,
+    tipo: str | None = None,
+    activo: bool | None = None,
+    texto: str | None = None,
+) -> Pagina[Organizacion]:
+    """Una pagina del listado de organizaciones, con los mismos filtros que `listar`."""
+    return paginar(_consulta(tipo=tipo, activo=activo, texto=texto), pagina, por_pagina)
+
+
+def _consulta(*, tipo: str | None, activo: bool | None, texto: str | None) -> Select:
+    # El id desempata para que el orden sea total y la paginacion, estable.
+    consulta = select(Organizacion).order_by(Organizacion.nombre, Organizacion.id)
 
     if tipo is not None:
         consulta = consulta.where(Organizacion.tipo == convertir_tipo(tipo))
@@ -91,7 +110,7 @@ def listar(
     if texto:
         consulta = consulta.where(Organizacion.nombre.ilike(f"%{texto.strip()}%"))
 
-    return list(db.session.execute(consulta).scalars())
+    return consulta
 
 
 def _verificar_nombre_disponible(nombre: str, excluir_id: int | None = None) -> None:

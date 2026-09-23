@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.core.seguridad import (
+from app.core.acceso.seguridad import (
     es_email_valido,
     hashear_contrasena,
     verificar_contrasena,

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import secrets
 import sys
 
 import click
@@ -92,7 +91,8 @@ def registrar_comandos(app: Flask) -> None:
         autenticado como administrador, asi que la primera de esas cuentas no puede salir de
         ahi. Despues de esta, todas las demas se dan de alta desde el panel.
         """
-        from app.core.permisos import NombreRol
+        from app.core.acceso.permisos import NombreRol
+        from app.core.acceso.seguridad import generar_contrasena
         from app.modulos.usuarios_roles import servicios
 
         if not _base_migrada():
@@ -101,7 +101,7 @@ def registrar_comandos(app: Flask) -> None:
 
         generada = contrasena is None
         if generada:
-            contrasena = secrets.token_urlsafe(16)
+            contrasena = generar_contrasena()
 
         try:
             usuario = servicios.crear_usuario(
