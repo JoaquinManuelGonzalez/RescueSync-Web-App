@@ -1,0 +1,26 @@
+{#- Aviso fijo dentro de una pantalla (por ejemplo, "Cambio obligatorio" en el cambio de
+    contraseña). Mismos colores y borde que los mensajes flash de layout.html.
+
+    {% from "componentes/alertas.html" import alerta %}
+    {{ alerta("info", "Tenés que cambiar tu contraseña.", titulo="Cambio obligatorio") }}
+
+    Categorias: exito, error, advertencia, info (y sus nombres en ingles: success, warning).
+
+    Los mensajes flash NO usan este macro: los dibuja layout.html. -#}
+
+{% from "componentes/iconos.html" import icono %}
+
+{%- set _ALIAS = {"success": "exito", "warning": "advertencia", "message": "info"} -%}
+{%- set _TITULOS = {"exito": "Éxito", "error": "Error", "advertencia": "Advertencia", "info": "Información"} -%}
+
+{% macro alerta(categoria, mensaje, titulo=none) -%}
+{%- set tipo = _ALIAS.get(categoria, categoria) -%}
+{%- set tipo = tipo if tipo in _TITULOS else "info" -%}
+<div class="alerta alerta-{{ tipo }}" role="{{ 'alert' if tipo in ('error', 'advertencia') else 'status' }}">
+  {{ icono(tipo, "size-6 shrink-0") }}
+  <div class="alerta-cuerpo">
+    <p class="alerta-titulo">{{ titulo or _TITULOS[tipo] }}</p>
+    <p class="alerta-texto">{{ mensaje }}</p>
+  </div>
+</div>
+{%- endmacro %}

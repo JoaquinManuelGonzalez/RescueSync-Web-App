@@ -1,0 +1,129 @@
+{#- Macros de formulario.
+
+    {% from "componentes/formularios.html" import csrf, campo, boton_envio, formulario_accion %}
+
+    - csrf()                  campo oculto con el token CSRF. Va en TODO <form method="post">.
+    - campo(field, ...)       etiqueta + control + errores de un campo WTForms.
+    - boton_envio(texto, ...) boton de envio con spinner (el form lleva data-envio-con-carga).
+    - formulario_accion(...)  formulario POST de un solo boton: cerrar sesion, activar, desbloquear.
+    - filtro_texto / filtro_select: controles de la barra de filtros de un listado (GET).
+
+    Ninguna pantalla escribe un <input> con sus clases a mano: si algo no entra en estos macros,
+    se amplia el macro. -#}
+
+{% from "componentes/iconos.html" import icono, spinner %}
+
+{% macro csrf() -%}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{%- endmacro %}
+
+{#- `opciones` convierte el campo en un <select> armado aca: lista de tuplas (valor, texto) o
+    (valor, texto, tipo); el tipo viaja como data-tipo. Sirve para los IntegerField que en la
+    interfaz se eligen de una lista (organizacion_id). `vacia` agrega una primera opcion sin
+    valor. `atributos` se suman al control tal cual (data-*, autocomplete, type...).
+
+    Las contraseñas llevan siempre el boton para mostrarlas u ocultarlas. `requisitos=true` (en
+    las contraseñas nuevas) muestra la politica debajo del campo y la va marcando mientras se
+    escribe. -#}
+{% macro campo(field, opciones=none, vacia=none, ayuda=none, atributos={}, requisitos=false) -%}
+{%- set clases = "campo-control campo-control-invalido" if field.errors else "campo-control" -%}
+{%- set id_ayuda = field.id ~ "-ayuda" -%}
+{%- set id_error = field.id ~ "-error" -%}
+{%- set id_requisitos = field.id ~ "-requisitos" -%}
+{%- set es_contrasena = field.type == "PasswordField" -%}
+{%- set descripciones = ([id_ayuda] if ayuda else []) + ([id_requisitos] if requisitos else []) + ([id_error] if field.errors else []) -%}
+{%- set extra = dict(atributos) -%}
+{%- if descripciones %}{% set _ = extra.update({"aria-describedby": descripciones|join(" ")}) %}{% endif -%}
+{%- if field.errors %}{% set _ = extra.update({"aria-invalid": "true"}) %}{% endif -%}
+<div class="campo">
+  <label for="{{ field.id }}" class="campo-etiqueta">{{ field.label.text }}</label>
+  {%- if opciones is not none %}
+  {%- set actual = field.raw_data[0] if field.raw_data else field.data %}
+  <select id="{{ field.id }}" name="{{ field.name }}" class="{{ clases }}"{{ extra|xmlattr }}>
+    {%- if vacia is not none %}
+    <option value="">{{ vacia }}</option>
+    {%- endif %}
+    {%- for opcion in opciones %}
+    <option value="{{ opcion[0] }}"{% if opcion|length > 2 %} data-tipo="{{ opcion[2] }}"{% endif %}{% if actual is not none and opcion[0]|string == actual|string %} selected{% endif %}>{{ opcion[1] }}</option>
+    {%- endfor %}
+  </select>
+  {%- elif es_contrasena %}
+  <div class="campo-contrasena">
+    {{ field(class_=clases, **extra) }}
+    <button type="button" class="campo-contrasena-alternar" data-alternar-contrasena="{{ field.id }}" aria-controls="{{ field.id }}" aria-pressed="false" aria-label="Mostrar contraseña" title="Mostrar contraseña">
+      <span data-icono-mostrar>{{ icono("ver") }}</span>
+      <span data-icono-ocultar class="hidden">{{ icono("ocultar") }}</span>
+    </button>
+  </div>
+  {%- else %}
+  {{ field(class_=clases, **extra) }}
+  {%- endif %}
+  {%- if ayuda %}
+  <p id="{{ id_ayuda }}" class="campo-ayuda">{{ ayuda }}</p>
+  {%- endif %}
+  {%- if requisitos %}
+  <div id="{{ id_requisitos }}">
+    <p class="campo-ayuda mb-1">Tiene que tener:</p>
+    <ul class="requisitos-contrasena" data-requisitos-de="{{ field.id }}" data-longitud-minima="{{ config.CONTRASENA_LONGITUD_MINIMA }}">
+      {%- for clave, texto in requisitos_de_contrasena().items() %}
+      <li data-requisito="{{ clave }}">{{ icono("exito") }}<span>{{ texto }}</span></li>
+      {%- endfor %}
+    </ul>
+  </div>
+  {%- endif %}
+  {%- if field.errors %}
+  <div id="{{ id_error }}">
+    {%- for error in field.errors %}
+    <p class="campo-error">{{ error }}</p>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{% macro boton_envio(texto, texto_cargando=none, variante="primario", bloque=false, icono_nombre=none) -%}
+<button type="submit" class="btn btn-{{ variante }}{{ ' btn-bloque' if bloque }}" data-boton-envio{% if texto_cargando %} data-texto-cargando="{{ texto_cargando }}"{% endif %}>
+  {{ spinner() }}
+  {%- if icono_nombre %}{{ icono(icono_nombre) }}{% endif %}
+  <span data-texto>{{ texto }}</span>
+</button>
+{%- endmacro %}
+
+{#- `campos` son pares nombre -> valor que viajan ocultos. `confirmar` es el texto del modal de
+    confirmacion que se abre antes de enviar; `confirmar_titulo` y `confirmar_boton`, su titulo
+    y el texto del boton que confirma. `clase` reemplaza las clases del boton. `solo_icono` deja
+    el texto solo para lectores de pantalla. -#}
+{% macro formulario_accion(url, texto, variante="secundario", confirmar=none, campos={}, icono_nombre=none, clase=none, solo_icono=false, confirmar_titulo=none, confirmar_boton=none) -%}
+<form method="post" action="{{ url }}"
+  {%- if confirmar %} data-confirmar="{{ confirmar }}"{% endif %}
+  {%- if confirmar_titulo %} data-confirmar-titulo="{{ confirmar_titulo }}"{% endif %}
+  {%- if confirmar_boton %} data-confirmar-boton="{{ confirmar_boton }}"{% endif %}>
+  {{ csrf() }}
+  {%- for nombre, valor in campos.items() %}
+  <input type="hidden" name="{{ nombre }}" value="{{ valor }}">
+  {%- endfor %}
+  <button type="submit" class="{{ clase or 'btn btn-' ~ variante }}"{% if solo_icono %} title="{{ texto }}"{% endif %}>
+    {%- if icono_nombre %}{{ icono(icono_nombre) }}{% endif %}
+    <span{% if solo_icono %} class="sr-only"{% endif %}>{{ texto }}</span>
+  </button>
+</form>
+{%- endmacro %}
+
+{% macro filtro_texto(nombre, etiqueta, valor=none, placeholder="") -%}
+<div class="campo flex-1">
+  <label for="filtro-{{ nombre }}" class="campo-etiqueta">{{ etiqueta }}</label>
+  <input id="filtro-{{ nombre }}" name="{{ nombre }}" type="search" value="{{ valor or '' }}" placeholder="{{ placeholder }}" class="campo-control">
+</div>
+{%- endmacro %}
+
+{% macro filtro_select(nombre, etiqueta, opciones, seleccionado=none, todos="Todos") -%}
+<div class="campo campo-filtro">
+  <label for="filtro-{{ nombre }}" class="campo-etiqueta">{{ etiqueta }}</label>
+  <select id="filtro-{{ nombre }}" name="{{ nombre }}" class="campo-control">
+    <option value="">{{ todos }}</option>
+    {%- for opcion in opciones %}
+    <option value="{{ opcion[0] }}"{% if seleccionado is not none and opcion[0]|string == seleccionado|string %} selected{% endif %}>{{ opcion[1] }}</option>
+    {%- endfor %}
+  </select>
+</div>
+{%- endmacro %}

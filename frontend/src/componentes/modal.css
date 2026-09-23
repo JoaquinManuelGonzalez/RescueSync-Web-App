@@ -1,0 +1,50 @@
+/* Modal de confirmacion de la aplicacion (reemplaza al confirm() del navegador).
+ *
+ * Lo arma interfaz.js sobre un <dialog> nativo para los formularios con `data-confirmar`: el
+ * navegador aporta el fondo oscuro, el cierre con Esc y el foco atrapado dentro del modal.
+ */
+
+@layer components {
+    /* Se anima el <dialog> entero y no el panel de adentro: el navegador le pone
+     * `overflow: auto` a los dialogos modales, y un panel que se desplaza dentro de esa caja
+     * la desborda durante la animacion y hace aparecer una barra de scroll. */
+    .modal {
+        @apply m-auto w-[calc(100%-2rem)] max-w-md overflow-visible border-0 bg-transparent p-0 text-texto;
+    }
+
+    .modal[open] {
+        @apply animate-fade-up;
+    }
+
+    .modal::backdrop {
+        @apply bg-black/40;
+    }
+
+    .modal[open]::backdrop {
+        @apply animate-fade;
+    }
+
+    .modal-panel {
+        @apply rounded-xl bg-superficie p-6 shadow-xl ring-1 ring-black/5;
+    }
+
+    .modal-encabezado {
+        @apply flex items-start gap-4;
+    }
+
+    .modal-icono {
+        @apply flex size-10 shrink-0 items-center justify-center rounded-full bg-acento text-primario;
+    }
+
+    .modal-titulo {
+        @apply text-lg font-semibold text-gray-900;
+    }
+
+    .modal-texto {
+        @apply mt-1 text-sm text-gray-600;
+    }
+
+    .modal-acciones {
+        @apply mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end;
+    }
+}
