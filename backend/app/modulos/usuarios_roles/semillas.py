@@ -1,6 +1,6 @@
 """Datos semilla del RBAC: permisos, roles, vinculos y una cuenta por perfil.
 
-La fuente de verdad es `app/core/permisos.py`; este modulo se limita a volcarla a la base.
+La fuente de verdad es `app/core/acceso/permisos.py`; este modulo se limita a volcarla a la base.
 Volver a correr `flask seed` despues de agregar un permiso al catalogo crea el permiso que
 falta y **resincroniza la matriz de cada rol**, de modo que el catalogo en codigo y la base
 nunca se separan.
@@ -19,13 +19,13 @@ from __future__ import annotations
 from flask import current_app
 from sqlalchemy import select
 
-from app.core.permisos import (
+from app.core.acceso.permisos import (
     CATALOGO_DE_PERMISOS,
     DESCRIPCION_POR_ROL,
     PERMISOS_POR_ROL,
     NombreRol,
 )
-from app.core.seguridad import hashear_contrasena
+from app.core.acceso.seguridad import hashear_contrasena
 from app.core.semillas import ResultadoSemilla, obtener_o_crear, registrar
 from app.extensiones import db
 from app.modulos.organizaciones.modelos import Organizacion
@@ -60,7 +60,7 @@ def _contrasena_de_demostracion() -> str:
 
 @registrar("permisos")
 def sembrar_permisos() -> list[ResultadoSemilla]:
-    """Crea un permiso por cada entrada del catálogo de `core/permisos.py`."""
+    """Crea un permiso por cada entrada del catálogo de `core/acceso/permisos.py`."""
     resultado = ResultadoSemilla("permisos")
 
     for codigo, descripcion in CATALOGO_DE_PERMISOS.items():

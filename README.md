@@ -226,7 +226,7 @@ Estilo arquitectónico: **monolito modular** (ver `docs/adr/ADR-005-estilo-arqui
 .
 ├── backend/                     codigo Python de la aplicacion
 │   ├── app/
-│   │   ├── core/                 configuracion, errores, logging, seguridad, integraciones
+│   │   ├── core/                 configuracion, errores, logging; acceso/ (RBAC), interfaz/, integraciones/
 │   │   └── modulos/              un paquete por modulo de dominio
 │   ├── migrations/               migraciones de Alembic
 │   ├── tests/
@@ -306,7 +306,8 @@ Las que deja `docker compose exec web flask seed`. Todas comparten la contraseñ
 | Auditor / Directivo | `auditor@rescuesync.test` | — |
 | Administrador | `admin@rescuesync.test` | — |
 
-Las contraseñas se almacenan hasheadas con scrypt (`backend/app/core/seguridad.py`), nunca en
+Las contraseñas se almacenan hasheadas con scrypt
+(`backend/app/core/acceso/seguridad.py`), nunca en
 texto plano.
 
 En RescueSync **no hay autorregistro**: todas las cuentas las crea el administrador desde

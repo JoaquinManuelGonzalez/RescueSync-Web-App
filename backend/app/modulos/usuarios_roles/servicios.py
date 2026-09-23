@@ -22,6 +22,14 @@ from typing import Any
 from flask import current_app
 from sqlalchemy import Select, select
 
+from app.core.acceso.permisos import TIPO_DE_ORGANIZACION_POR_ROL, NombreRol
+from app.core.acceso.seguridad import (
+    hashear_contrasena,
+    mensaje_de_politica,
+    requisitos_incumplidos,
+    verificar_contrasena,
+)
+from app.core.acceso.sesion import registrar_cargador_de_usuario
 from app.core.errores import (
     ConflictoDeEstado,
     NoAutenticado,
@@ -29,16 +37,8 @@ from app.core.errores import (
     RecursoNoEncontrado,
     SolicitudInvalida,
 )
+from app.core.interfaz.paginacion import Pagina, paginar
 from app.core.logging import id_correlacion_actual, registrar_evento
-from app.core.paginacion import Pagina, paginar
-from app.core.permisos import TIPO_DE_ORGANIZACION_POR_ROL, NombreRol
-from app.core.seguridad import (
-    hashear_contrasena,
-    mensaje_de_politica,
-    requisitos_incumplidos,
-    verificar_contrasena,
-)
-from app.core.sesion import registrar_cargador_de_usuario
 from app.extensiones import db
 from app.modulos.organizaciones import servicios as servicios_de_organizaciones
 from app.modulos.usuarios_roles.modelos import Rol, Usuario
@@ -239,7 +239,7 @@ def _registrar_intento_fallido(usuario: Usuario) -> None:
 def autenticar(email: str, contrasena: str) -> Usuario:
     """Verifica las credenciales y devuelve la cuenta.
 
-    No abre la sesion: de eso se ocupa `app.core.sesion.iniciar_sesion()` desde la ruta. Asi
+    No abre la sesion: de eso se ocupa `app.core.acceso.sesion.iniciar_sesion()` desde la ruta. Asi
     esta funcion tambien sirve desde un comando de consola, donde no hay sesion que abrir.
 
     El orden de las verificaciones es parte de lo que la hace segura:
@@ -313,7 +313,7 @@ def autenticar(email: str, contrasena: str) -> Usuario:
 
 
 def validar_politica_de_contrasena(contrasena: str, campo: str = "contrasena") -> None:
-    """Exige la politica de `app.core.seguridad`: longitud minima, mayuscula, numero y
+    """Exige la politica de `app.core.acceso.seguridad`: longitud minima, mayuscula, numero y
     caracter especial.
 
     Se valida tambien acá, y no solo en el formulario, porque el seeder y la CLI crean cuentas
@@ -385,9 +385,9 @@ def verificar_coherencia_rol_organizacion(nombre_rol: str, organizacion_id: int 
 def verificar_alcance_de_organizacion(usuario: Usuario, organizacion_id: int | None) -> None:
     """Corta con 403 si el usuario no puede operar sobre datos de esa organizacion.
 
-    Es la contraparte de los decoradores de `core/autorizacion.py`: ellos deciden *que accion*
-    puede ejecutar un rol, esta funcion decide *sobre que filas*. Un operador municipal tiene
-    `emergencias:editar`, pero solo sobre las emergencias de su propio municipio.
+    Es la contraparte de los decoradores de `core/acceso/autorizacion.py`: ellos deciden *que
+    accion* puede ejecutar un rol, esta funcion decide *sobre que filas*. Un operador municipal
+    tiene `emergencias:editar`, pero solo sobre las emergencias de su propio municipio.
 
     La usan los modulos siguientes de la cadena (emergencias, ofertas, adjudicacion) antes de
     devolver o modificar cualquier fila que tenga dueno.

@@ -2,11 +2,11 @@
 
 Todas las rutas estan protegidas por permiso, no por rol: hoy el unico perfil que tiene los
 permisos `organizaciones:*` es el administrador, pero el dia que eso cambie no hay que tocar
-este archivo, solo la matriz de `app/core/permisos.py`.
+este archivo, solo la matriz de `app/core/acceso/permisos.py`.
 
 Formato de la respuesta
 -----------------------
-La misma ruta sirve a la interfaz y a los clientes JSON (ver `app.core.vistas`): los GET
+La misma ruta sirve a la interfaz y a los clientes JSON (ver `app.core.interfaz.vistas`): los GET
 devuelven la pantalla o el diccionario de `servicios.a_diccionario()`, y los POST responden
 con `redirigir(...)`. Si un formulario falla, `@plantilla_ante_error` lo vuelve a mostrar con
 sus errores. Ver docs/contratos/interfaz.md.
@@ -18,21 +18,21 @@ from typing import Any
 
 from flask import Blueprint, jsonify, render_template, request
 
-from app.core.autorizacion import requiere_permiso
-from app.core.formularios import (
-    construir_formulario,
-    parametro_booleano,
-    validar_o_fallar,
-)
-from app.core.navegacion import EntradaDeMenu
-from app.core.paginacion import parametros_de_paginacion
-from app.core.permisos import (
+from app.core.acceso.autorizacion import requiere_permiso
+from app.core.acceso.permisos import (
     ORGANIZACIONES_CAMBIAR_ESTADO,
     ORGANIZACIONES_CREAR,
     ORGANIZACIONES_EDITAR,
     ORGANIZACIONES_LISTAR,
 )
-from app.core.vistas import pide_json, plantilla_ante_error, redirigir
+from app.core.interfaz.formularios import (
+    construir_formulario,
+    parametro_booleano,
+    validar_o_fallar,
+)
+from app.core.interfaz.navegacion import EntradaDeMenu
+from app.core.interfaz.paginacion import parametros_de_paginacion
+from app.core.interfaz.vistas import pide_json, plantilla_ante_error, redirigir
 from app.modulos.organizaciones import servicios
 from app.modulos.organizaciones.formularios import (
     OPCIONES_DE_TIPO,

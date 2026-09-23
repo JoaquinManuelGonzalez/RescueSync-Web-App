@@ -5,7 +5,7 @@ estructura `{"error": {codigo, mensaje, detalle, timestamp, id_correlacion}}` pa
 JSON.
 
 Al navegador el envelope no le sirve: una persona no puede leer JSON crudo. Cuando la solicitud
-viene de la interfaz (ver `app.core.vistas.pide_json`), el mismo error se traduce a algo
+viene de la interfaz (ver `app.core.interfaz.vistas.pide_json`), el mismo error se traduce a algo
 navegable, siempre con el mismo codigo HTTP y el mismo mensaje:
 
 1. Si la vista declaro `@plantilla_ante_error`, se vuelve a mostrar su formulario con los
@@ -24,13 +24,13 @@ from flask import Flask, flash, jsonify, redirect, render_template, request, url
 from flask_wtf.csrf import CSRFError
 from werkzeug.exceptions import HTTPException
 
-from app.core.logging import id_correlacion_actual, marca_de_tiempo, registrar_evento
-from app.core.vistas import (
+from app.core.interfaz.vistas import (
     ADVERTENCIA,
     origen_propio,
     pide_json,
     respuesta_de_formulario_con_errores,
 )
+from app.core.logging import id_correlacion_actual, marca_de_tiempo, registrar_evento
 
 # Seccion 2 del contrato: correspondencia entre codigo HTTP y codigo interno.
 CODIGOS_POR_ESTADO: dict[int, str] = {

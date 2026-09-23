@@ -40,7 +40,7 @@
 <td class="tabla-celda"{% if etiqueta %} data-etiqueta="{{ etiqueta }}"{% endif %}>{{ caller() }}</td>
 {%- endmacro %}
 
-{#- `pagina` es un `app.core.paginacion.Pagina`. Los enlaces conservan los filtros de la URL. -#}
+{#- `pagina` es un `app.core.interfaz.paginacion.Pagina`. Los enlaces conservan los filtros de la URL. -#}
 {% macro paginacion(pagina) -%}
 {%- if pagina.total %}
 <nav class="paginacion" aria-label="Paginación">

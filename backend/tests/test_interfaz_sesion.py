@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from app.core.sesion import CLAVE_ULTIMA_ACTIVIDAD, MENSAJE_SESION_EXPIRADA
+from app.core.acceso.sesion import CLAVE_ULTIMA_ACTIVIDAD, MENSAJE_SESION_EXPIRADA
 from app.modulos.usuarios_roles.servicios import MENSAJE_CREDENCIALES, mensaje_de_bloqueo
 
 from .conftest import CABECERA_NAVEGADOR, EMAIL_ADMINISTRADOR, EMAIL_OPERADOR

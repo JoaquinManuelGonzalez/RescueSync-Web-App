@@ -88,7 +88,7 @@
     });
   }
 
-  // Misma regla que app/core/seguridad.py: la validacion de verdad es la del servidor.
+  // Misma regla que app/core/acceso/seguridad.py: la validacion de verdad es la del servidor.
   const VERIFICADORES_DE_REQUISITO = {
     longitud: (valor, minimo) => [...valor].length >= minimo,
     mayuscula: (valor) => /\p{Lu}/u.test(valor),

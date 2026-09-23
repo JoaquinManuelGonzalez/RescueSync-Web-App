@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.paginacion import Pagina
+from app.core.interfaz.paginacion import Pagina
 
 from .conftest import EMAIL_ADMINISTRADOR
 

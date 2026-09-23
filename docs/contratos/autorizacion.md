@@ -28,7 +28,7 @@ de base porque cruza tres tablas.
 ## 2. Los permisos
 
 Formato: **`recurso:accion`**, en minúsculas y sin tildes. El catálogo completo vive en
-`backend/app/core/permisos.py` y es la fuente de verdad; la base se llena a partir de él
+`backend/app/core/acceso/permisos.py` y es la fuente de verdad; la base se llena a partir de él
 con `flask seed`.
 
 | Recurso | Acciones |
@@ -76,8 +76,8 @@ El catálogo cubre todo el proceso BPMN y no solo la épica de identidad, para q
 Se declara el permiso. Eso es todo:
 
 ```python
-from app.core.autorizacion import requiere_permiso
-from app.core.permisos import EMERGENCIAS_CREAR
+from app.core.acceso.autorizacion import requiere_permiso
+from app.core.acceso.permisos import EMERGENCIAS_CREAR
 
 @blueprint_emergencias.post("/emergencias")
 @requiere_permiso(EMERGENCIAS_CREAR)
@@ -99,7 +99,7 @@ Si la pantalla tiene su tarjeta en el panel de inicio (`hub.html`), el módulo d
 su entrada **con el mismo permiso** junto a sus rutas, y `registrar_modulos()` la registra:
 
 ```python
-from app.core.navegacion import EntradaDeMenu
+from app.core.interfaz.navegacion import EntradaDeMenu
 
 ENTRADA_DE_MENU = EntradaDeMenu(
     endpoint="emergencias.listar",
@@ -116,7 +116,7 @@ Cómo se arma la plantilla de la pantalla está en [`interfaz.md`](./interfaz.md
 
 ### Para agregar un permiso nuevo
 
-1. Agregar la constante en `app/core/permisos.py`, en la sección de su recurso.
+1. Agregar la constante en `app/core/acceso/permisos.py`, en la sección de su recurso.
 2. Sumarla a `CATALOGO_DE_PERMISOS` con su descripción legible.
 3. Sumarla al `frozenset` de cada rol que deba tenerla en `PERMISOS_POR_ROL`.
 4. `docker compose exec web flask seed`.
@@ -182,12 +182,12 @@ con `BONITA_CALLBACK_TOKEN`, no con sesión de usuario.
 
 ## 6. Contraseñas y bloqueo
 
-- **Hash con sal**: `scrypt`, siempre a través de `app.core.seguridad.hashear_contrasena()`.
+- **Hash con sal**: `scrypt`, siempre a través de `app.core.acceso.seguridad.hashear_contrasena()`.
   Ninguna contraseña se hashea en otro lado ni se guarda en claro en ningún lugar.
 - **Política**: toda contraseña nueva (alta, restablecimiento o cambio propio) tiene que
   tener al menos `CONTRASENA_LONGITUD_MINIMA` caracteres (8 por defecto), **una mayúscula,
   un número y un carácter especial** (cualquier cosa que no sea letra, número ni espacio).
-  La regla está definida una sola vez, en `app/core/seguridad.py`, y se valida en el
+  La regla está definida una sola vez, en `app/core/acceso/seguridad.py`, y se valida en el
   formulario (el error dice exactamente qué falta) y otra vez en el servicio, porque el
   seeder y la CLI no pasan por WTForms. `flask crear-administrador` genera claves que ya la
   cumplen. **No se exige al ingresar**: una clave vieja tiene que poder entrar a cambiarse.
@@ -227,7 +227,7 @@ navegador, el mismo error traducido a una pantalla (ver `errores.md` sección 2.
 
 La distinción entre 401 y 403 importa: el 401 le dice al usuario que inicie sesión, el
 403 que no insista con esa cuenta. El `?next=` solo acepta rutas de la propia aplicación
-(`app.core.vistas.destino_seguro`): un `//otro.sitio` o un `https://…` se descartan y el
+(`app.core.interfaz.vistas.destino_seguro`): un `//otro.sitio` o un `https://…` se descartan y el
 ingreso lleva al panel.
 
 ## 8. Eventos de log

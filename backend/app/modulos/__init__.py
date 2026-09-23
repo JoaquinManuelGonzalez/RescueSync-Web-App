@@ -36,7 +36,7 @@ def registrar_modulos(app: Flask) -> None:
     """
     importar_modelos()
 
-    from app.core.navegacion import registrar_entrada
+    from app.core.interfaz.navegacion import registrar_entrada
     from app.modulos.organizaciones import rutas as rutas_de_organizaciones
     from app.modulos.usuarios_roles import rutas as rutas_de_usuarios_roles
     from app.modulos.usuarios_roles.servicios import instalar_cargador_de_sesion
@@ -51,6 +51,6 @@ def registrar_modulos(app: Flask) -> None:
     )
 
     # Cada pantalla con acceso propio en el menu declara su entrada junto a sus rutas; aca solo
-    # se registra. Quien la ve lo decide su permiso (ver app/core/navegacion.py).
+    # se registra. Quien la ve lo decide su permiso (ver app/core/interfaz/navegacion.py).
     registrar_entrada(app, rutas_de_usuarios_roles.ENTRADA_DE_MENU)
     registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU)

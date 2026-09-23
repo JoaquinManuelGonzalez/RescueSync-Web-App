@@ -25,7 +25,7 @@ from dataclasses import dataclass
 
 from flask import Flask, current_app
 
-from app.core.autorizacion import puede
+from app.core.acceso.autorizacion import puede
 
 CLAVE_DE_EXTENSION = "rescuesync.menu"
 

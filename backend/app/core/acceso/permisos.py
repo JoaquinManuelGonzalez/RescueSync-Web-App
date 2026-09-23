@@ -12,7 +12,7 @@ operador municipal). Si el catalogo viviera en `usuarios_roles`, declarar un per
 ruta de `organizaciones` seria una dependencia hacia adelante, prohibida por la regla 3 de
 docs/arquitectura/componentes.md. En `core` lo importa cualquiera sin invertir nada.
 
-`core/autorizacion.py` es el mecanismo que hace cumplir estos permisos; este modulo es el
+`core/acceso/autorizacion.py` es el mecanismo que hace cumplir estos permisos; este modulo es el
 vocabulario. Estan separados a proposito: el decorador recibe strings y no conoce el catalogo,
 de modo que un modulo podria declarar un permiso propio sin tocar el mecanismo.
 

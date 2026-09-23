@@ -19,7 +19,7 @@ tal cual**: una integración con el backend conecta esos templates, no los redis
 | `cargar_oferta.html`, `inventario.html`, `notificaciones.html`, `inicio.html` | Maquetas de épicas siguientes | Nada |
 
 Las categorías de los mensajes flash son las que dibuja `layout.html`: `success`, `error`,
-`warning` e `info` (constantes `EXITO`, `ERROR`, `ADVERTENCIA`, `INFO` de `app.core.vistas`).
+`warning` e `info` (constantes `EXITO`, `ERROR`, `ADVERTENCIA`, `INFO` de `app.core.interfaz.vistas`).
 Los mensajes se cierran con su cruz o solos: 5 s los de éxito, 6 s los informativos, 8 s las
 advertencias y 10 s los errores; con el mouse encima, la cuenta se detiene.
 
@@ -84,7 +84,7 @@ título (el `data-etiqueta` que pone el macro `celda()`). Todo listado va pagina
 {{ paginacion(pagina) }}
 ```
 
-### 2.3 Filtros y globales de Jinja (`backend/app/core/plantillas.py`)
+### 2.3 Filtros y globales de Jinja (`backend/app/core/interfaz/plantillas.py`)
 
 Filtros `etiqueta_rol`, `etiqueta_tipo_organizacion`, `descripcion_permiso` y `fecha`
 (`dd/mm/aaaa hh:mm`, hora de Argentina); globales `requisitos_de_contrasena()` y
@@ -137,7 +137,7 @@ entrada. El ícono se elige por nombre en el diccionario del propio `hub.html`, 
 `usuarios` usa `grupo` y `organizaciones` usa `banco`. Un ícono nuevo se agrega a ese
 diccionario.
 
-## 5. Cómo responde una ruta (`backend/app/core/vistas.py`)
+## 5. Cómo responde una ruta (`backend/app/core/interfaz/vistas.py`)
 
 La misma ruta atiende al navegador y a los clientes JSON; `pide_json()` decide según `Accept`
 ([`errores.md`](./errores.md) sección 2.1).
@@ -170,7 +170,7 @@ def editar(usuario_id: int):
   a su campo. Va **debajo** del decorador de autorización. La vista no escribe ningún `try`.
 - **Pantallas de formulario**: un GET con función propia (`formulario_de_alta`,
   `formulario_de_edicion`) sobre la misma URL que el POST que las procesa.
-- **Listados**: siempre paginados en la base con `app.core.paginacion`. El servicio arma la
+- **Listados**: siempre paginados en la base con `app.core.interfaz.paginacion`. El servicio arma la
   consulta con sus filtros y llama a `paginar()`; la ruta lee `?pagina=` y `?por_pagina=`
   (20 por defecto, 100 como tope) con `parametros_de_paginacion()`. El cliente JSON recibe
   los elementos y un objeto `paginacion` (`pagina`, `por_pagina`, `total`, `paginas`); la

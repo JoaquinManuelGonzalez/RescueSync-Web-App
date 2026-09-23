@@ -14,15 +14,15 @@ from typing import Any
 from flask import Flask
 
 from app.cli import registrar_comandos
-from app.core.autorizacion import registrar_globales_de_plantilla
+from app.core.acceso.autorizacion import registrar_globales_de_plantilla
+from app.core.acceso.sesion import configurar_sesion
 from app.core.configuracion import construir_configuracion, validar_o_terminar
 from app.core.errores import registrar_manejadores
-from app.core.inicio import blueprint_inicio
+from app.core.interfaz.inicio import blueprint_inicio
+from app.core.interfaz.navegacion import registrar_navegacion
+from app.core.interfaz.plantillas import registrar_filtros
 from app.core.logging import configurar_logging, registrar_middleware
-from app.core.navegacion import registrar_navegacion
-from app.core.plantillas import registrar_filtros
 from app.core.salud import blueprint_salud
-from app.core.sesion import configurar_sesion
 from app.extensiones import csrf, db, login_manager, migrate
 from app.modulos import registrar_modulos
 
@@ -36,7 +36,7 @@ def _registrar_cargador_de_respaldo() -> None:
 
     Sin un `user_loader` registrado, Flask-Login levanta una excepcion la primera vez que
     alguien toca `current_user`. `usuarios_roles` instala el cargador real al registrarse
-    (ver `app.core.sesion.registrar_cargador_de_usuario`); este queda como red de seguridad
+    (ver `app.core.acceso.sesion.registrar_cargador_de_usuario`); este queda como red de seguridad
     para el caso en que la aplicacion se construya sin los modulos de dominio, por ejemplo en
     un test que solo ejercite `core`.
     """

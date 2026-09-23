@@ -11,8 +11,8 @@ from flask_wtf import FlaskForm
 from wtforms import BooleanField, SelectField, StringField
 from wtforms.validators import InputRequired, Length, Optional, Regexp
 
-from app.core.permisos import ETIQUETA_POR_TIPO_DE_ORGANIZACION
-from app.core.seguridad import MENSAJE_EMAIL_INVALIDO, PATRON_DE_EMAIL
+from app.core.acceso.permisos import ETIQUETA_POR_TIPO_DE_ORGANIZACION
+from app.core.acceso.seguridad import MENSAJE_EMAIL_INVALIDO, PATRON_DE_EMAIL
 from app.modulos.organizaciones.modelos import TipoOrganizacion
 
 # (valor, texto): el valor es el que viaja y se valida; el texto es el que ve la persona.

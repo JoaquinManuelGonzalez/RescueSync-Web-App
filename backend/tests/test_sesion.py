@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from app.core.sesion import CLAVE_ULTIMA_ACTIVIDAD, MENSAJE_SESION_EXPIRADA
+from app.core.acceso.sesion import CLAVE_ULTIMA_ACTIVIDAD, MENSAJE_SESION_EXPIRADA
 
 from .conftest import EMAIL_OPERADOR
 

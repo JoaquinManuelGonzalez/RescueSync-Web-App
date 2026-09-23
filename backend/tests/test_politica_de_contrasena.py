@@ -1,6 +1,6 @@
 """Politica de contrasena: 8 caracteres, una mayuscula, un numero y un caracter especial.
 
-La regla vive en `app/core/seguridad.py` y la exigen tres caminos: el formulario, el servicio
+La regla vive en `app/core/acceso/seguridad.py` y la exigen tres caminos: el formulario, el servicio
 (para el seeder y la CLI, que no pasan por WTForms) y, como ayuda visual, la interfaz.
 """
 
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.seguridad import (
+from app.core.acceso.seguridad import (
     REQUISITO_ESPECIAL,
     REQUISITO_LONGITUD,
     REQUISITO_MAYUSCULA,

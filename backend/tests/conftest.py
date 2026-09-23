@@ -50,7 +50,7 @@ EMAIL_POR_ROL: dict[str, str] = {
 
 
 # Lo que manda un navegador al navegar: HTML antes que cualquier otra cosa. Con esta cabecera
-# la aplicacion responde con pantallas; sin ella, con JSON (ver app/core/vistas.py).
+# la aplicacion responde con pantallas; sin ella, con JSON (ver app/core/interfaz/vistas.py).
 CABECERA_NAVEGADOR = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 
 _PATRON_META_CSRF = re.compile(r'<meta name="csrf-token" content="([^"]+)"')

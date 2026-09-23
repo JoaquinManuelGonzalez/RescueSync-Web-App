@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.navegacion import EntradaDeMenu, registrar_entrada
-from app.core.permisos import EMERGENCIAS_CREAR, PERMISOS_POR_ROL, NombreRol
+from app.core.acceso.permisos import EMERGENCIAS_CREAR, PERMISOS_POR_ROL, NombreRol
+from app.core.interfaz.navegacion import EntradaDeMenu, registrar_entrada
 
 from .conftest import EMAIL_OPERADOR, EMAIL_POR_ROL, EMAIL_REPRESENTANTE
 

@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
+from app.core.acceso.permisos import NombreRol
 from app.core.errores import ConflictoDeEstado, PermisoDenegado, SolicitudInvalida
-from app.core.permisos import NombreRol
 from app.modulos.organizaciones import servicios as organizaciones
 from app.modulos.usuarios_roles import servicios
 

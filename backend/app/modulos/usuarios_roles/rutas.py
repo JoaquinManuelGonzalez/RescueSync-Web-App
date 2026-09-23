@@ -9,7 +9,7 @@ Dos blueprints, porque son dos areas distintas y conviene que las URLs lo digan:
 
 Formato de la respuesta
 -----------------------
-La misma ruta sirve a la interfaz y a los clientes JSON (ver `app.core.vistas`):
+La misma ruta sirve a la interfaz y a los clientes JSON (ver `app.core.interfaz.vistas`):
 
 - Los GET devuelven la pantalla al navegador y el diccionario de `servicios.a_diccionario()`
   o `servicios.describir_sesion()` a un cliente JSON. Ese diccionario es tambien el contexto
@@ -29,16 +29,8 @@ from typing import Any
 from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 
-from app.core.autorizacion import requiere_autenticacion, requiere_permiso
-from app.core.formularios import (
-    construir_formulario,
-    parametro_booleano,
-    parametro_entero,
-    validar_o_fallar,
-)
-from app.core.navegacion import EntradaDeMenu
-from app.core.paginacion import parametros_de_paginacion
-from app.core.permisos import (
+from app.core.acceso.autorizacion import requiere_autenticacion, requiere_permiso
+from app.core.acceso.permisos import (
     TIPO_DE_ORGANIZACION_POR_ROL,
     USUARIOS_CAMBIAR_ESTADO,
     USUARIOS_CREAR,
@@ -46,8 +38,16 @@ from app.core.permisos import (
     USUARIOS_LISTAR,
     USUARIOS_RESTABLECER_CONTRASENA,
 )
-from app.core.sesion import cerrar_sesion, iniciar_sesion
-from app.core.vistas import destino_seguro, pide_json, plantilla_ante_error, redirigir
+from app.core.acceso.sesion import cerrar_sesion, iniciar_sesion
+from app.core.interfaz.formularios import (
+    construir_formulario,
+    parametro_booleano,
+    parametro_entero,
+    validar_o_fallar,
+)
+from app.core.interfaz.navegacion import EntradaDeMenu
+from app.core.interfaz.paginacion import parametros_de_paginacion
+from app.core.interfaz.vistas import destino_seguro, pide_json, plantilla_ante_error, redirigir
 from app.modulos.organizaciones import servicios as servicios_de_organizaciones
 from app.modulos.usuarios_roles import servicios
 from app.modulos.usuarios_roles.formularios import (

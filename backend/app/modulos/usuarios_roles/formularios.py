@@ -18,8 +18,8 @@ from flask_wtf import FlaskForm
 from wtforms import BooleanField, IntegerField, PasswordField, SelectField, StringField
 from wtforms.validators import EqualTo, InputRequired, Length, Optional, Regexp, ValidationError
 
-from app.core.permisos import ETIQUETA_POR_ROL, NombreRol
-from app.core.seguridad import (
+from app.core.acceso.permisos import ETIQUETA_POR_ROL, NombreRol
+from app.core.acceso.seguridad import (
     MENSAJE_EMAIL_INVALIDO,
     PATRON_DE_EMAIL,
     mensaje_de_politica,
@@ -28,7 +28,7 @@ from app.core.seguridad import (
 
 
 class PoliticaDeContrasena:
-    """Validador WTForms de la politica de `app.core.seguridad`.
+    """Validador WTForms de la politica de `app.core.acceso.seguridad`.
 
     Lee la longitud minima de la configuracion en cada validacion, asi el formulario y el
     servicio exigen siempre lo mismo.

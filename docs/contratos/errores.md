@@ -112,7 +112,7 @@ la interfaz; cómo se le presenta el mismo error a una persona está en la secci
 ### 2.1 Respuesta según el cliente
 
 La misma ruta atiende a la interfaz y a los clientes JSON (tests, `curl`, un `fetch`, Bonita).
-Quién es quién lo decide `app.core.vistas.pide_json()` a partir de la cabecera `Accept`:
+Quién es quién lo decide `app.core.interfaz.vistas.pide_json()` a partir de la cabecera `Accept`:
 
 - `Accept` con `text/html` por delante de `application/json` (lo que manda un navegador al
   navegar) ⇒ **navegador**.

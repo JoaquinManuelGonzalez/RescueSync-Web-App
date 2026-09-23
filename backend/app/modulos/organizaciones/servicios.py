@@ -18,7 +18,7 @@ from typing import Any
 from sqlalchemy import Select, select
 
 from app.core.errores import ConflictoDeEstado, RecursoNoEncontrado, SolicitudInvalida
-from app.core.paginacion import Pagina, paginar
+from app.core.interfaz.paginacion import Pagina, paginar
 from app.extensiones import db
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
 

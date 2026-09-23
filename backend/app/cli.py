@@ -91,8 +91,8 @@ def registrar_comandos(app: Flask) -> None:
         autenticado como administrador, asi que la primera de esas cuentas no puede salir de
         ahi. Despues de esta, todas las demas se dan de alta desde el panel.
         """
-        from app.core.permisos import NombreRol
-        from app.core.seguridad import generar_contrasena
+        from app.core.acceso.permisos import NombreRol
+        from app.core.acceso.seguridad import generar_contrasena
         from app.modulos.usuarios_roles import servicios
 
         if not _base_migrada():

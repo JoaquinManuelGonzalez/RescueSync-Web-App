@@ -17,14 +17,14 @@ from typing import Any
 
 from flask import Flask, current_app
 
-from app.core.paginacion import url_de_pagina
-from app.core.permisos import (
+from app.core.acceso.permisos import (
     CATALOGO_DE_PERMISOS,
     ETIQUETA_POR_ROL,
     ETIQUETA_POR_TIPO_DE_ORGANIZACION,
     NombreRol,
 )
-from app.core.seguridad import requisitos_de_contrasena
+from app.core.acceso.seguridad import requisitos_de_contrasena
+from app.core.interfaz.paginacion import url_de_pagina
 
 # Las fechas se guardan en UTC y se muestran en la hora de Argentina. Es un desplazamiento fijo
 # y no una zona IANA porque Argentina no aplica horario de verano, y asi no depende de que la

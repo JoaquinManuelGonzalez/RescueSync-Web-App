@@ -11,8 +11,8 @@ from __future__ import annotations
 import pytest
 from flask import jsonify
 
-from app.core.autorizacion import requiere_autenticacion, requiere_permiso, requiere_rol
-from app.core.permisos import EMERGENCIAS_CREAR, PERMISOS_POR_ROL, NombreRol
+from app.core.acceso.autorizacion import requiere_autenticacion, requiere_permiso, requiere_rol
+from app.core.acceso.permisos import EMERGENCIAS_CREAR, PERMISOS_POR_ROL, NombreRol
 
 from .conftest import (
     EMAIL_ADMINISTRADOR,
@@ -190,7 +190,7 @@ def test_puede_y_tiene_rol_estan_disponibles_en_las_plantillas(app) -> None:
 
 
 def test_puede_devuelve_falso_sin_sesion(app) -> None:
-    from app.core.autorizacion import puede
+    from app.core.acceso.autorizacion import puede
 
     with app.test_request_context("/"):
         assert puede(EMERGENCIAS_CREAR) is False

@@ -8,7 +8,7 @@ Como agregar un seeder
 ----------------------
 En el modulo correspondiente (por ejemplo `app/modulos/usuarios_roles/semillas.py`)::
 
-    from app.core.seguridad import hashear_contrasena
+    from app.core.acceso.seguridad import hashear_contrasena
     from app.core.semillas import ResultadoSemilla, obtener_o_crear, registrar
     from app.modulos.usuarios_roles.modelos import Usuario
 
@@ -32,7 +32,7 @@ Reglas
   `obtener_o_crear()` y nunca por el id autonumerico.
 - Ningun seeder hace `commit()`: el comando `flask seed` envuelve todo en una transaccion
   unica, de modo que si uno falla no queda media carga aplicada.
-- Las contrasenas se generan siempre con `app.core.seguridad.hashear_contrasena()`.
+- Las contrasenas se generan siempre con `app.core.acceso.seguridad.hashear_contrasena()`.
 """
 
 from __future__ import annotations

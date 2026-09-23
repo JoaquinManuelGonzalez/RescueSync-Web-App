@@ -21,7 +21,7 @@ from typing import Any
 from flask import request, url_for
 from sqlalchemy import Select, func, select
 
-from app.core.formularios import parametro_entero
+from app.core.interfaz.formularios import parametro_entero
 from app.extensiones import db
 
 POR_PAGINA_POR_DEFECTO = 20

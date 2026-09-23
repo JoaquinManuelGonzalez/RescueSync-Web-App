@@ -5,7 +5,7 @@ es `request.form`, que es lo que manda la interfaz. Las mismas rutas se ejercita
 JSON (con `curl` y en los tests).
 
 Este modulo hace que **la misma ruta y el mismo formulario** sirvan a los dos casos. Como
-responder a cada uno lo resuelve `app.core.vistas`.
+responder a cada uno lo resuelve `app.core.interfaz.vistas`.
 
 Sobre CSRF
 ----------
@@ -31,7 +31,8 @@ def construir_formulario[T: FlaskForm](clase_formulario: type[T]) -> T:
     - Cualquier otro caso -> comportamiento normal de Flask-WTF sobre `request.form`.
 
     El formulario queda ademas en `g.formulario_en_curso`: si la vista falla, el manejador de
-    errores lo vuelve a mostrar con sus mensajes (ver `app.core.vistas.plantilla_ante_error`).
+    errores lo vuelve a mostrar con sus mensajes (ver
+    `app.core.interfaz.vistas.plantilla_ante_error`).
     """
     if request.is_json:
         datos = request.get_json(silent=True)
