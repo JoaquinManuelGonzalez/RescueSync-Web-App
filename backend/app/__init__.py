@@ -19,6 +19,8 @@ from app.core.configuracion import construir_configuracion, validar_o_terminar
 from app.core.errores import registrar_manejadores
 from app.core.inicio import blueprint_inicio
 from app.core.logging import configurar_logging, registrar_middleware
+from app.core.navegacion import registrar_navegacion
+from app.core.plantillas import registrar_filtros
 from app.core.salud import blueprint_salud
 from app.core.sesion import configurar_sesion
 from app.extensiones import csrf, db, login_manager, migrate
@@ -74,6 +76,8 @@ def create_app(overrides: dict[str, Any] | None = None) -> Flask:
     registrar_manejadores(app)
     registrar_comandos(app)
     registrar_globales_de_plantilla(app)
+    registrar_navegacion(app)
+    registrar_filtros(app)
 
     app.register_blueprint(blueprint_salud)
     app.register_blueprint(blueprint_inicio)

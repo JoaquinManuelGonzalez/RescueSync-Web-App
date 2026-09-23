@@ -30,7 +30,7 @@ from typing import Any
 from flask import Flask, request, session
 from flask_login import current_user, login_user, logout_user
 
-from app.core.errores import ConflictoDeEstado, NoAutenticado
+from app.core.errores import ContrasenaPendienteDeCambio, NoAutenticado
 from app.core.logging import id_correlacion_actual, registrar_evento
 from app.extensiones import login_manager
 
@@ -41,15 +41,15 @@ MENSAJE_DEBE_CAMBIAR_CONTRASENA = (
     "Tenés que cambiar tu contraseña antes de poder operar en el sistema."
 )
 
-# Lo unico que puede hacer una cuenta marcada con `debe_cambiar_contrasena`: cambiarla, cerrar
-# la sesion, ver quien es y pedir el token CSRF que necesita para el POST del cambio. Son
-# nombres de endpoint, no imports: `core` sigue sin depender de ningun modulo de dominio.
+# Lo unico que puede hacer una cuenta marcada con `debe_cambiar_contrasena`: ver la pantalla
+# de cambio y enviarla, cerrar la sesion y ver quien es. Son nombres de endpoint, no imports:
+# `core` sigue sin depender de ningun modulo de dominio.
 ENDPOINTS_PERMITIDOS_SIN_CAMBIAR_CONTRASENA = frozenset(
     {
+        "sesion.formulario_de_contrasena",
         "sesion.cambiar_contrasena",
         "sesion.cerrar",
         "sesion.actual",
-        "sesion.token_csrf",
         "salud.consultar_salud",
         "static",
     }
@@ -108,12 +108,11 @@ def configurar_sesion(app: Flask) -> None:
 
     @login_manager.unauthorized_handler
     def _sin_autenticar():
-        """Respuesta ante acceso no autorizado, con el envelope unico del contrato.
+        """Respuesta ante acceso no autorizado.
 
-        Por defecto Flask-Login redirige a `login_view`; mientras no exista la pantalla de
-        ingreso eso seria un 302 hacia ninguna parte. Levantar la excepcion deja que el
-        manejador global de `core/errores.py` devuelva 401 NO_AUTENTICADO con su codigo,
-        su timestamp y su id de correlacion, igual que cualquier otro error del sistema.
+        No se usa el `login_view` de Flask-Login: levantar la excepcion deja que el manejador
+        global de `core/errores.py` decida. Un cliente JSON recibe 401 NO_AUTENTICADO con el
+        envelope del contrato; el navegador, un redirect a la pantalla de ingreso.
         """
         raise NoAutenticado()
 
@@ -157,4 +156,4 @@ def configurar_sesion(app: Flask) -> None:
             return
         if request.endpoint in ENDPOINTS_PERMITIDOS_SIN_CAMBIAR_CONTRASENA:
             return
-        raise ConflictoDeEstado(MENSAJE_DEBE_CAMBIAR_CONTRASENA)
+        raise ContrasenaPendienteDeCambio(MENSAJE_DEBE_CAMBIAR_CONTRASENA)

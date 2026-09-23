@@ -1,20 +1,31 @@
-"""Pagina de inicio provisional del esqueleto.
+"""Entrada a la aplicacion y panel de inicio.
 
-Es una pagina de verificacion
-
-Cuando exista el modulo usuarios_roles, la ruta "/" pasa a ser el login o el panel segun la
-sesion, y este blueprint se elimina.
+- `GET /` es publica: no muestra nada, solo manda a cada quien a donde corresponde (el panel
+  con sesion, la pantalla de ingreso sin ella).
+- `GET /inicio` es el panel: saludo, perfil y un acceso por cada pantalla que el usuario puede
+  usar. Los accesos salen de `app.core.navegacion`, no de una lista de roles.
 """
 
 from __future__ import annotations
 
-from flask import Blueprint, render_template, flash
+from flask import Blueprint, redirect, render_template, url_for
+from flask_login import current_user
+
+from app.core.autorizacion import requiere_autenticacion
 
 blueprint_inicio = Blueprint("inicio", __name__)
 
 
 @blueprint_inicio.get("/")
-def mostrar_inicio():
-    """Renderiza la pagina provisional de verificacion."""
-    #flash("Esto es una prueba de un mensaje de éxito.", "success")
-    return render_template("inicio.html")
+def raiz():
+    """Publica a proposito: redirige al panel o al ingreso segun haya sesion."""
+    if current_user.is_authenticated:
+        return redirect(url_for("inicio.panel"))
+    return redirect(url_for("sesion.formulario_de_ingreso"))
+
+
+@blueprint_inicio.get("/inicio")
+@requiere_autenticacion
+def panel():
+    """Panel de inicio del usuario en sesion."""
+    return render_template("hub.html")
