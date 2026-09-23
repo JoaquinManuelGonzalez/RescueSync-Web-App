@@ -1,0 +1,177 @@
+# Contrato de interfaz
+
+Cómo se conecta una pantalla de RescueSync con el backend y con qué piezas se arma. La decisión
+de tecnología (Jinja2 + Tailwind CSS 4, JS vanilla) está en
+[ADR-001](../adr/ADR-001-framework-frontend.md).
+
+## 1. La base: los templates del equipo
+
+La base visual la definió el equipo en `frontend/plantillas/` y en `frontend/src/input.css`
+(paleta en `@theme`, animaciones `fade` y `fade-up`, `estaticos/css/flash.css`). **Se respeta
+tal cual**: una integración con el backend conecta esos templates, no los rediseña.
+
+| Template | Qué es | Qué se le agregó para conectarlo |
+|---|---|---|
+| `layout.html` | Layout de todas las pantallas: navbar con sesión, mensajes flash arriba, bloques `title` y `content` | `<meta name="csrf-token">` y `interfaz.js` en el `<head>`; en cada mensaje flash, la cruz para cerrarlo y `data-alerta-descartable` para que se vaya solo; `data-minutos-sesion` en el `<body>` |
+| `navbar.html` | Logo, campana de notificaciones, menú de perfil, menú mobile | Enlaces de sección ("Inicio" más una por cada `entradas_de_menu()`, en desktop y en el menú mobile, marcando la actual); enlaces reales (logo → inicio, "Mi perfil"); "Cerrar sesión" pasó de `<a>` a un formulario POST con CSRF, con las mismas clases, porque el servidor no acepta cerrar sesión por GET |
+| `login.html` | Pantalla de ingreso | `action`, token CSRF, campo `email` (el backend autentica por email), `next`, y el botón para mostrar u ocultar la contraseña |
+| `hub.html` | Panel de inicio con tarjetas | Las tarjetas salen de `entradas_de_menu()` (sección 4) con el mismo diseño y los mismos íconos; un perfil sin pantallas todavía ve un mensaje |
+| `cargar_oferta.html`, `inventario.html`, `notificaciones.html`, `inicio.html` | Maquetas de épicas siguientes | Nada |
+
+Las categorías de los mensajes flash son las que dibuja `layout.html`: `success`, `error`,
+`warning` e `info` (constantes `EXITO`, `ERROR`, `ADVERTENCIA`, `INFO` de `app.core.vistas`).
+Los mensajes se cierran con su cruz o solos: 5 s los de éxito, 6 s los informativos, 8 s las
+advertencias y 10 s los errores; con el mouse encima, la cuenta se detiene.
+
+## 2. Pantallas de gestión y sus componentes
+
+Las pantallas nuevas de la épica de identidad (cuentas, organizaciones, perfil, cambio de
+contraseña, página de error) extienden `layout.html` y se arman con componentes reutilizables,
+para no repetir listas largas de clases en cada una:
+
+```
+frontend/
+├── src/componentes/*.css          clases de componente (importadas desde input.css)
+├── estaticos/js/interfaz.js       comportamiento por data-attributes
+└── plantillas/
+    ├── componentes/               macros Jinja
+    ├── usuarios/, organizaciones/, sesion/, errores/
+```
+
+### 2.1 Clases (`src/componentes/`)
+
+Tomadas de las clases que ya usaban los templates del equipo (`bg-primario`,
+`hover:bg-acento/50`, tarjetas blancas con `ring-gray-200`…).
+
+| Familia | Clases |
+|---|---|
+| Botones | `.btn` + `.btn-primario`, `.btn-secundario`, `.btn-peligro`, `.btn-fantasma`; `.btn-bloque`, `.btn-icono`; `.spinner` |
+| Formularios | `.formulario`, `.formulario-grilla`, `.formulario-acciones`, `.campo`, `.campo-etiqueta`, `.campo-control` (en un `<select>` lleva su propio chevron, alineado), `.campo-control-invalido`, `.campo-error`, `.campo-ayuda`, `.campo-contrasena`, `.campo-contrasena-alternar`, `.requisitos-contrasena`, `.barra-filtros`, `.campo-filtro` |
+| Superficies | `.pagina`, `.pagina-angosta`, `.pagina-encabezado`, `.pagina-titulo`, `.pagina-subtitulo`, `.tarjeta`, `.tarjeta-cuerpo`, `.tarjeta-titulo`, `.icono-circular`, `.estado-vacio`, `.lista-datos` |
+| Tablas | `.tabla-contenedor`, `.tabla`, `.tabla-encabezado`, `.tabla-fila`, `.tabla-celda`, `.tabla-acciones`, `.paginacion`, `.paginacion-enlace`, `.paginacion-actual` |
+| Insignias | `.insignia` + `.insignia-primaria`, `-exito`, `-neutra`, `-advertencia`, `-error`, `-info` |
+| Avisos fijos | `.alerta` + `.alerta-exito`, `-error`, `-advertencia`, `-info` (mismo estilo que los flash) |
+| Modal | `.modal`, `.modal-panel`, `.modal-encabezado`, `.modal-icono`, `.modal-titulo`, `.modal-texto`, `.modal-acciones` |
+
+**Las tablas no tienen scroll horizontal.** En pantallas anchas el texto largo se parte dentro
+de su celda; por debajo de `md` cada fila se apila como una tarjeta y cada dato muestra su
+título (el `data-etiqueta` que pone el macro `celda()`). Todo listado va paginado.
+
+### 2.2 Macros (`plantillas/componentes/`)
+
+| Archivo | Macros |
+|---|---|
+| `iconos.html` | `icono(nombre, clase="size-5")`, `spinner()` — íconos outline de 24×24, del mismo tipo que los de `inventario.html` |
+| `formularios.html` | `csrf()`, `campo(field, opciones, vacia, ayuda, atributos, requisitos)`, `boton_envio(...)`, `formulario_accion(...)`, `filtro_texto(...)`, `filtro_select(...)` |
+| `tablas.html` | `tabla(columnas)` y `celda(etiqueta)` (con `{% call %}`), `paginacion(pagina)` |
+| `alertas.html` | `alerta(categoria, mensaje, titulo)` — aviso fijo dentro de una pantalla |
+| `diseno.html` | `encabezado_pagina(...)`, `estado_vacio(...)`, `insignia(...)`, `insignia_estado(...)`, `insignia_estado_cuenta(...)`, `dato(...)` |
+
+`campo()` resuelve etiqueta, control, ayuda, errores de validación y accesibilidad. Un
+`PasswordField` sale con el botón para mostrar u ocultar la contraseña; con `requisitos=true`
+(contraseñas nuevas) muestra la política y la va marcando mientras se escribe.
+
+```jinja
+{% call tabla(["Nombre", "Estado", none]) %}
+  {% for fila in filas %}
+  <tr class="tabla-fila">
+    {% call celda("Nombre") %}{{ fila.nombre }}{% endcall %}
+    {% call celda("Estado") %}{{ insignia_estado(fila.activo) }}{% endcall %}
+    {% call celda() %}<div class="tabla-acciones">…</div>{% endcall %}
+  </tr>
+  {% endfor %}
+{% endcall %}
+{{ paginacion(pagina) }}
+```
+
+### 2.3 Filtros y globales de Jinja (`backend/app/core/plantillas.py`)
+
+Filtros `etiqueta_rol`, `etiqueta_tipo_organizacion`, `descripcion_permiso` y `fecha`
+(`dd/mm/aaaa hh:mm`, hora de Argentina); globales `requisitos_de_contrasena()` y
+`url_de_pagina(n)`.
+
+### 2.4 Comportamiento (`estaticos/js/interfaz.js`)
+
+Lo carga `layout.html` en todas las pantallas. Los templates que ya traen su propio `<script>`
+(navbar, login) lo siguen usando igual.
+
+| Atributo | Efecto |
+|---|---|
+| `data-alerta-descartable` + `data-segundos` | El mensaje flash se cierra con su `[data-cerrar-alerta]` o solo al cumplirse el tiempo |
+| `data-alternar-contrasena="id"` | Muestra u oculta la contraseña del campo |
+| `data-requisitos-de="id"` | Marca los requisitos de la política que la contraseña va cumpliendo |
+| `form[data-confirmar="texto"]` (+ `data-confirmar-titulo`, `data-confirmar-boton`) | Antes de enviar abre el modal de confirmación de la app (`<dialog>` con los estilos de `modal.css`), no el `confirm()` del navegador |
+| `form[data-envio-con-carga]` | Al enviar deshabilita el `[data-boton-envio]` y muestra el spinner |
+| `select[data-filtra-organizaciones]` + `data-campo-rol` | Muestra solo las organizaciones del tipo que exige el rol elegido |
+| `body[data-minutos-sesion]` | Recarga la pantalla al vencer la sesión por inactividad |
+
+Nada de esto es seguridad: el servidor valida y autoriza todo por su cuenta.
+
+## 3. Checklist para una pantalla nueva
+
+1. **Ruta** en `backend/app/modulos/<modulo>/rutas.py`, con su `@requiere_permiso(...)`
+   ([`autorizacion.md`](./autorizacion.md) sección 3).
+2. **Respuesta según el cliente** (sección 5).
+3. **Plantilla** que extiende `layout.html`.
+4. **Entrada de menú**, si la pantalla tiene una tarjeta en el hub (sección 4).
+5. **Tests** con las cabeceras de navegador de `tests/conftest.py` (`navegar`,
+   `enviar_formulario`), además de los JSON.
+
+## 4. Tarjetas del hub
+
+Cada módulo declara su entrada con el mismo permiso que protege la ruta, y
+`registrar_modulos()` la registra:
+
+```python
+ENTRADA_DE_MENU = EntradaDeMenu(
+    endpoint="usuarios.listar",
+    titulo="Usuarios",
+    permiso=USUARIOS_LISTAR,
+    icono="usuarios",
+)
+```
+
+`hub.html` y `navbar.html` recorren `entradas_de_menu()` (ya filtrada por permisos): el hub dibuja una tarjeta por
+entrada. El ícono se elige por nombre en el diccionario del propio `hub.html`, que tiene los
+íconos originales del template (`carpeta`, `calculadora`, `banco`, `carrito`, `grupo`);
+`usuarios` usa `grupo` y `organizaciones` usa `banco`. Un ícono nuevo se agrega a ese
+diccionario.
+
+## 5. Cómo responde una ruta (`backend/app/core/vistas.py`)
+
+La misma ruta atiende al navegador y a los clientes JSON; `pide_json()` decide según `Accept`
+([`errores.md`](./errores.md) sección 2.1).
+
+```python
+@blueprint_usuarios.get("/<int:usuario_id>")
+@requiere_permiso(USUARIOS_LISTAR)
+def ver(usuario_id: int):
+    datos = servicios.a_diccionario(servicios.obtener_usuario(usuario_id))
+    if pide_json():
+        return jsonify(datos)
+    return render_template("usuarios/detalle.html", usuario=datos)
+
+
+@blueprint_usuarios.post("/<int:usuario_id>/edicion")
+@requiere_permiso(USUARIOS_EDITAR)
+@plantilla_ante_error("usuarios/formulario.html", contexto=_contexto_del_formulario)
+def editar(usuario_id: int):
+    formulario = construir_formulario(FormularioEdicionDeUsuario)
+    validar_o_fallar(formulario)
+    usuario = servicios.editar_usuario(usuario_id, ...)
+    return redirigir("usuarios.ver", "Cambios guardados.",
+                     datos_json=servicios.a_diccionario(usuario), usuario_id=usuario.id)
+```
+
+- **`redirigir(endpoint, mensaje, ...)`**: después de un POST exitoso, redirect con mensaje flash
+  (Post/Redirect/Get) al navegador, JSON al resto.
+- **`@plantilla_ante_error(plantilla, contexto, nombre_formulario)`**: si el formulario o el
+  servicio fallan, el navegador vuelve a ver ese formulario con lo que cargó y cada error junto
+  a su campo. Va **debajo** del decorador de autorización. La vista no escribe ningún `try`.
+- **Pantallas de formulario**: un GET con función propia (`formulario_de_alta`,
+  `formulario_de_edicion`) sobre la misma URL que el POST que las procesa.
+- **Listados**: siempre paginados en la base con `app.core.paginacion`. El servicio arma la
+  consulta con sus filtros y llama a `paginar()`; la ruta lee `?pagina=` y `?por_pagina=`
+  (20 por defecto, 100 como tope) con `parametros_de_paginacion()`. El cliente JSON recibe
+  los elementos y un objeto `paginacion` (`pagina`, `por_pagina`, `total`, `paginas`); la
+  plantilla recibe la `Pagina` y la dibuja con `paginacion()`, que conserva los filtros.

@@ -9,7 +9,8 @@ contrato que referencia el ADR-006.
 
 Todo error de la aplicación, sin excepción, se devuelve con la misma estructura JSON, con el
 objeto de nivel superior `error` y cinco campos obligatorios: `codigo`, `mensaje`, `detalle`,
-`timestamp` e `id_correlacion`.
+`timestamp` e `id_correlacion`. Esto vale para todo cliente que no sea un navegador navegando
+la interfaz; cómo se le presenta el mismo error a una persona está en la sección 2.1.
 
 | Campo | Tipo | Descripción |
 |---|---|---|
@@ -107,6 +108,33 @@ objeto de nivel superior `error` y cinco campos obligatorios: `codigo`, `mensaje
 | 502 | `RESPUESTA_EXTERNA_INVALIDA` | El sistema externo respondió con un cuerpo ilegible o con un formato inesperado |
 | 503 | `SERVICIO_EXTERNO_NO_DISPONIBLE` | El sistema externo respondió 5xx, o no respondió, tras agotar los reintentos |
 | 504 | `TIEMPO_DE_ESPERA_AGOTADO` | El sistema externo no respondió dentro del tiempo de espera configurado |
+
+### 2.1 Respuesta según el cliente
+
+La misma ruta atiende a la interfaz y a los clientes JSON (tests, `curl`, un `fetch`, Bonita).
+Quién es quién lo decide `app.core.vistas.pide_json()` a partir de la cabecera `Accept`:
+
+- `Accept` con `text/html` por delante de `application/json` (lo que manda un navegador al
+  navegar) ⇒ **navegador**.
+- Cuerpo JSON, `Accept: application/json`, `Accept: */*` o sin `Accept` ⇒ **cliente JSON**, que
+  recibe el envelope de la sección 1 exactamente como siempre.
+
+Al navegador el envelope no le sirve: una persona no puede leer JSON crudo. El mismo error, con
+el **mismo código HTTP y el mismo mensaje**, se traduce así (`app/core/errores.py`), en este
+orden:
+
+| Situación | Qué ve el navegador |
+|---|---|
+| Falla un formulario cuya vista declaró `@plantilla_ante_error` (400, 401, 403, 409, 422 en un POST) | El mismo formulario, con lo cargado, cada mensaje de `detalle` junto a su campo y el `mensaje` como alerta arriba. El código HTTP es el del error |
+| `NO_AUTENTICADO` (sin sesión o sesión vencida) | Redirect a `/sesion/ingreso` con el mensaje como aviso. En un GET, con `?next=` para volver a la pantalla pedida después de ingresar |
+| `CONFLICTO_DE_ESTADO` por contraseña pendiente de cambio | Redirect a `/sesion/contrasena` con el aviso |
+| Token CSRF faltante o vencido | Redirect a la pantalla de origen con el aviso "El formulario venció…", para volver a enviarlo |
+| Cualquier otro (403, 404, 405, 500, 502, 503, 504…) | La página `errores/error.html`: título legible, `mensaje` e `id_correlacion` como "código de referencia" |
+
+El `id_correlacion` sigue siendo el mismo que queda en los logs, así que un "código de
+referencia" que dicta una persona alcanza para encontrar la solicitud. Si la página de error no
+se puede renderizar (por ejemplo, porque lo que falla es la base de datos), la respuesta cae al
+envelope JSON.
 
 ## 3. Política de reintentos ante sistemas externos
 

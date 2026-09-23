@@ -93,6 +93,27 @@ El decorador va **debajo** del de la ruta. Hay tres:
 | `@requiere_autenticacion` | Para lo que cualquier usuario autenticado puede hacer con su propia cuenta |
 | `@requiere_rol(NombreRol.AUDITOR)` | Excepcional: para lo que es intrínsecamente de un perfil y no de una acción. Acepta varios roles y exige **alguno** |
 
+### Si la pantalla tiene una tarjeta en el hub
+
+Si la pantalla tiene su tarjeta en el panel de inicio (`hub.html`), el módulo declara
+su entrada **con el mismo permiso** junto a sus rutas, y `registrar_modulos()` la registra:
+
+```python
+from app.core.navegacion import EntradaDeMenu
+
+ENTRADA_DE_MENU = EntradaDeMenu(
+    endpoint="emergencias.listar",
+    titulo="Emergencias",
+    permiso=EMERGENCIAS_LISTAR,
+    descripcion="Registro y seguimiento de emergencias",
+    icono="carpeta",
+)
+```
+
+Aparece sola para los perfiles con el permiso y para ningún otro; `hub.html` no se
+toca. Lo verifica `test_una_pantalla_nueva_aparece_en_el_menu_solo_declarando_su_entrada`.
+Cómo se arma la plantilla de la pantalla está en [`interfaz.md`](./interfaz.md).
+
 ### Para agregar un permiso nuevo
 
 1. Agregar la constante en `app/core/permisos.py`, en la sección de su recurso.
@@ -108,7 +129,8 @@ base.
 
 Una ruta sin decorador de autorización es un error de revisión, salvo que sea
 deliberadamente pública y lo diga en su docstring. Hoy las únicas públicas son
-`POST /sesion/ingreso`, `GET /sesion/token-csrf`, `GET /health` y `GET /`.
+`GET /sesion/ingreso`, `POST /sesion/ingreso`, `GET /health` y `GET /` (que solo redirige al
+panel o al ingreso).
 
 ## 4. Alcance por organización
 
@@ -148,11 +170,12 @@ matriz de permisos esté impecable.
 | "Recordarme" | Deshabilitado: sobrevive al cierre del navegador y volvería decorativa la expiración |
 | Rotación | Al iniciar y al cerrar sesión se descarta todo el contenido previo de la sesión |
 | CSRF | `CSRFProtect` en toda la aplicación. El token viaja en el campo oculto del formulario o en la cabecera `X-CSRFToken` |
+| Aviso de inactividad | Cada pantalla publica los minutos de sesión en `<body data-minutos-sesion>`; si queda abierta ese tiempo sin navegar, `interfaz.js` la recarga y el servidor muestra el aviso de sesión vencida. Es comodidad: la expiración real es la del servidor |
 
-Mientras no existan las plantillas, `GET /sesion/token-csrf` entrega un token para poder
-ejercitar los POST con `curl` y desde los tests. **Es provisional**: cuando llegue la
-interfaz, el token viaja en el campo oculto que renderiza `{{ csrf_token() }}` y esa ruta
-se elimina.
+Todos los formularios llevan el campo oculto del macro `csrf()`, y toda pantalla publica el
+token en `<meta name="csrf-token">` para un `fetch()` que lo mande en `X-CSRFToken`. La ruta
+provisional `GET /sesion/token-csrf` que existía antes de la interfaz **se eliminó**: los tests
+toman el token del `<meta>` (`tests/conftest.py::token_csrf_de`), igual que un navegador.
 
 El endpoint que consume Bonita (integración 4) se eximirá con `@csrf.exempt`: se autentica
 con `BONITA_CALLBACK_TOKEN`, no con sesión de usuario.
@@ -161,14 +184,25 @@ con `BONITA_CALLBACK_TOKEN`, no con sesión de usuario.
 
 - **Hash con sal**: `scrypt`, siempre a través de `app.core.seguridad.hashear_contrasena()`.
   Ninguna contraseña se hashea en otro lado ni se guarda en claro en ningún lugar.
-- **Longitud mínima**: `CONTRASENA_LONGITUD_MINIMA` (10 por defecto). Se valida en el
-  formulario y otra vez en el servicio, porque el seeder y la CLI no pasan por WTForms.
-- **Respuesta uniforme**: email inexistente, contraseña incorrecta y cuenta desactivada
-  devuelven el **mismo** mensaje y el mismo código. Además, cuando el email no existe se
-  verifica igual contra un hash señuelo, para que los tiempos de respuesta no delaten qué
-  cuentas están dadas de alta.
+- **Política**: toda contraseña nueva (alta, restablecimiento o cambio propio) tiene que
+  tener al menos `CONTRASENA_LONGITUD_MINIMA` caracteres (8 por defecto), **una mayúscula,
+  un número y un carácter especial** (cualquier cosa que no sea letra, número ni espacio).
+  La regla está definida una sola vez, en `app/core/seguridad.py`, y se valida en el
+  formulario (el error dice exactamente qué falta) y otra vez en el servicio, porque el
+  seeder y la CLI no pasan por WTForms. `flask crear-administrador` genera claves que ya la
+  cumplen. **No se exige al ingresar**: una clave vieja tiene que poder entrar a cambiarse.
+- **Distinta de la actual**: en el cambio propio, la contraseña nueva no puede ser la misma
+  que la actual. Sin esto, el cambio obligatorio se podría "cumplir" repitiendo la clave inicial.
+- **En la interfaz**: los campos de contraseña tienen un botón para mostrarla u ocultarla, y
+  los de contraseña nueva muestran los requisitos y los van marcando mientras se escribe.
+- **Respuesta uniforme**: email inexistente y contraseña incorrecta devuelven el **mismo**
+  mensaje y el mismo código. Además, cuando el email no existe se verifica igual contra un
+  hash señuelo, para que los tiempos de respuesta no delaten qué cuentas están dadas de alta.
+- **Cuenta desactivada**: si la contraseña es correcta, el aviso lo dice ("Tu cuenta está
+  desactivada…", 403). Se informa recién después de validar la contraseña: a quien no la
+  conoce le sale el mensaje genérico, así que no sirve para averiguar qué cuentas existen.
 - **Bloqueo**: tras `LOGIN_MAX_INTENTOS` fallos consecutivos (5), la cuenta queda
-  bloqueada `LOGIN_BLOQUEO_MINUTOS` (15). El bloqueo se levanta solo al vencer, o el
+  bloqueada `LOGIN_BLOQUEO_MINUTOS` (1, para poder mostrarlo en una demostración). El bloqueo se levanta solo al vencer, o el
   administrador lo levanta desde `POST /usuarios/<id>/desbloqueo`.
 - **Cambio obligatorio**: las cuentas que crea el administrador nacen con
   `debe_cambiar_contrasena`. Mientras la marca esté puesta, lo único que la cuenta puede
@@ -179,17 +213,22 @@ reemplazo es `POST /usuarios/<id>/contrasena`, que ejecuta el administrador.
 
 ## 7. Respuesta ante acceso no autorizado
 
-Sale siempre con el envelope único de [`errores.md`](./errores.md), nunca con un redirect:
+A un cliente JSON le sale siempre el envelope único de [`errores.md`](./errores.md). Al
+navegador, el mismo error traducido a una pantalla (ver `errores.md` sección 2.1):
 
-| Situación | Código HTTP | `codigo` del envelope |
-|---|---|---|
-| Sin sesión, o sesión vencida por inactividad | 401 | `NO_AUTENTICADO` |
-| Con sesión, sin el permiso exigido | 403 | `PERMISO_DENEGADO` |
-| Cuenta bloqueada por intentos fallidos | 403 | `PERMISO_DENEGADO` |
-| Con la contraseña pendiente de cambio | 409 | `CONFLICTO_DE_ESTADO` |
+| Situación | Código HTTP | `codigo` del envelope | En el navegador |
+|---|---|---|---|
+| Sin sesión, o sesión vencida por inactividad | 401 | `NO_AUTENTICADO` | Redirect al ingreso con el aviso y `?next=` a la pantalla pedida |
+| Con sesión, sin el permiso exigido | 403 | `PERMISO_DENEGADO` | Página 403 con el id de correlación |
+| Cuenta bloqueada por intentos fallidos | 403 | `PERMISO_DENEGADO` | La pantalla de ingreso, con el aviso de bloqueo y su duración |
+| Cuenta desactivada (con la contraseña correcta) | 403 | `PERMISO_DENEGADO` | La pantalla de ingreso, con el aviso de cuenta desactivada |
+| Credenciales incorrectas | 401 | `NO_AUTENTICADO` | La pantalla de ingreso, con el mensaje genérico y el email cargado |
+| Con la contraseña pendiente de cambio | 409 | `CONFLICTO_DE_ESTADO` | Redirect a la pantalla de cambio de contraseña |
 
 La distinción entre 401 y 403 importa: el 401 le dice al usuario que inicie sesión, el
-403 que no insista con esa cuenta.
+403 que no insista con esa cuenta. El `?next=` solo acepta rutas de la propia aplicación
+(`app.core.vistas.destino_seguro`): un `//otro.sitio` o un `https://…` se descartan y el
+ingreso lleva al panel.
 
 ## 8. Eventos de log
 
@@ -210,18 +249,34 @@ el email ni la contraseña**: el identificador interno alcanza para reconstruir 
 Esto **no** es la auditoría avanzada que la épica deja fuera de alcance: es el contrato de
 logging ya vigente, aplicado a los eventos de acceso. No hay tabla de auditoría.
 
-## 9. La interfaz, cuando exista
+## 9. La interfaz
 
-`puede()` y `tiene_rol()` están registradas como globales de Jinja:
+Qué ve cada perfil sale de sus permisos, nunca de una lista de roles en una plantilla:
+
+- **Tarjetas del panel de inicio (`hub.html`)**: `entradas_de_menu()`, global de Jinja, devuelve las
+  entradas registradas (sección 3) filtradas por `puede(entrada.permiso)`, y el hub
+  solo recorre esa lista. Un perfil sin pantallas todavía ve un mensaje que lo indica.
+- **Botones y acciones dentro de una pantalla**: `puede()` y `tiene_rol()`, globales de Jinja:
 
 ```jinja
-{% if puede('emergencias:crear') %}
-  <a href="{{ url_for('emergencias.crear') }}">Nueva emergencia</a>
+{% if puede('usuarios:crear') %}
+  <a class="btn btn-primario" href="{{ url_for('usuarios.formulario_de_alta') }}">Nueva cuenta</a>
 {% endif %}
 ```
 
 Es **solo presentación**. La interfaz oculta lo que el servidor ya prohíbe: cada ruta
-sigue protegida por su decorador, y borrar ese `{% if %}` no habilita nada.
+sigue protegida por su decorador, y borrar ese `{% if %}` no habilita nada. Hay tests que lo
+verifican escribiendo la URL a mano y enviando un formulario armado sin permiso
+(`tests/test_interfaz_autorizacion.py`).
 
-`GET /sesion/actual` devuelve el usuario, su organización, sus roles y sus permisos
-efectivos: con eso la plantilla arma el menú sin repetir una lista de roles.
+| Pantalla | Ruta | Quién |
+|---|---|---|
+| Ingreso | `GET /sesion/ingreso` | Pública |
+| Panel de inicio | `GET /inicio` | Cualquier sesión |
+| Mi perfil (datos, perfil y permisos) | `GET /sesion/actual` | Cualquier sesión |
+| Cambio de contraseña | `GET /sesion/contrasena` | Cualquier sesión |
+| Cuentas: listado, alta, detalle, edición | `/usuarios`, `/usuarios/nuevo`, `/usuarios/<id>`, `/usuarios/<id>/edicion` | `usuarios:*` |
+| Organizaciones: listado, alta, detalle, edición | `/organizaciones`, `/organizaciones/nueva`, `/organizaciones/<id>`, `/organizaciones/<id>/edicion` | `organizaciones:*` |
+
+Cómo se construye una pantalla (plantillas, componentes y estilos) está en
+[`interfaz.md`](./interfaz.md).
