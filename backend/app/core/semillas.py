@@ -112,9 +112,9 @@ def importar_seeders() -> None:
     Los decoradores `@registrar` solo corren cuando su modulo se importa, asi que cada
     modulo de dominio que aporte datos semilla se agrega a esta lista.
 
-    El orden de los imports es el orden de ejecucion: organizaciones va primero porque los
-    usuarios se asocian a una organizacion ya cargada.
+    El orden de los imports es el orden de ejecucion: los items deben existir antes de que
+    organizaciones cree sus inventarios, y usuarios se asocia a una organizacion ya cargada.
     """
+    from app.modulos.emergencias import semillas as _emergencias  # noqa: F401
     from app.modulos.organizaciones import semillas as _organizaciones  # noqa: F401
     from app.modulos.usuarios_roles import semillas as _usuarios_roles  # noqa: F401
-    # from app.modulos.emergencias import semillas as _emergencias  # noqa: F401

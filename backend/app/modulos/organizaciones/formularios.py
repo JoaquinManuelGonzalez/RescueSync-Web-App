@@ -7,12 +7,17 @@ servicios los llama tambien el seeder y la CLI, donde no hay solicitud HTTP ni f
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from flask_wtf import FlaskForm
-from wtforms import BooleanField, SelectField, StringField
-from wtforms.validators import InputRequired, Length, Optional, Regexp
+from sqlalchemy import select
+from wtforms import BooleanField, IntegerField, SelectField, StringField
+from wtforms.validators import InputRequired, Length, NumberRange, Optional, Regexp
 
 from app.core.acceso.permisos import ETIQUETA_POR_TIPO_DE_ORGANIZACION
 from app.core.acceso.seguridad import MENSAJE_EMAIL_INVALIDO, PATRON_DE_EMAIL
+from app.extensiones import db
+from app.modulos.emergencias.modelos import Item
 from app.modulos.organizaciones.modelos import TipoOrganizacion
 
 # (valor, texto): el valor es el que viaja y se valida; el texto es el que ve la persona.
@@ -57,3 +62,36 @@ class FormularioEstado(FlaskForm):
     """Activacion o desactivacion de una organizacion."""
 
     activo = BooleanField("Activa")
+
+
+class FormularioInventarioItem(FlaskForm):
+    """Alta y edicion de la cantidad de un item dentro de un inventario."""
+
+    item_id = SelectField(
+        "Item",
+        coerce=int,
+        validators=[InputRequired("El item es obligatorio.")],
+    )
+    cantidad_disponible = IntegerField(
+        "Cantidad disponible",
+        validators=[
+            InputRequired("La cantidad es obligatoria."),
+            NumberRange(
+                min=0,
+                max=9999999999,
+                message="La cantidad debe estar entre 0 y 9.999.999.999.",
+            ),
+        ],
+    )
+
+    def __init__(
+        self,
+        *args,
+        items: Iterable[Item] | None = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        if items is None:
+            items = db.session.scalars(select(Item).order_by(Item.nombre)).all()
+        self.item_id.choices = [(item.id, item.nombre) for item in items]
+

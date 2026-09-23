@@ -17,9 +17,12 @@ from __future__ import annotations
 from typing import Any
 
 from flask import Blueprint, jsonify, render_template, request
+from flask_login import current_user
 
 from app.core.acceso.autorizacion import requiere_permiso
 from app.core.acceso.permisos import (
+    INVENTARIO_EDITAR,
+    INVENTARIO_VER,
     ORGANIZACIONES_CAMBIAR_ESTADO,
     ORGANIZACIONES_CREAR,
     ORGANIZACIONES_EDITAR,
@@ -33,10 +36,12 @@ from app.core.interfaz.formularios import (
 from app.core.interfaz.navegacion import EntradaDeMenu
 from app.core.interfaz.paginacion import parametros_de_paginacion
 from app.core.interfaz.vistas import pide_json, plantilla_ante_error, redirigir
+from app.modulos.emergencias.modelos import TipoNecesidad
 from app.modulos.organizaciones import servicios
 from app.modulos.organizaciones.formularios import (
     OPCIONES_DE_TIPO,
     FormularioEstado,
+    FormularioInventarioItem,
     FormularioOrganizacion,
 )
 
@@ -49,6 +54,15 @@ ENTRADA_DE_MENU = EntradaDeMenu(
     descripcion="Municipios, ONGs y centro coordinador",
     icono="organizaciones",
     orden=20,
+)
+
+ENTRADA_DE_MENU_INVENTARIO = EntradaDeMenu(
+    endpoint="organizaciones.ver_inventario",
+    titulo="Inventario",
+    permiso=INVENTARIO_VER,
+    descripcion="Existencias de tu organización",
+    icono="banco",
+    orden=30,
 )
 
 OPCIONES_DE_ESTADO = [("true", "Activas"), ("false", "Inactivas")]
@@ -190,4 +204,60 @@ def cambiar_estado(organizacion_id: int):
         "Organización activada." if organizacion.activo else "Organización desactivada.",
         datos_json=servicios.a_diccionario(organizacion),
         preferir_origen=True,
+    )
+
+@blueprint_organizaciones.get("/inventario")
+@requiere_permiso(INVENTARIO_VER)
+def ver_inventario():
+    """Inventario de una organizacion."""
+    organizacion_id = current_user.organizacion_id
+    categoria_seleccionada = request.args.get("categoria", "")
+    texto = request.args.get("texto", "")
+    pagina, por_pagina = parametros_de_paginacion()
+    datos = servicios.obtener_inventario(organizacion_id)
+    return render_template(
+        "organizaciones/inventario.html",
+        inventario=datos,
+        pagina=servicios.paginar_items_de_inventario(
+            organizacion_id,
+            categoria_seleccionada,
+            texto,
+            pagina=pagina,
+            por_pagina=por_pagina,
+        ),
+        categorias=servicios.categorias_de_inventario(organizacion_id),
+        categoria_seleccionada=categoria_seleccionada,
+        texto=texto,
+    )
+
+
+@blueprint_organizaciones.get("/inventario/nuevo")
+@requiere_permiso(INVENTARIO_EDITAR)
+def formulario_de_alta_de_item():
+    """Pantalla para agregar un item al inventario de la organizacion autenticada."""
+    return render_template(
+        "organizaciones/nuevo_item.html",
+        formulario=FormularioInventarioItem(),
+        items=servicios.listar_items_disponibles(current_user.organizacion_id),
+        categorias=list(TipoNecesidad),
+    )
+
+
+@blueprint_organizaciones.post("/inventario")
+@requiere_permiso(INVENTARIO_EDITAR)
+def crear_item_inventario():
+    """Agrega un item al inventario de la organizacion autenticada."""
+    formulario = construir_formulario(FormularioInventarioItem)
+    validar_o_fallar(formulario)
+
+    inventario_item = servicios.crear_item_inventario(
+        current_user.organizacion_id,
+        item_id=formulario.item_id.data,
+        cantidad_disponible=formulario.cantidad_disponible.data,
+    )
+    return redirigir(
+        "organizaciones.ver_inventario",
+        "Item agregado al inventario.",
+        datos_json=servicios.item_inventario_a_diccionario(inventario_item),
+        estado_json=201,
     )
