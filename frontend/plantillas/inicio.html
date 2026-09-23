@@ -1,14 +1,9 @@
 {# Pagina provisional de verificacion: solo sirve para confirmar en el navegador que la
    aplicacion levanta y que Flask encuentra las plantillas de frontend/.#}
-<!DOCTYPE html>
-<html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>RescueSync</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
-  </head>
+{% extends "layout.html" %} 
+{% block title %} Inicio de prueba {% endblock %} 
+{% block content %}
   <body>
     <h1>RescueSync</h1>
   </body>
-</html>
+{% endblock %}
