@@ -36,13 +36,21 @@ def registrar_modulos(app: Flask) -> None:
     """
     importar_modelos()
 
-    from app.modulos.organizaciones.rutas import blueprint_organizaciones
-    from app.modulos.usuarios_roles.rutas import blueprint_sesion, blueprint_usuarios
+    from app.core.navegacion import registrar_entrada
+    from app.modulos.organizaciones import rutas as rutas_de_organizaciones
+    from app.modulos.usuarios_roles import rutas as rutas_de_usuarios_roles
     from app.modulos.usuarios_roles.servicios import instalar_cargador_de_sesion
 
     # Reemplaza el cargador de respaldo de la app factory por el que resuelve usuarios reales.
     instalar_cargador_de_sesion()
 
-    app.register_blueprint(blueprint_sesion, url_prefix="/sesion")
-    app.register_blueprint(blueprint_usuarios, url_prefix="/usuarios")
-    app.register_blueprint(blueprint_organizaciones, url_prefix="/organizaciones")
+    app.register_blueprint(rutas_de_usuarios_roles.blueprint_sesion, url_prefix="/sesion")
+    app.register_blueprint(rutas_de_usuarios_roles.blueprint_usuarios, url_prefix="/usuarios")
+    app.register_blueprint(
+        rutas_de_organizaciones.blueprint_organizaciones, url_prefix="/organizaciones"
+    )
+
+    # Cada pantalla con acceso propio en el menu declara su entrada junto a sus rutas; aca solo
+    # se registra. Quien la ve lo decide su permiso (ver app/core/navegacion.py).
+    registrar_entrada(app, rutas_de_usuarios_roles.ENTRADA_DE_MENU)
+    registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU)

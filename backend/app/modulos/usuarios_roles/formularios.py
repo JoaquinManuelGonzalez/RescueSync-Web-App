@@ -5,22 +5,44 @@ Aca vive la validacion de forma: campo obligatorio, longitud, formato de email. 
 `servicios.py`, porque tambien la necesitan el seeder y los comandos de consola, donde no hay
 formulario ni solicitud HTTP.
 
-La longitud minima de contrasena se valida dos veces a proposito: aca para poder mostrarla
-junto al campo, y en el servicio para que ninguna via de alta se la saltee.
+La politica de contrasena se valida dos veces a proposito: aca para poder mostrar junto al
+campo exactamente que le falta, y en el servicio para que ninguna via de alta se la saltee.
 """
 
 from __future__ import annotations
 
+from typing import Any
+
+from flask import current_app
 from flask_wtf import FlaskForm
 from wtforms import BooleanField, IntegerField, PasswordField, SelectField, StringField
-from wtforms.validators import EqualTo, InputRequired, Length, Optional, Regexp
+from wtforms.validators import EqualTo, InputRequired, Length, Optional, Regexp, ValidationError
 
-from app.core.permisos import NombreRol
-from app.core.seguridad import MENSAJE_EMAIL_INVALIDO, PATRON_DE_EMAIL
+from app.core.permisos import ETIQUETA_POR_ROL, NombreRol
+from app.core.seguridad import (
+    MENSAJE_EMAIL_INVALIDO,
+    PATRON_DE_EMAIL,
+    mensaje_de_politica,
+    requisitos_incumplidos,
+)
 
-LONGITUD_MINIMA_POR_DEFECTO = 10
 
-OPCIONES_DE_ROL = [(rol.value, rol.value) for rol in NombreRol]
+class PoliticaDeContrasena:
+    """Validador WTForms de la politica de `app.core.seguridad`.
+
+    Lee la longitud minima de la configuracion en cada validacion, asi el formulario y el
+    servicio exigen siempre lo mismo.
+    """
+
+    def __call__(self, formulario: Any, campo: Any) -> None:
+        minima = int(current_app.config["CONTRASENA_LONGITUD_MINIMA"])
+        incumplidos = requisitos_incumplidos(campo.data or "", minima)
+        if incumplidos:
+            raise ValidationError(mensaje_de_politica(incumplidos, minima))
+
+
+# (valor, texto): el valor es el que viaja y se valida; el texto es el que ve la persona.
+OPCIONES_DE_ROL = [(rol.value, ETIQUETA_POR_ROL[rol]) for rol in NombreRol]
 
 
 class FormularioIngreso(FlaskForm):
@@ -60,7 +82,7 @@ class FormularioAltaDeUsuario(FlaskForm):
         "Contraseña inicial",
         validators=[
             InputRequired("La contraseña inicial es obligatoria."),
-            Length(min=LONGITUD_MINIMA_POR_DEFECTO),
+            PoliticaDeContrasena(),
         ],
     )
     rol = SelectField(
@@ -99,7 +121,7 @@ class FormularioRestablecerContrasena(FlaskForm):
         "Contraseña nueva",
         validators=[
             InputRequired("La contraseña nueva es obligatoria."),
-            Length(min=LONGITUD_MINIMA_POR_DEFECTO),
+            PoliticaDeContrasena(),
         ],
     )
 
@@ -115,7 +137,7 @@ class FormularioCambioDeContrasena(FlaskForm):
         "Contraseña nueva",
         validators=[
             InputRequired("La contraseña nueva es obligatoria."),
-            Length(min=LONGITUD_MINIMA_POR_DEFECTO),
+            PoliticaDeContrasena(),
         ],
     )
     contrasena_nueva_repetida = PasswordField(

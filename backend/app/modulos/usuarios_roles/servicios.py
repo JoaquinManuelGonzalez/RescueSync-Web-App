@@ -20,7 +20,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from flask import current_app
-from sqlalchemy import select
+from sqlalchemy import Select, select
 
 from app.core.errores import (
     ConflictoDeEstado,
@@ -30,25 +30,43 @@ from app.core.errores import (
     SolicitudInvalida,
 )
 from app.core.logging import id_correlacion_actual, registrar_evento
+from app.core.paginacion import Pagina, paginar
 from app.core.permisos import TIPO_DE_ORGANIZACION_POR_ROL, NombreRol
-from app.core.seguridad import hashear_contrasena, verificar_contrasena
+from app.core.seguridad import (
+    hashear_contrasena,
+    mensaje_de_politica,
+    requisitos_incumplidos,
+    verificar_contrasena,
+)
 from app.core.sesion import registrar_cargador_de_usuario
 from app.extensiones import db
 from app.modulos.organizaciones import servicios as servicios_de_organizaciones
 from app.modulos.usuarios_roles.modelos import Rol, Usuario
 
-# Un unico mensaje para "no existe esa cuenta", "la contrasena no es esa" y "la cuenta esta
-# desactivada". Distinguirlos le diria a cualquiera que pruebe emails al azar cuales estan
-# registrados, que es justamente lo que no queremos regalar.
+# Un unico mensaje para "no existe esa cuenta" y "la contrasena no es esa". Distinguirlos le
+# diria a cualquiera que pruebe emails al azar cuales estan registrados, que es justamente lo
+# que no queremos regalar. La cuenta desactivada tiene su propio aviso, pero solo se muestra a
+# quien acerto la contrasena (ver `autenticar`).
 MENSAJE_CREDENCIALES = "Email o contraseña incorrectos."
 MENSAJE_BLOQUEADA = (
     "La cuenta está bloqueada temporalmente por intentos fallidos. "
-    "Volvé a intentar en unos minutos o pedile a un administrador que la desbloquee."
+    "Volvé a intentar en {duracion} o pedile a un administrador que la desbloquee."
+)
+MENSAJE_INACTIVA = (
+    "Tu cuenta está desactivada. Pedile a un administrador que la vuelva a habilitar."
 )
 MENSAJE_EMAIL_EN_USO = "Ya existe una cuenta registrada con ese email."
 MENSAJE_NO_ENCONTRADO = "No encontramos la cuenta solicitada."
 MENSAJE_CONTRASENA_ACTUAL = "La contraseña actual no es correcta."
+MENSAJE_CONTRASENA_REPETIDA = "La contraseña nueva tiene que ser distinta de la actual."
 MENSAJE_FUERA_DE_ALCANCE = "No podés operar sobre datos de otra organización."
+
+
+def mensaje_de_bloqueo(minutos: int) -> str:
+    """El aviso de cuenta bloqueada, con la duracion real del bloqueo configurado."""
+    duracion = "1 minuto" if minutos == 1 else f"{minutos} minutos"
+    return MENSAJE_BLOQUEADA.format(duracion=duracion)
+
 
 # Roles que ven el proceso completo y no solo lo de su propia organizacion.
 ROLES_SIN_LIMITE_DE_ORGANIZACION = frozenset(
@@ -101,8 +119,39 @@ def listar_usuarios(
     activo: bool | None = None,
     texto: str | None = None,
 ) -> list[Usuario]:
-    """Listado para el panel del administrador. Los filtros se combinan con AND."""
-    consulta = select(Usuario).order_by(Usuario.nombre_completo)
+    """Listado completo, sin paginar. Los filtros se combinan con AND."""
+    consulta = _consulta_de_usuarios(
+        nombre_rol=nombre_rol, organizacion_id=organizacion_id, activo=activo, texto=texto
+    )
+    return list(db.session.execute(consulta).scalars())
+
+
+def paginar_usuarios(
+    *,
+    pagina: int,
+    por_pagina: int,
+    nombre_rol: str | None = None,
+    organizacion_id: int | None = None,
+    activo: bool | None = None,
+    texto: str | None = None,
+) -> Pagina[Usuario]:
+    """Una pagina del listado del panel del administrador, con los mismos filtros."""
+    consulta = _consulta_de_usuarios(
+        nombre_rol=nombre_rol, organizacion_id=organizacion_id, activo=activo, texto=texto
+    )
+    return paginar(consulta, pagina, por_pagina)
+
+
+def _consulta_de_usuarios(
+    *,
+    nombre_rol: str | None,
+    organizacion_id: int | None,
+    activo: bool | None,
+    texto: str | None,
+) -> Select:
+    # El id desempata a dos personas con el mismo nombre: sin un orden total, la misma cuenta
+    # podria aparecer en dos paginas seguidas o en ninguna.
+    consulta = select(Usuario).order_by(Usuario.nombre_completo, Usuario.id)
 
     if nombre_rol:
         consulta = consulta.where(Usuario.roles.any(Rol.nombre == nombre_rol))
@@ -116,7 +165,7 @@ def listar_usuarios(
             Usuario.nombre_completo.ilike(patron) | Usuario.email.ilike(patron)
         )
 
-    return list(db.session.execute(consulta).scalars())
+    return consulta
 
 
 def obtener_rol(nombre_rol: str) -> Rol:
@@ -195,7 +244,9 @@ def autenticar(email: str, contrasena: str) -> Usuario:
 
     El orden de las verificaciones es parte de lo que la hace segura:
     se verifica el hash aunque el email no exista (para igualar los tiempos de respuesta), y
-    todo fallo devuelve el mismo mensaje, salvo el bloqueo, que el usuario necesita entender.
+    todo fallo devuelve el mismo mensaje, salvo el bloqueo y la cuenta desactivada, que el
+    usuario necesita entender. La desactivada se informa recien despues de validar la
+    contrasena, asi el aviso no le sirve a quien esta probando emails.
     """
     usuario = obtener_por_email(email)
 
@@ -217,7 +268,7 @@ def autenticar(email: str, contrasena: str) -> Usuario:
             id_usuario=str(usuario.id),
             id_correlacion=id_correlacion_actual(),
         )
-        raise PermisoDenegado(MENSAJE_BLOQUEADA)
+        raise PermisoDenegado(mensaje_de_bloqueo(_minutos_de_bloqueo()))
 
     if not verificar_contrasena(usuario.hash_contrasena, contrasena):
         _registrar_intento_fallido(usuario)
@@ -230,6 +281,9 @@ def autenticar(email: str, contrasena: str) -> Usuario:
         )
         raise NoAutenticado(MENSAJE_CREDENCIALES)
 
+    # Se avisa que la cuenta esta desactivada solo despues de verificar la contrasena: a quien
+    # no la conoce le sale el mensaje generico de arriba, asi que no se revela que cuentas
+    # existen; a la persona duena de la cuenta si se le explica por que no puede entrar.
     if not usuario.activo:
         registrar_evento(
             logging.WARNING,
@@ -238,7 +292,7 @@ def autenticar(email: str, contrasena: str) -> Usuario:
             id_usuario=str(usuario.id),
             id_correlacion=id_correlacion_actual(),
         )
-        raise NoAutenticado(MENSAJE_CREDENCIALES)
+        raise PermisoDenegado(MENSAJE_INACTIVA)
 
     usuario.intentos_fallidos = 0
     usuario.bloqueado_hasta = None
@@ -258,17 +312,17 @@ def autenticar(email: str, contrasena: str) -> Usuario:
 # --- Politica de contrasena ---------------------------------------------------
 
 
-def validar_politica_de_contrasena(contrasena: str) -> None:
-    """Exige la longitud minima del contrato de configuracion.
+def validar_politica_de_contrasena(contrasena: str, campo: str = "contrasena") -> None:
+    """Exige la politica de `app.core.seguridad`: longitud minima, mayuscula, numero y
+    caracter especial.
 
     Se valida tambien acá, y no solo en el formulario, porque el seeder y la CLI crean cuentas
-    sin pasar por WTForms.
+    sin pasar por WTForms. `campo` es el nombre del campo al que se le pega el error.
     """
     minima = int(current_app.config["CONTRASENA_LONGITUD_MINIMA"])
-    if len(contrasena or "") < minima:
-        raise SolicitudInvalida(
-            detalle={"contrasena": [f"La contraseña debe tener al menos {minima} caracteres."]}
-        )
+    incumplidos = requisitos_incumplidos(contrasena, minima)
+    if incumplidos:
+        raise SolicitudInvalida(detalle={campo: [mensaje_de_politica(incumplidos, minima)]})
 
 
 # --- Coherencia entre rol y organizacion --------------------------------------
@@ -494,11 +548,18 @@ def cambiar_contrasena_propia(
 
     Exige la contrasena actual aunque haya sesion abierta: si alguien deja el navegador
     abierto, no debería alcanzar con eso para quedarse con la cuenta.
+
+    La nueva tiene que ser distinta de la actual. Sin esto, el cambio obligatorio seria
+    decorativo: la cuenta que crea el administrador podria "cambiar" la clave inicial por la
+    misma y seguir usando una contraseña que viajo fuera del sistema.
     """
     if not verificar_contrasena(usuario.hash_contrasena, contrasena_actual):
         raise SolicitudInvalida(detalle={"contrasena_actual": [MENSAJE_CONTRASENA_ACTUAL]})
 
-    validar_politica_de_contrasena(contrasena_nueva)
+    validar_politica_de_contrasena(contrasena_nueva, campo="contrasena_nueva")
+
+    if verificar_contrasena(usuario.hash_contrasena, contrasena_nueva):
+        raise SolicitudInvalida(detalle={"contrasena_nueva": [MENSAJE_CONTRASENA_REPETIDA]})
 
     usuario.hash_contrasena = hashear_contrasena(contrasena_nueva)
     usuario.debe_cambiar_contrasena = False
