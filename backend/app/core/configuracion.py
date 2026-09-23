@@ -45,8 +45,8 @@ VARIABLES_OPCIONALES: dict[str, str] = {
     # Control de acceso (EPIC-17). Ver docs/contratos/autorizacion.md.
     "SESION_MINUTOS_INACTIVIDAD": "30",
     "LOGIN_MAX_INTENTOS": "5",
-    "LOGIN_BLOQUEO_MINUTOS": "15",
-    "CONTRASENA_LONGITUD_MINIMA": "10",
+    "LOGIN_BLOQUEO_MINUTOS": "1",
+    "CONTRASENA_LONGITUD_MINIMA": "8",
     # Contrasena de las cuentas de demostracion que carga `flask seed`. No es un secreto de
     # produccion: el entorno sembrado es descartable y las cuentas son de prueba.
     "SEMILLA_CONTRASENA": "RescueSync.2026",

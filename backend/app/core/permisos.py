@@ -64,6 +64,16 @@ class NombreRol(StrEnum):
     ADMINISTRADOR = "administrador"
 
 
+# Nombre de cada perfil tal como lo ve una persona en la interfaz.
+ETIQUETA_POR_ROL: dict[NombreRol, str] = {
+    NombreRol.OPERADOR_MUNICIPAL: "Operador Municipal",
+    NombreRol.COORDINADOR_REGIONAL: "Centro Coordinador Regional",
+    NombreRol.REPRESENTANTE_ONG: "Representante de ONG",
+    NombreRol.AUDITOR: "Auditor / Directivo",
+    NombreRol.ADMINISTRADOR: "Administrador",
+}
+
+
 DESCRIPCION_POR_ROL: dict[NombreRol, str] = {
     NombreRol.OPERADOR_MUNICIPAL: (
         "Opera por un municipio: registra emergencias y selecciona las ofertas a adjudicar."
@@ -93,6 +103,12 @@ DESCRIPCION_POR_ROL: dict[NombreRol, str] = {
 TIPO_MUNICIPIO = "municipio"
 TIPO_ONG = "ong"
 TIPO_CENTRO_COORDINADOR = "centro_coordinador_regional"
+
+ETIQUETA_POR_TIPO_DE_ORGANIZACION: dict[str, str] = {
+    TIPO_MUNICIPIO: "Municipio",
+    TIPO_ONG: "ONG",
+    TIPO_CENTRO_COORDINADOR: "Centro Coordinador Regional",
+}
 
 # None significa que el rol NO debe tener organizacion asociada.
 TIPO_DE_ORGANIZACION_POR_ROL: dict[NombreRol, str | None] = {
