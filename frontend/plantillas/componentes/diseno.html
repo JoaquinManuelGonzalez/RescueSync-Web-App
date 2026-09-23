@@ -1,0 +1,66 @@
+{#- Piezas de diagramacion de las pantallas.
+
+    {% from "componentes/diseno.html" import encabezado_pagina, estado_vacio, insignia, insignia_estado_cuenta, dato %}
+
+    encabezado_pagina y estado_vacio aceptan un bloque {% call %} para las acciones:
+
+        {% call encabezado_pagina("Usuarios", "Cuentas de acceso al sistema.") %}
+          <a class="btn btn-primario" href="...">Nueva cuenta</a>
+        {% endcall %} -#}
+
+{% from "componentes/iconos.html" import icono %}
+
+{% macro encabezado_pagina(titulo, subtitulo=none) -%}
+<div class="pagina-encabezado">
+  <div>
+    <h1 class="pagina-titulo">{{ titulo }}</h1>
+    {%- if subtitulo %}
+    <p class="pagina-subtitulo">{{ subtitulo }}</p>
+    {%- endif %}
+  </div>
+  {%- if caller is defined %}
+  <div class="flex flex-wrap gap-3">{{ caller() }}</div>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{% macro estado_vacio(titulo, mensaje=none, icono_nombre="carpeta") -%}
+<div class="estado-vacio">
+  <span class="icono-circular">{{ icono(icono_nombre, "size-8") }}</span>
+  <p class="text-lg font-semibold text-gray-900">{{ titulo }}</p>
+  {%- if mensaje %}
+  <p class="max-w-md text-sm text-gray-500">{{ mensaje }}</p>
+  {%- endif %}
+  {%- if caller is defined %}
+  <div class="mt-2 flex flex-wrap justify-center gap-3">{{ caller() }}</div>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{% macro insignia(texto, variante="neutra") -%}
+<span class="insignia insignia-{{ variante }}">{{ texto }}</span>
+{%- endmacro %}
+
+{#- Estado de una cuenta a partir del diccionario de `servicios.a_diccionario()`. -#}
+{% macro insignia_estado_cuenta(usuario) -%}
+{%- if usuario.esta_bloqueado -%}
+{{ insignia("Bloqueada", "error") }}
+{%- elif not usuario.activo -%}
+{{ insignia("Inactiva", "neutra") }}
+{%- else -%}
+{{ insignia("Activa", "exito") }}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro insignia_estado(activo, texto_activo="Activa", texto_inactivo="Inactiva") -%}
+{{ insignia(texto_activo, "exito") if activo else insignia(texto_inactivo, "neutra") }}
+{%- endmacro %}
+
+{#- Un par "dato - valor" dentro de un <dl class="lista-datos">. Con {% call %} el valor puede
+    llevar HTML (insignias, enlaces). -#}
+{% macro dato(etiqueta, valor=none) -%}
+<div>
+  <dt>{{ etiqueta }}</dt>
+  <dd>{% if caller is defined %}{{ caller() }}{% else %}{{ valor if valor not in (none, "") else "—" }}{% endif %}</dd>
+</div>
+{%- endmacro %}

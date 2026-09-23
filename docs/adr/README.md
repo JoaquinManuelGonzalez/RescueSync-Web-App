@@ -35,11 +35,12 @@ de versión fijada), `Alternativas consideradas` y `Consecuencias`.
 | 006 | Contrato de errores, logs y configuración | Aceptado | 2026-09-15 | [ADR-006-contrato-errores-logs-configuracion.md](./ADR-006-contrato-errores-logs-configuracion.md) |
 | 007 | Estructura del esqueleto ejecutable y cadena de build de frontend | Propuesto | 2026-09-17 | [ADR-007-estructura-esqueleto-ejecutable.md](./ADR-007-estructura-esqueleto-ejecutable.md) |
 | 008 | Gestión de dependencias de Python con uv | Propuesto | 2026-09-17 | [ADR-008-gestion-dependencias-uv.md](./ADR-008-gestion-dependencias-uv.md) |
+| 009 | Autenticación por sesión y control de accesos basado en roles | Propuesto | 2026-09-21 | [ADR-009-autenticacion-y-rbac.md](./ADR-009-autenticacion-y-rbac.md) |
 
 La numeración es correlativa y nunca se reutiliza: si un ADR queda
 reemplazado u obsoleto, su número no vuelve a asignarse a una decisión
 distinta. El siguiente ADR que se escriba, sea nuevo o reemplace a uno
-existente, usa el número `009` en adelante.
+existente, usa el número `010` en adelante.
 
 ## Ciclo de vida de un ADR
 

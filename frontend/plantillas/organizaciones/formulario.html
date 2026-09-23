@@ -1,0 +1,42 @@
+{#- Alta y edicion de una organizacion.
+
+    Contexto: `formulario`, `modo` ("alta" o "edicion") y `organizacion` (solo en edicion). -#}
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina %}
+{% from "componentes/formularios.html" import csrf, campo, boton_envio %}
+
+{%- set es_alta = modo == "alta" %}
+{%- set titulo = "Nueva organización" if es_alta else "Editar organización" %}
+{%- set destino_cancelar = url_for("organizaciones.listar") if es_alta else url_for("organizaciones.ver", organizacion_id=organizacion.id) %}
+{%- set accion = url_for("organizaciones.crear") if es_alta else url_for("organizaciones.editar", organizacion_id=organizacion.id) %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta">
+  {% call encabezado_pagina(titulo, none if es_alta else organizacion.nombre) %}
+    <a class="btn btn-secundario" href="{{ destino_cancelar }}">{{ icono("volver") }} Volver</a>
+  {% endcall %}
+
+  <div class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <form class="formulario" method="post" action="{{ accion }}" data-envio-con-carga novalidate>
+        {{ csrf() }}
+        <div class="formulario-grilla">
+          {{ campo(formulario.nombre, atributos={"required": true}) }}
+          {{ campo(formulario.tipo, atributos={"required": true}) }}
+          {{ campo(formulario.identificador_nacional, ayuda="CUIT u otro identificador oficial. Opcional.") }}
+          {{ campo(formulario.contacto_email, atributos={"type": "email"}) }}
+          {{ campo(formulario.contacto_telefono, atributos={"type": "tel"}) }}
+          {{ campo(formulario.direccion) }}
+        </div>
+        <div class="formulario-acciones">
+          <a class="btn btn-secundario" href="{{ destino_cancelar }}">Cancelar</a>
+          {{ boton_envio("Crear organización" if es_alta else "Guardar cambios", "Guardando...") }}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

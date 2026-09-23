@@ -7,6 +7,16 @@
 
 @import "tailwindcss";
 
+/* Componentes de las pantallas de gestion (usuarios, organizaciones, perfil, errores).
+ * Ver docs/contratos/interfaz.md. */
+@import "./componentes/botones.css";
+@import "./componentes/formularios.css";
+@import "./componentes/superficies.css";
+@import "./componentes/tablas.css";
+@import "./componentes/insignias.css";
+@import "./componentes/alertas.css";
+@import "./componentes/modal.css";
+
 /* Que archivos escanea Tailwind para decidir que clases incluir. Las rutas son relativas
  * a este archivo.
  *
@@ -15,6 +25,7 @@
  * esos archivos .py. Ojo al escribirla: un patron glob dentro de un comentario CSS cierra
  * el comentario antes de tiempo, asi que va como directiva, nunca comentada. */
 @source "../plantillas/**/*.html";
+@source "../estaticos/js/**/*.js";
 
 @theme {
      /* Primario */

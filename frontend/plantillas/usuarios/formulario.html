@@ -1,0 +1,51 @@
+{#- Alta y edicion de una cuenta.
+
+    Contexto: `formulario`, `modo` ("alta" o "edicion"), `usuario` (solo en edicion),
+    `opciones_de_organizacion` (tuplas valor, texto, tipo) y `tipos_por_rol` (JSON rol -> tipo de
+    organizacion exigido, para que interfaz.js filtre el select). -#}
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina, dato %}
+{% from "componentes/formularios.html" import csrf, campo, boton_envio %}
+
+{%- set es_alta = modo == "alta" %}
+{%- set titulo = "Nueva cuenta" if es_alta else "Editar cuenta" %}
+{%- set destino_cancelar = url_for("usuarios.listar") if es_alta else url_for("usuarios.ver", usuario_id=usuario.id) %}
+{%- set accion = url_for("usuarios.crear") if es_alta else url_for("usuarios.editar", usuario_id=usuario.id) %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta">
+  {% call encabezado_pagina(titulo, "La persona deberá cambiar la contraseña inicial en su primer ingreso." if es_alta else usuario.email) %}
+    <a class="btn btn-secundario" href="{{ destino_cancelar }}">{{ icono("volver") }} Volver</a>
+  {% endcall %}
+
+  <div class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <form class="formulario" method="post" action="{{ accion }}" data-envio-con-carga novalidate>
+        {{ csrf() }}
+        <div class="formulario-grilla">
+          {%- if es_alta %}
+          {{ campo(formulario.email, atributos={"type": "email", "autocomplete": "off", "required": true}) }}
+          {%- endif %}
+          {{ campo(formulario.nombre_completo, atributos={"autocomplete": "off", "required": true}) }}
+          {{ campo(formulario.rol, atributos={"required": true}) }}
+          {{ campo(formulario.organizacion_id,
+                   opciones=opciones_de_organizacion,
+                   vacia="Sin organización",
+                   ayuda="Operador municipal: un municipio. Coordinador: el centro coordinador. Representante: una ONG. Auditor y administrador: ninguna.",
+                   atributos={"data-filtra-organizaciones": tipos_por_rol, "data-campo-rol": formulario.rol.id}) }}
+          {%- if es_alta %}
+          {{ campo(formulario.contrasena, requisitos=true, atributos={"autocomplete": "new-password", "required": true}) }}
+          {%- endif %}
+        </div>
+        <div class="formulario-acciones">
+          <a class="btn btn-secundario" href="{{ destino_cancelar }}">Cancelar</a>
+          {{ boton_envio("Crear cuenta" if es_alta else "Guardar cambios", "Guardando...") }}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -187,9 +187,10 @@ servidor, y el contenedor `tailwind` compila el CSS y se queda vigilando cambios
 docker compose exec web flask seed
 ```
 
-> Hoy este comando informa que todavía no hay seeders registrados. El mecanismo está completo
-> y es idempotente; los datos se suman cuando exista el esquema de dominio. Ver
-> [Credenciales de prueba](#credenciales-de-prueba).
+Carga las organizaciones de demostración, el catálogo de permisos, los cinco roles con sus
+permisos y una cuenta por perfil. Es idempotente: se puede volver a correr las veces que haga
+falta. Al terminar imprime los emails disponibles; las contraseñas están en
+[Credenciales de prueba](#credenciales-de-prueba).
 
 ---
 
@@ -225,7 +226,7 @@ Estilo arquitectónico: **monolito modular** (ver `docs/adr/ADR-005-estilo-arqui
 .
 ├── backend/                     codigo Python de la aplicacion
 │   ├── app/
-│   │   ├── core/                 configuracion, errores, logging, seguridad, integraciones
+│   │   ├── core/                 configuracion, errores, logging; acceso/ (RBAC), interfaz/, integraciones/
 │   │   └── modulos/              un paquete por modulo de dominio
 │   ├── migrations/               migraciones de Alembic
 │   ├── tests/
@@ -242,7 +243,7 @@ Estilo arquitectónico: **monolito modular** (ver `docs/adr/ADR-005-estilo-arqui
 ├── docs/
 │   ├── adr/                     decisiones de arquitectura (ADRs)
 │   ├── arquitectura/            diagrama de componentes e integraciones
-│   └── contratos/                contratos transversales: errores, logging, configuracion
+│   └── contratos/                contratos transversales: errores, logging, configuracion, autorizacion
 ├── .github/
 ├── docker-compose.yml           db + web + tailwind
 ├── .env.example                 variables de entorno de referencia (sin valores reales)
@@ -293,22 +294,36 @@ el log indica exactamente cuál falta. No se aplica ningún valor por defecto.
 
 ## Credenciales de prueba
 
-> **Pendiente.** El esquema de dominio está en definición, así que todavía no hay usuarios
-> semilla. El comando `flask seed` y su mecanismo de idempotencia ya funcionan; lo que falta
-> son los datos.
->
-> Cuando el módulo `usuarios_roles` exista, esta tabla se completa en el mismo PR que agregue
-> su seeder, con un usuario por cada uno de los cuatro roles.
+Las que deja `docker compose exec web flask seed`. Todas comparten la contraseña de
+`SEMILLA_CONTRASENA` (por defecto `RescueSync.2026`).
 
-| Rol | Email | Contraseña |
+| Rol | Email | Organización |
 |---|---|---|
-| Operador Municipal | _pendiente_ | _pendiente_ |
-| Centro Coordinador Regional | _pendiente_ | _pendiente_ |
-| Representante de ONG | _pendiente_ | _pendiente_ |
-| Auditor / Directivo | _pendiente_ | _pendiente_ |
+| Operador Municipal | `operador@chascomus.test` | Municipio de Chascomús |
+| Centro Coordinador Regional | `coordinador@rescuesync.test` | Centro Coordinador Regional Buenos Aires |
+| Representante de ONG | `representante@cruzsolidaria.test` | Cruz Solidaria |
+| Representante de ONG | `representante@manosunidas.test` | Manos Unidas |
+| Auditor / Directivo | `auditor@rescuesync.test` | — |
+| Administrador | `admin@rescuesync.test` | — |
 
-Las contraseñas se almacenan hasheadas con scrypt (`backend/app/core/seguridad.py`), nunca en
+Las contraseñas se almacenan hasheadas con scrypt
+(`backend/app/core/acceso/seguridad.py`), nunca en
 texto plano.
+
+En RescueSync **no hay autorregistro**: todas las cuentas las crea el administrador desde
+`/usuarios`. La primera cuenta de administrador de un entorno nuevo no puede salir de ahí
+—el panel exige estar autenticado como administrador—, así que se crea por consola:
+
+```bash
+docker compose exec web flask crear-administrador \
+  --email admin@tu-dominio.test --nombre "Nombre y apellido"
+```
+
+Si se omite `--contrasena`, el comando genera una y la imprime **una sola vez**.
+
+Las cuentas creadas desde el panel nacen obligadas a cambiar la contraseña en el primer
+ingreso: la clave inicial la eligió otra persona y viajó por un canal externo al sistema.
+El detalle completo está en [docs/contratos/autorizacion.md](docs/contratos/autorizacion.md).
 
 ---
 
@@ -330,6 +345,7 @@ Todos se corren desde la raíz del repositorio.
 | Aplicar migraciones a mano | `docker compose exec web flask db upgrade` |
 | Ver la revisión actual | `docker compose exec web flask db current` |
 | Cargar datos semilla | `docker compose exec web flask seed` |
+| Crear la primera cuenta de administrador | `docker compose exec web flask crear-administrador --email <email> --nombre "<nombre>"` |
 | Correr los tests | `docker compose exec web pytest` |
 | Formatear el código | `docker compose exec web ruff format .` |
 | Verificar formato y lint | `docker compose exec web ruff format --check . && docker compose exec web ruff check .` |
@@ -581,6 +597,7 @@ Lo que falle se corrige en el README antes de cerrar la HU.
 | ADR-006 | Contrato de errores, logs y configuración | Aceptado | [docs/adr/ADR-006-contrato-errores-logs-configuracion.md](docs/adr/ADR-006-contrato-errores-logs-configuracion.md) |
 | ADR-007 | Estructura del esqueleto ejecutable y cadena de build de frontend | Propuesto | [docs/adr/ADR-007-estructura-esqueleto-ejecutable.md](docs/adr/ADR-007-estructura-esqueleto-ejecutable.md) |
 | ADR-008 | Gestión de dependencias de Python con uv | Propuesto | [docs/adr/ADR-008-gestion-dependencias-uv.md](docs/adr/ADR-008-gestion-dependencias-uv.md) |
+| ADR-009 | Autenticación por sesión y control de accesos basado en roles | Propuesto | [docs/adr/ADR-009-autenticacion-y-rbac.md](docs/adr/ADR-009-autenticacion-y-rbac.md) |
 
 El índice completo de ADRs, con el ciclo de vida de estados, la regla de reemplazo y la de
 enmienda parcial, está en [docs/adr/README.md](docs/adr/README.md).
@@ -598,6 +615,7 @@ regla de dependencia.
 | Errores | Envelope único de error y política de reintentos hacia sistemas externos | [docs/contratos/errores.md](docs/contratos/errores.md) |
 | Logging | Formato de logs, campos obligatorios y datos que nunca se registran | [docs/contratos/logging.md](docs/contratos/logging.md) |
 | Configuración | Variables de entorno, fail-fast y gestión de secretos | [docs/contratos/configuracion.md](docs/contratos/configuracion.md) |
+| Autorización | Perfiles, catálogo de permisos, cómo se protege una pantalla, sesión y respuesta ante acceso no autorizado | [docs/contratos/autorizacion.md](docs/contratos/autorizacion.md) |
 
 ---
 

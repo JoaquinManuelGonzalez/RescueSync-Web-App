@@ -1,0 +1,59 @@
+{#- Contexto: `usuarios` (diccionarios de `servicios.a_diccionario()`), `pagina` (la paginacion), `filtros` (la query
+    string), `opciones_de_rol`, `opciones_de_organizacion` y `opciones_de_estado`. -#}
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina, estado_vacio, insignia, insignia_estado_cuenta %}
+{% from "componentes/formularios.html" import filtro_texto, filtro_select %}
+{% from "componentes/tablas.html" import tabla, celda, paginacion %}
+
+{% block title %}Usuarios{% endblock %}
+
+{% block content %}
+<div class="pagina">
+  {% call encabezado_pagina("Usuarios", "Cuentas de acceso al sistema, con su perfil y su organización.") %}
+    {%- if puede("usuarios:crear") %}
+    <a class="btn btn-primario" href="{{ url_for('usuarios.formulario_de_alta') }}">{{ icono("mas") }} Nueva cuenta</a>
+    {%- endif %}
+  {% endcall %}
+
+  <form method="get" action="{{ url_for('usuarios.listar') }}" class="barra-filtros">
+    {{ filtro_texto("texto", "Buscar", filtros.get("texto"), "Nombre o email") }}
+    {{ filtro_select("rol", "Perfil", opciones_de_rol, filtros.get("rol")) }}
+    {{ filtro_select("organizacion_id", "Organización", opciones_de_organizacion, filtros.get("organizacion_id"), "Todas") }}
+    {{ filtro_select("activo", "Estado", opciones_de_estado, filtros.get("activo")) }}
+    <button type="submit" class="btn btn-secundario">{{ icono("buscar") }} Filtrar</button>
+  </form>
+
+  {%- if usuarios %}
+  {% call tabla(["Nombre", "Perfil", "Organización", "Estado", "Último acceso", none]) %}
+    {%- for usuario in usuarios %}
+    <tr class="tabla-fila">
+      {% call celda("Nombre") %}
+        <p class="font-medium text-gray-900">{{ usuario.nombre_completo }}</p>
+        <p class="text-xs text-gray-500">{{ usuario.email }}</p>
+      {% endcall %}
+      {% call celda("Perfil") %}{% for rol in usuario.roles %}{{ insignia(rol|etiqueta_rol, "primaria") }}{% endfor %}{% endcall %}
+      {% call celda("Organización") %}{{ usuario.organizacion.nombre if usuario.organizacion else "—" }}{% endcall %}
+      {% call celda("Estado") %}{{ insignia_estado_cuenta(usuario) }}{% endcall %}
+      {% call celda("Último acceso") %}{{ usuario.ultimo_acceso_en|fecha }}{% endcall %}
+      {% call celda() %}
+        <div class="tabla-acciones">
+          <a class="btn btn-fantasma btn-icono" href="{{ url_for('usuarios.ver', usuario_id=usuario.id) }}" title="Ver detalle">
+            {{ icono("ver") }}<span class="sr-only">Ver detalle de {{ usuario.nombre_completo }}</span>
+          </a>
+          {%- if puede("usuarios:editar") %}
+          <a class="btn btn-fantasma btn-icono" href="{{ url_for('usuarios.formulario_de_edicion', usuario_id=usuario.id) }}" title="Editar">
+            {{ icono("editar") }}<span class="sr-only">Editar a {{ usuario.nombre_completo }}</span>
+          </a>
+          {%- endif %}
+        </div>
+      {% endcall %}
+    </tr>
+    {%- endfor %}
+  {% endcall %}
+  {{ paginacion(pagina) }}
+  {%- else %}
+  {{ estado_vacio("No hay cuentas que coincidan con el filtro", "Probá con otros criterios de búsqueda.", "usuarios") }}
+  {%- endif %}
+</div>
+{% endblock %}

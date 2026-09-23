@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% from "componentes/alertas.html" import alerta %}
+{% from "componentes/diseno.html" import encabezado_pagina %}
+{% from "componentes/formularios.html" import csrf, campo, boton_envio %}
+
+{% block title %}Cambiar contraseña{% endblock %}
+
+{% block content %}
+{%- set obligatorio = current_user.debe_cambiar_contrasena %}
+<div class="pagina-angosta">
+  {{ encabezado_pagina("Cambiar contraseña", "Elegí una contraseña que no uses en otros sistemas.") }}
+
+  {%- if obligatorio %}
+  <div class="mb-6">
+    {{ alerta("info", "Por seguridad, tenés que reemplazar la contraseña que te asignó el administrador antes de seguir usando el sistema.", titulo="Cambio obligatorio") }}
+  </div>
+  {%- endif %}
+
+  <div class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <form class="formulario" method="post" action="{{ url_for('sesion.cambiar_contrasena') }}" data-envio-con-carga novalidate>
+        {{ csrf() }}
+        {{ campo(formulario.contrasena_actual, atributos={"autocomplete": "current-password", "required": true}) }}
+        {{ campo(formulario.contrasena_nueva, requisitos=true, atributos={"autocomplete": "new-password", "required": true}) }}
+        {{ campo(formulario.contrasena_nueva_repetida, atributos={"autocomplete": "new-password", "required": true}) }}
+        <div class="formulario-acciones">
+          {%- if not obligatorio %}
+          <a class="btn btn-secundario" href="{{ url_for('inicio.panel') }}">Cancelar</a>
+          {%- endif %}
+          {{ boton_envio("Guardar contraseña", "Guardando...") }}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
