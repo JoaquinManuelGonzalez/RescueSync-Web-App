@@ -1,7 +1,7 @@
 """Datos semilla para el módulo de emergencias.
 Notas:
-    * se identifica cada Item por su nombre
-    * No se siembran Emergencias, Lotes ni Convocatorias ya que son datos que se generan por el flujo de la aplicación.
+    * Se identifica cada Item por su nombre
+    * No se siembran Lotes ni Convocatorias. Son datos que se generan por el flujo de la aplicación.
 """
 
 from __future__ import annotations
@@ -30,7 +30,6 @@ ITEMS: list[tuple[str, TipoNecesidad, str, str | None]] = [
         "personas",
         "Personal de enfermería para primeros auxilios y cuidados básicos.",
     ),
-
     # --- Rescate -----------------------------------------------------------
     (
         "Rescatistas",
@@ -44,7 +43,6 @@ ITEMS: list[tuple[str, TipoNecesidad, str, str | None]] = [
         "unidades",
         "Caninos entrenados para detección de personas.",
     ),
-
     # --- Bomberos -----------------------------------------------------------
     (
         "Bomberos",
@@ -58,7 +56,6 @@ ITEMS: list[tuple[str, TipoNecesidad, str, str | None]] = [
         "personas",
         "Bomberos civiles voluntarios especializados los incendios forestales.",
     ),
-
     # --- Alimentos ---------------------------------------------------------
     (
         "Raciones de alimento no perecedero",
@@ -144,7 +141,6 @@ ITEMS: list[tuple[str, TipoNecesidad, str, str | None]] = [
         "kg",
         None,
     ),
-
     # --- Agua --------------------------------------------------------------
     (
         "Agua potable envasada",
@@ -158,7 +154,6 @@ ITEMS: list[tuple[str, TipoNecesidad, str, str | None]] = [
         "unidades",
         "Tanques de 1000 L para distribución comunitaria.",
     ),
-
     # --- Abrigo ------------------------------------------------------------
     (
         "Frazadas",
@@ -190,7 +185,6 @@ ITEMS: list[tuple[str, TipoNecesidad, str, str | None]] = [
         "unidades",
         "Donaciones de ropa apta para temperaturas por encima de los 15°.",
     ),
-
     # --- Medicamentos ------------------------------------------------------
     (
         "Botiquines de primeros auxilios",
@@ -240,7 +234,6 @@ ITEMS: list[tuple[str, TipoNecesidad, str, str | None]] = [
         "unidades",
         "Para reponer líquidos, limpiar ojos, lavar heridas y quemaduras, y diluir medicamentos.",
     ),
-
     # --- Maquinaria --------------------------------------------------------
     (
         "Retroexcavadoras",
@@ -266,7 +259,6 @@ ITEMS: list[tuple[str, TipoNecesidad, str, str | None]] = [
         "unidades",
         "Unidades de traslado medicalizado.",
     ),
-
     # --- Otro --------------------------------------------------------------
     (
         "Voluntarios generales",

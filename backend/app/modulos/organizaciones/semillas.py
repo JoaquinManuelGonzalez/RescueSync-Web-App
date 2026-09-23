@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 from app.core.semillas import ResultadoSemilla, obtener_o_crear, registrar
-from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion, Inventario, InventarioItem
 from app.modulos.emergencias.modelos import Item
+from app.modulos.organizaciones.modelos import (
+    Inventario,
+    InventarioItem,
+    Organizacion,
+    TipoOrganizacion,
+)
 
 # # # # # # # # # # # # Organizaciones # # # # # # # # # # # #
 ORGANIZACIONES: list[dict] = [
