@@ -14,37 +14,7 @@ from app.modulos.usuarios_roles.modelos import Usuario
 # # # # # # # # # # # # Emergencias # # # # # # # # # # # #
 EMERGENCIAS: list[dict] = [
     {
-        "titulo": "Inundación en zona costera de Bahía Blanca",
-        "descripcion": (
-            "Lluvias intensas provocaron el desborde del arroyo Napostá"
-            "y provocaron la inundación de varios barrios costeros."
-            "Se reportan viviendas evacuadas, cerca de 800 familias desplazadas."
-            "También se reportan cortes de luz en toda la ciudad."
-            "Se requiere asistencia inmediata para la población."
-        ),
-        "nivel_gravedad": NivelGravedad.critica,
-        "zona_afectada": "Arroyo Napostá, Arroyo Villametri y costanera municipal",
-        "estado": EstadoEmergencia.en_evaluacion,
-        "municipio_nombre": "Municipalidad de Bahía Blanca",
-        "usuario_email": "operador_municipal1@test.com",
-    },
-    {
-        "titulo": "Incendio forestal en el Parque Pereyra",
-        "descripcion": (
-            "Un incendio se propagó por los pastizales y bosques del Parque Pereyra."
-            "Viviendas rurales y producciones familiares se vieron afectadas."
-            "Bomberos locales de La Plata y Berazategui trabajan en el control del fuego."
-            "Se evacuaron familias en forma preventiva."
-            "Solicitamos refuerzos para la atención médica y apagado de los focs de incendio."
-        ),
-        "nivel_gravedad": NivelGravedad.alta,
-        "zona_afectada": "Autopista Dr. Ricardo Balbín y alrededores de la Escuela Juan Vucetich.",
-        "estado": EstadoEmergencia.registrada,
-        "municipio_nombre": "Municipalidad de La Plata",
-        "usuario_email": "operador_municipal3@test.com",
-    },
-    {
-        "titulo": "Temporal severo con voladura de techos en Pergamino",
+        "titulo": "Temporal severo con voladura de techos en Chascomús",
         "descripcion": (
             "Un temporal con ráfagas superiores a los 100 km/h"
             "provocó la voladura de techos en viviendas y galpones."
@@ -53,10 +23,10 @@ EMERGENCIAS: list[dict] = [
             "Solicitamos además apoyo médico para la atención y transporte de heridos."
         ),
         "nivel_gravedad": NivelGravedad.media,
-        "zona_afectada": "Casco urbano y periurbano de Pergamino",
+        "zona_afectada": "Casco urbano y periurbano de Chascomús",
         "estado": EstadoEmergencia.registrada,
-        "municipio_nombre": "Municipalidad de Pergamino",
-        "usuario_email": "operador_municipal2@test.com",
+        "municipio_nombre": "Municipio de Chascomús",
+        "usuario_email": "operador@chascomus.test",
     },
 ]
 

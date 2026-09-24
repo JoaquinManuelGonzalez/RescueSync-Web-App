@@ -1,4 +1,14 @@
-"""Datos semilla para el módulo de organizaciones (municipios, centros coordinadores y ONGs)."""
+"""Datos semilla de organizaciones.
+
+Carga las organizaciones mínimas para poder recorrer el proceso de punta a punta:
+los municipios que registran emergencias, el centro coordinador que arma los
+lotes, y las ONGs que presentan ofertas de ayuda. Se incluyen varias ONGs para
+poder probar también el caso de consorcio del enunciado.
+
+Es idempotente: identifica cada fila por su nombre, que es la clave natural, y no
+hace commit (de eso se ocupa `flask seed`, que envuelve toda la carga en una única
+transacción).
+"""
 
 from __future__ import annotations
 
@@ -12,87 +22,97 @@ from app.modulos.organizaciones.modelos import (
 )
 
 # # # # # # # # # # # # Organizaciones # # # # # # # # # # # #
-ORGANIZACIONES: list[dict] = [
-    {
-        "nombre": "Municipalidad de Bahía Blanca",
-        "tipo": TipoOrganizacion.municipio,
-        "identificador_nacional": "30-99999999-1",
-        "contacto_email": "bahiablanca@test.gob.ar",
-        "contacto_telefono": "+54 291 555-0001",
-        "direccion": "Av. Colón 1, Bahía Blanca, Buenos Aires",
-    },
-    {
-        "nombre": "Municipalidad de La Plata",
-        "tipo": TipoOrganizacion.municipio,
-        "identificador_nacional": "30-99999999-2",
-        "contacto_email": "laplata@test.gob.ar",
-        "contacto_telefono": "+54 221 555-0002",
-        "direccion": "Calle 12 y 51, La Plata, Buenos Aires",
-    },
-    {
-        "nombre": "Municipalidad de Pergamino",
-        "tipo": TipoOrganizacion.municipio,
-        "identificador_nacional": "30-99999999-3",
-        "contacto_email": "pergamino@test.gob.ar",
-        "contacto_telefono": "+54 247 732-8000",
-        "direccion": "Florida 629, Pergamino, Buenos Aires",
-    },
-    {
-        "nombre": "Cruz Roja Argentina - Filial Bahía Blanca",
-        "tipo": TipoOrganizacion.ong,
-        "identificador_nacional": "30-99999999-4",
-        "contacto_email": "cruzroja.bahiablanca@test.org.ar",
-        "contacto_telefono": "+54 291 555-0003",
-        "direccion": "Zelarrayán 100, Bahía Blanca, Buenos Aires",
-    },
-    {
-        "nombre": "Bomberos Voluntarios de La Plata",
-        "tipo": TipoOrganizacion.ong,
-        "identificador_nacional": "30-99999999-5",
-        "contacto_email": "bomberos.laplata@test.org.ar",
-        "contacto_telefono": "+54 221 555-0004",
-        "direccion": "Calle 60 y 120, La Plata, Buenos Aires",
-    },
-    {
-        "nombre": "Grupo Scouts de Pergamino",
-        "tipo": TipoOrganizacion.ong,
-        "identificador_nacional": "30-99999999-6",
-        "contacto_email": "scouts.pergamino@test.org.ar",
-        "contacto_telefono": "+54 247 732-8989",
-        "direccion": "Maipú 602, Pergamino, Buenos Aires",
-    },
-    {
-        "nombre": "Centro Coordinador Regional de la Provincia Buenos Aires",
-        "tipo": TipoOrganizacion.centro_coordinador_regional,
-        "identificador_nacional": "30-99999999-7",
-        "contacto_email": "coordinacion.bsas@rescuesync.test",
-        "contacto_telefono": "+54 11 555-0005",
-        "direccion": "Calle 6 y 53, La Plata, Buenos Aires",
-    },
-]
+# Formato: (nombre, tipo, identificador_nacional).
+# El orden importa:
+#     * Los municipios primero (los necesitan los seeders de emergencias)
+#     * Luego el centro coordinador
+#     * Por último las ONGs.
+
+ORGANIZACIONES_DE_DEMOSTRACION: tuple[tuple[str, TipoOrganizacion, str], ...] = (
+    # --- Municipios ---
+    (
+        "Municipio de Chascomús",
+        TipoOrganizacion.municipio,
+        "30-71234567-9"
+    ),
+    (
+        "Municipalidad de Bahía Blanca",
+        TipoOrganizacion.municipio,
+        "30-99999999-1"
+    ),
+    (
+        "Municipalidad de La Plata",
+        TipoOrganizacion.municipio,
+        "30-99999999-2"
+    ),
+    (
+        "Municipalidad de Pergamino",
+        TipoOrganizacion.municipio,
+        "30-99999999-3"
+    ),
+    # --- Centro coordinador regional ---
+    (
+        "Centro Coordinador Regional Buenos Aires",
+        TipoOrganizacion.centro_coordinador_regional,
+        "30-70987654-3",
+    ),
+    # --- ONGs ---
+    (
+        "Cruz Solidaria",
+        TipoOrganizacion.ong,
+        "30-65432198-7"
+    ),
+    (
+        "Manos Unidas",
+        TipoOrganizacion.ong,
+        "30-65432199-5"
+    ),
+    (
+        "Cruz Roja Argentina - Filial Bahía Blanca",
+        TipoOrganizacion.ong,
+        "30-99999999-4",
+    ),
+    (
+        "Bomberos Voluntarios de La Plata",
+        TipoOrganizacion.ong,
+        "30-99999999-5",
+    ),
+    (
+        "Grupo Scouts de Pergamino",
+        TipoOrganizacion.ong,
+        "30-99999999-6"
+    ),
+)
 
 
 @registrar("organizaciones")
 def sembrar_organizaciones() -> list[ResultadoSemilla]:
-
+    """Crea los municipios, el centro coordinador y las ONGs de demostración."""
     resultado = ResultadoSemilla("organizaciones")
 
-    for datos in ORGANIZACIONES:
-        nombre = datos["nombre"]
-        valores = {k: v for k, v in datos.items() if k != "nombre"}
-        _, creado = obtener_o_crear(
+    for nombre, tipo, identificador in ORGANIZACIONES_DE_DEMOSTRACION:
+        _, fue_creada = obtener_o_crear(
             Organizacion,
             claves={"nombre": nombre},
-            valores=valores,
+            valores={
+                "tipo": tipo,
+                "identificador_nacional": identificador,
+                "activo": True,
+            },
         )
-        resultado.contar(creado)
+        resultado.contar(fue_creada)
 
     return [resultado]
 
 
 # # # # # # # # # # # # Inventarios # # # # # # # # # # # #
-# Los nombres de ítems deben existir en emergencias/semillas.py::ITEMS.
-# Sólo las ONGs tienen inventarios
+# * Los nombres de ítems deben existir en emergencias/semillas_items.py::ITEMS.
+# * Sólo las ONGs tienen inventarios.
+#
+# `Cruz Solidaria` y `Manos Unidas` no llevan inventario.
+# No se necesitan para el flujo de su HU.
+# Si más adelante hacen falta, se agregan aquí como cualquier otra ONG.
+
 INVENTARIOS: dict[str, dict] = {
     "Cruz Roja Argentina - Filial Bahía Blanca": {
         "inventario": {
@@ -174,19 +194,21 @@ INVENTARIOS: dict[str, dict] = {
 @registrar("inventarios")
 def sembrar_inventarios() -> list[ResultadoSemilla]:
     """Crea un inventario por organización y le carga stock inicial.
-
     Notas:
       - Inventario: clave natural `organizacion_id` (unique=True en el modelo).
-      - InventarioItem: Si ya existe, NO se actualiza la cantidad.
+      - InventarioItem: si ya existe, NO se actualiza la cantidad. El stock es
+        dato operativo que muta con la aplicación, no con la semilla.
     """
-    resultado = ResultadoSemilla("inventarios")
+    resultado_inv = ResultadoSemilla("inventarios")
+    resultado_items = ResultadoSemilla("inventario_items")
 
     for nombre_org, config in INVENTARIOS.items():
         organizacion = Organizacion.query.filter_by(nombre=nombre_org).first()
         if organizacion is None:
             raise ValueError(
                 f"Organización no encontrada para inventario: {nombre_org!r}. "
-                f"Revisar si está declarada en organizaciones/semillas.py::ORGANIZACIONES"
+                f"Revisar si está declarada en: "
+                f"organizaciones/semillas.py::ORGANIZACIONES_DE_DEMOSTRACION"
             )
 
         inventario, creado = obtener_o_crear(
@@ -197,14 +219,15 @@ def sembrar_inventarios() -> list[ResultadoSemilla]:
                 "descripcion": config["inventario"]["descripcion"],
             },
         )
-        resultado.contar(creado)
+        resultado_inv.contar(creado)
 
         for nombre_item, cantidad in config["stock"].items():
             item = Item.query.filter_by(nombre=nombre_item).first()
             if item is None:
                 raise ValueError(
                     f"Item no encontrado en el catálogo: {nombre_item!r}. "
-                    f"Revisar si está declarado en emergencias/semillas.py::ITEMS"
+                    f"Revisar si está declarado en: "
+                    f"emergencias/semillas_items.py::ITEMS"
                 )
             _, fue_creado = obtener_o_crear(
                 InventarioItem,
@@ -214,4 +237,6 @@ def sembrar_inventarios() -> list[ResultadoSemilla]:
                 },
                 valores={"cantidad_disponible": cantidad},
             )
-    return [resultado]
+            resultado_items.contar(fue_creado)
+
+    return [resultado_inv, resultado_items]
