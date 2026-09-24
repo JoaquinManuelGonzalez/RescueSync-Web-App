@@ -204,7 +204,6 @@ class Usuario(UserMixin, db.Model):
         nullable=True,
         comment="Último ingreso exitoso.",
     )
-
     creado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
