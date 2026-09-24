@@ -1,0 +1,146 @@
+{% extends "layout.html" %}  
+{% block title %} Iniciar sesión {% endblock %}  
+{% block content %} 
+
+  <div class="flex min-h-full flex-col justify-center px-6 py-12 lg:px-8"> 
+
+    <div class="sm:mx-auto sm:w-full sm:max-w-sm"> 
+      <img
+        class="mx-auto h-21 w-auto"
+        src="{{ url_for('static', filename='img/RescueSync.png') }}"
+        alt="Icono RescueSync"
+      > 
+
+      <h2 class="mt-10 text-center text-2xl/9 font-bold tracking-tight text-gray-900">
+        ¡Bienvenido a RescueSync!
+      </h2> 
+    </div> 
+   
+    <div class="mt-10 sm:mx-auto sm:w-full sm:max-w-sm"> 
+
+      <form id="login-form" class="space-y-6" action="{{ url_for('sesion.ingresar') }}" method="POST">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        {% if siguiente %}<input type="hidden" name="next" value="{{ siguiente }}" />{% endif %}
+
+        <div>
+          <label for="email" class="block text-sm/6 font-medium text-gray-900">
+            Email
+          </label>
+
+          <div class="mt-2">
+            <input
+              type="email"
+              name="email"
+              id="email"
+              value="{{ formulario.email.data or '' }}"
+              autocomplete="username"
+              required
+              class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6"
+            > 
+          </div> 
+        </div> 
+   
+        <div> 
+          <div class="flex items-center justify-between"> 
+            <label for="contrasena" class="block text-sm/6 font-medium text-gray-900">
+              Contraseña
+            </label>
+          </div>
+
+          <div class="mt-2 relative">
+            <input
+              type="password"
+              name="contrasena"
+              id="contrasena"
+              autocomplete="current-password"
+              required
+              class="block w-full rounded-md bg-white px-3 py-1.5 pr-10 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6"
+            >
+            <!-- Mostrar / ocultar contraseña (lo maneja estaticos/js/interfaz.js) -->
+            <button
+              type="button"
+              class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-primario transition-colors cursor-pointer"
+              data-alternar-contrasena="contrasena"
+              aria-controls="contrasena"
+              aria-pressed="false"
+              aria-label="Mostrar contraseña"
+              title="Mostrar contraseña"
+            >
+              <span data-icono-mostrar>
+                <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+              </span>
+              <span data-icono-ocultar class="hidden">
+                <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
+              </span>
+            </button>
+          </div>
+        </div> 
+   
+        <div> 
+          <button
+            id="login-button"
+            type="submit"
+            class="flex w-full items-center justify-center gap-2 rounded-md bg-primario px-3 py-1.5 text-sm/6 font-semibold text-white shadow-md hover:bg-primario-dark hover:shadow-primario/50 hover:-translate-y-1 active:translate-y-0.5 active:shadow-sm active:bg-primario-light transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+          >
+            <!-- Spinner -->
+            <svg
+              id="login-spinner"
+              class="hidden size-5 animate-spin"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+              ></path>
+            </svg>
+
+            <span id="login-button-text">
+              Iniciar sesión
+            </span>
+          </button> 
+        </div> 
+
+      </form> 
+   
+      <p class="mt-10 text-center text-sm/6 text-gray-500"> 
+        <a
+          href=""
+          class="font-semibold text-primario hover:text-primario-dark hover:underline transition-colors"
+        >
+          ¿Olvidaste tu contraseña?
+        </a> 
+      </p> 
+
+    </div> 
+  </div> 
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const form = document.querySelector("#login-form");
+      const button = document.querySelector("#login-button");
+      const spinner = document.querySelector("#login-spinner");
+      const buttonText = document.querySelector("#login-button-text");
+
+      form.addEventListener("submit", () => {
+        button.disabled = true;
+        spinner.classList.remove("hidden");
+        buttonText.textContent = "Iniciando sesión...";
+      });
+    });
+  </script>
+
+{% endblock %}

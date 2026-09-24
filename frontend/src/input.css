@@ -7,6 +7,16 @@
 
 @import "tailwindcss";
 
+/* Componentes de las pantallas de gestion (usuarios, organizaciones, perfil, errores).
+ * Ver docs/contratos/interfaz.md. */
+@import "./componentes/botones.css";
+@import "./componentes/formularios.css";
+@import "./componentes/superficies.css";
+@import "./componentes/tablas.css";
+@import "./componentes/insignias.css";
+@import "./componentes/alertas.css";
+@import "./componentes/modal.css";
+
 /* Que archivos escanea Tailwind para decidir que clases incluir. Las rutas son relativas
  * a este archivo.
  *
@@ -15,3 +25,53 @@
  * esos archivos .py. Ojo al escribirla: un patron glob dentro de un comentario CSS cierra
  * el comentario antes de tiempo, asi que va como directiva, nunca comentada. */
 @source "../plantillas/**/*.html";
+@source "../estaticos/js/**/*.js";
+
+@theme {
+     /* Primario */
+    --color-primario: #a00d27;
+    --color-primario-dark: #780A2D;
+    --color-primario-light: #D94B70;
+
+    /* Secundario */
+    --color-secundario: #F5C400;
+    --color-secundario-light: #FFF1A8;
+
+    /* Acento */
+    --color-acento: #F8D5DE;
+
+    /* Estados */
+    --color-exito: #2E9B5B;
+
+    /* Neutros */
+    --color-fondo: #F8F9FA;
+    --color-superficie: #FFFFFF;
+    --color-texto: #252525;
+
+    --font-sans: "Segoe UI", Arial, sans-serif;
+
+    --animate-fade: fade 0.5s ease-out;
+    --animate-fade-up: fade-up 0.6s ease-out;
+}
+
+@keyframes fade {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

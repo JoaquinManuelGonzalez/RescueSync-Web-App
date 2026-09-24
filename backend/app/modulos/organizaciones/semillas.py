@@ -5,9 +5,8 @@ los municipios que registran emergencias, el centro coordinador que arma los
 lotes, y las ONGs que presentan ofertas de ayuda. Se incluyen varias ONGs para
 poder probar también el caso de consorcio del enunciado.
 
-Es idempotente: identifica cada fila por su nombre, que es la clave natural, y no
-hace commit (de eso se ocupa `flask seed`, que envuelve toda la carga en una única
-transacción).
+Es idempotente: identifica cada fila por su nombre, que es la clave natural, y no hace commit
+(de eso se ocupa `flask seed`, que envuelve toda la carga en una unica transaccion).
 """
 
 from __future__ import annotations
@@ -109,8 +108,7 @@ def sembrar_organizaciones() -> list[ResultadoSemilla]:
 # * Los nombres de ítems deben existir en emergencias/semillas_items.py::ITEMS.
 # * Sólo las ONGs tienen inventarios.
 #
-# `Cruz Solidaria` y `Manos Unidas` no llevan inventario.
-# No se necesitan para el flujo de su HU.
+# `Cruz Solidaria` y `Manos Unidas` aún no tienen inventario.
 # Si más adelante hacen falta, se agregan aquí como cualquier otra ONG.
 
 INVENTARIOS: dict[str, dict] = {

@@ -14,12 +14,16 @@ from typing import Any
 from flask import Flask
 
 from app.cli import registrar_comandos
+from app.core.acceso.autorizacion import registrar_globales_de_plantilla
+from app.core.acceso.sesion import configurar_sesion
 from app.core.configuracion import construir_configuracion, validar_o_terminar
 from app.core.errores import registrar_manejadores
-from app.core.inicio import blueprint_inicio
+from app.core.interfaz.inicio import blueprint_inicio
+from app.core.interfaz.navegacion import registrar_navegacion
+from app.core.interfaz.plantillas import registrar_filtros
 from app.core.logging import configurar_logging, registrar_middleware
 from app.core.salud import blueprint_salud
-from app.extensiones import db, login_manager, migrate
+from app.extensiones import csrf, db, login_manager, migrate
 from app.modulos import registrar_modulos
 
 RAIZ_FRONTEND = Path(__file__).resolve().parent.parent.parent / "frontend"
@@ -27,12 +31,14 @@ DIRECTORIO_PLANTILLAS = RAIZ_FRONTEND / "plantillas"
 DIRECTORIO_ESTATICOS = RAIZ_FRONTEND / "estaticos"
 
 
-def _registrar_cargador_de_usuario_por_defecto() -> None:
+def _registrar_cargador_de_respaldo() -> None:
     """Deja a Flask-Login con un cargador que no devuelve a nadie.
 
     Sin un `user_loader` registrado, Flask-Login levanta una excepcion la primera vez que
-    alguien toca `current_user`, y eso tumbaria cualquier ruta antes de que exista el modulo
-    usuarios_roles. Ese modulo reemplaza este cargador por el suyo cuando se cree.
+    alguien toca `current_user`. `usuarios_roles` instala el cargador real al registrarse
+    (ver `app.core.acceso.sesion.registrar_cargador_de_usuario`); este queda como red de seguridad
+    para el caso en que la aplicacion se construya sin los modulos de dominio, por ejemplo en
+    un test que solo ejercite `core`.
     """
 
     @login_manager.user_loader
@@ -60,11 +66,18 @@ def create_app(overrides: dict[str, Any] | None = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
-    _registrar_cargador_de_usuario_por_defecto()
+    # Proteccion CSRF para toda la aplicacion. Los endpoints que no se autentican por sesion
+    # (el callback de Bonita, integracion 4) se eximen con @csrf.exempt en su propio modulo.
+    csrf.init_app(app)
+    _registrar_cargador_de_respaldo()
+    configurar_sesion(app)
 
     registrar_middleware(app)
     registrar_manejadores(app)
     registrar_comandos(app)
+    registrar_globales_de_plantilla(app)
+    registrar_navegacion(app)
+    registrar_filtros(app)
 
     app.register_blueprint(blueprint_salud)
     app.register_blueprint(blueprint_inicio)

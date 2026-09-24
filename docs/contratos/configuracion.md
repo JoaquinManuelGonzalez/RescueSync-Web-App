@@ -33,6 +33,11 @@ raíz del repositorio.
 | `API_NACIONAL_TIMEOUT_S` | N | `10` | Timeout de lectura, en segundos, para llamadas a la API Nacional | Todos |
 | `API_NACIONAL_REINTENTOS` | N | `2` | Cantidad de reintentos ante 5xx, timeout o error de red (no cuenta el intento original) | Todos |
 | `API_NACIONAL_BACKOFF_MS` | N | `500` | Base del backoff exponencial entre reintentos, en milisegundos | Todos |
+| `SESION_MINUTOS_INACTIVIDAD` | N | `30` | Minutos de inactividad tras los cuales la sesión expira. Requisito no funcional de la épica de identidad; se verifica del lado del servidor | Todos |
+| `LOGIN_MAX_INTENTOS` | N | `5` | Intentos de ingreso fallidos consecutivos antes de bloquear temporalmente la cuenta | Todos |
+| `LOGIN_BLOQUEO_MINUTOS` | N | `1` | Duración, en minutos, del bloqueo temporal de la cuenta. Es corto a propósito, para poder mostrar el bloqueo en una demostración sin quedar trabado | Todos |
+| `CONTRASENA_LONGITUD_MINIMA` | N | `8` | Longitud mínima exigida a las contraseñas al crearlas o cambiarlas. Además de la longitud, toda contraseña nueva necesita una mayúscula, un número y un carácter especial (fijo, no configurable) | Todos |
+| `SEMILLA_CONTRASENA` | N | `RescueSync.2026` | Contraseña de las cuentas de demostración que carga `flask seed`. No es un secreto de producción: el entorno sembrado es descartable | Local y evaluación |
 
 ## 2. Arranque en modo "fail fast"
 

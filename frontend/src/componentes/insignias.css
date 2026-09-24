@@ -1,0 +1,31 @@
+/* Insignias ("badges") para roles, estados y marcas. Base `.insignia` + una variante. */
+
+@layer components {
+    .insignia {
+        @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium;
+    }
+
+    .insignia-primaria {
+        @apply bg-acento text-primario-dark;
+    }
+
+    .insignia-exito {
+        @apply bg-green-50 text-exito;
+    }
+
+    .insignia-neutra {
+        @apply bg-gray-100 text-gray-600;
+    }
+
+    .insignia-advertencia {
+        @apply bg-amber-50 text-amber-700;
+    }
+
+    .insignia-error {
+        @apply bg-red-50 text-red-700;
+    }
+
+    .insignia-info {
+        @apply bg-blue-50 text-blue-700;
+    }
+}

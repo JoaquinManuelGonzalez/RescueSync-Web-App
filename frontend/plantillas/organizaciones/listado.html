@@ -1,0 +1,74 @@
+{#- Contexto: `organizaciones` (diccionarios de `servicios.a_diccionario()`), `pagina`, `filtros`,
+    `opciones_de_tipo` y `opciones_de_estado`. -#}
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina, estado_vacio, insignia, insignia_estado %}
+{% from "componentes/formularios.html" import filtro_texto, filtro_select, formulario_accion %}
+{% from "componentes/tablas.html" import tabla, celda, paginacion %}
+
+{% block title %}Organizaciones{% endblock %}
+
+{% block content %}
+<div class="pagina">
+  {% call encabezado_pagina("Organizaciones", "Municipios, ONGs y el centro coordinador regional.") %}
+    {%- if puede("organizaciones:crear") %}
+    <a class="btn btn-primario" href="{{ url_for('organizaciones.formulario_de_alta') }}">{{ icono("mas") }} Nueva organización</a>
+    {%- endif %}
+  {% endcall %}
+
+  <form method="get" action="{{ url_for('organizaciones.listar') }}" class="barra-filtros">
+    {{ filtro_texto("texto", "Buscar", filtros.get("texto"), "Nombre") }}
+    {{ filtro_select("tipo", "Tipo", opciones_de_tipo, filtros.get("tipo")) }}
+    {{ filtro_select("activo", "Estado", opciones_de_estado, filtros.get("activo"), "Todas") }}
+    <button type="submit" class="btn btn-secundario">{{ icono("buscar") }} Filtrar</button>
+  </form>
+
+  {%- if organizaciones %}
+  {% call tabla(["Nombre", "Tipo", "Contacto", "Estado", none]) %}
+        {%- for organizacion in organizaciones %}
+        <tr class="tabla-fila">
+          {% call celda("Nombre") %}
+            <p class="font-medium text-gray-900">{{ organizacion.nombre }}</p>
+            {%- if organizacion.identificador_nacional %}
+            <p class="text-xs text-gray-500">{{ organizacion.identificador_nacional }}</p>
+            {%- endif %}
+          {% endcall %}
+          {% call celda("Tipo") %}{{ insignia(organizacion.tipo|etiqueta_tipo_organizacion, "info") }}{% endcall %}
+          {% call celda("Contacto") %}
+            <p>{{ organizacion.contacto_email or "—" }}</p>
+            {%- if organizacion.contacto_telefono %}
+            <p class="text-xs text-gray-500">{{ organizacion.contacto_telefono }}</p>
+            {%- endif %}
+          {% endcall %}
+          {% call celda("Estado") %}{{ insignia_estado(organizacion.activo) }}{% endcall %}
+          {% call celda() %}
+            <div class="tabla-acciones">
+              <a class="btn btn-fantasma btn-icono" href="{{ url_for('organizaciones.ver', organizacion_id=organizacion.id) }}" title="Ver detalle">
+                {{ icono("ver") }}<span class="sr-only">Ver detalle de {{ organizacion.nombre }}</span>
+              </a>
+              {%- if puede("organizaciones:editar") %}
+              <a class="btn btn-fantasma btn-icono" href="{{ url_for('organizaciones.formulario_de_edicion', organizacion_id=organizacion.id) }}" title="Editar">
+                {{ icono("editar") }}<span class="sr-only">Editar {{ organizacion.nombre }}</span>
+              </a>
+              {%- endif %}
+              {%- if puede("organizaciones:cambiar_estado") %}
+              {%- if organizacion.activo %}
+              {{ formulario_accion(url_for("organizaciones.cambiar_estado", organizacion_id=organizacion.id), "Desactivar", clase="btn btn-fantasma btn-icono text-red-600",
+                                   confirmar=organizacion.nombre ~ " va a quedar inactiva. Podés volver a activarla cuando quieras.",
+                                   confirmar_titulo="¿Desactivar esta organización?", confirmar_boton="Desactivar", icono_nombre="desactivar", solo_icono=true) }}
+              {%- else %}
+              {{ formulario_accion(url_for("organizaciones.cambiar_estado", organizacion_id=organizacion.id), "Activar", clase="btn btn-fantasma btn-icono",
+                                   campos={"activo": "y"}, icono_nombre="activar", solo_icono=true) }}
+              {%- endif %}
+              {%- endif %}
+            </div>
+          {% endcall %}
+        </tr>
+        {%- endfor %}
+  {% endcall %}
+  {{ paginacion(pagina) }}
+  {%- else %}
+  {{ estado_vacio("No hay organizaciones que coincidan con el filtro", "Probá con otros criterios de búsqueda.", "organizaciones") }}
+  {%- endif %}
+</div>
+{% endblock %}

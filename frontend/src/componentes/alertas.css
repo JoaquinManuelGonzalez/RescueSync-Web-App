@@ -1,0 +1,39 @@
+/* Avisos fijos dentro de una pantalla (por ejemplo, "Cambio obligatorio" en el cambio de
+ * contraseña). Los usa el macro `alerta()`.
+ *
+ * Los mensajes flash NO usan esto: los dibuja layout.html con su propio diseño.
+ */
+
+@layer components {
+    .alerta {
+        @apply flex items-start gap-3 rounded-b border-t-4 px-4 py-3 shadow-md;
+    }
+
+    .alerta-cuerpo {
+        @apply min-w-0 flex-1;
+    }
+
+    .alerta-titulo {
+        @apply font-bold;
+    }
+
+    .alerta-texto {
+        @apply text-sm;
+    }
+
+    .alerta-error {
+        @apply border-red-500 bg-red-100 text-red-900;
+    }
+
+    .alerta-advertencia {
+        @apply border-yellow-400 bg-yellow-100 text-yellow-900;
+    }
+
+    .alerta-info {
+        @apply border-blue-500 bg-blue-100 text-blue-900;
+    }
+
+    .alerta-exito {
+        @apply border-green-500 bg-green-100 text-green-900;
+    }
+}

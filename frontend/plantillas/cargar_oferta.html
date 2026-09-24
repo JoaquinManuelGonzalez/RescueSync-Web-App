@@ -1,0 +1,980 @@
+{% extends "layout.html" %}
+
+{% block title %}Realizar oferta de ayuda{% endblock %}
+
+{% block content %}
+
+<main class="mx-auto max-w-4xl px-6 py-8">
+
+    <!-- ============================== -->
+    <!-- ENCABEZADO -->
+    <!-- ============================== -->
+
+    <div class="mb-8">
+
+        <a
+            href="#"
+            class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-primario"
+        >
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
+                />
+            </svg>
+
+            Volver a emergencias
+        </a>
+
+        <h1 class="text-2xl font-bold tracking-tight text-gray-900">
+            Realizar oferta de ayuda
+        </h1>
+
+        <p class="mt-2 text-sm text-gray-600">
+            Indicá los recursos y el personal que tu organización puede aportar
+            para esta emergencia.
+        </p>
+
+    </div>
+
+
+    <!-- ============================== -->
+    <!-- INFORMACIÓN DE LA EMERGENCIA -->
+    <!-- ============================== -->
+
+    <section class="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
+
+        <div class="flex items-start justify-between gap-4">
+
+            <div>
+
+                <p class="text-sm font-medium text-primario">
+                    Emergencia #25
+                </p>
+
+                <h2 class="mt-1 text-lg font-semibold text-gray-900">
+                    Inundaciones en zona sur
+                </h2>
+
+                <p class="mt-2 text-sm leading-6 text-gray-600">
+                    Debido a las intensas lluvias se requiere asistencia para
+                    las personas afectadas en distintos barrios de la zona sur.
+                </p>
+
+            </div>
+
+            <span class="shrink-0 rounded-full bg-secundario-light px-3 py-1 text-xs font-semibold text-gray-800">
+                Oferta abierta
+            </span>
+
+        </div>
+
+
+        <div class="mt-5 grid grid-cols-1 gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
+
+            <div>
+
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Zona afectada
+                </p>
+
+                <p class="mt-1 text-sm font-medium text-gray-900">
+                    Zona Sur
+                </p>
+
+            </div>
+
+
+            <div>
+
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Fecha límite
+                </p>
+
+                <p class="mt-1 text-sm font-medium text-gray-900">
+                    21/09/2026 — 18:00 hs
+                </p>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <form id="offer-form" action="#" method="POST" class="space-y-6">
+
+
+        <!-- ============================== -->
+        <!-- RECURSOS -->
+        <!-- ============================== -->
+
+        <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-200">
+
+            <div class="border-b border-gray-100 px-6 py-5">
+
+                <h2 class="text-base font-semibold text-gray-900">
+                    Recursos necesarios
+                </h2>
+
+                <p class="mt-1 text-sm text-gray-500">
+                    Indicá cuánto de cada recurso puede aportar tu organización.
+                </p>
+
+            </div>
+
+
+            <div class="divide-y divide-gray-100">
+
+
+                <!-- Agua -->
+
+                <div class="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-[1fr_auto] sm:items-center">
+
+                    <div>
+
+                        <p class="font-medium text-gray-900">
+                            Agua embotellada
+                        </p>
+
+                        <p class="mt-1 text-sm text-gray-500">
+                            Cantidad requerida:
+                            <span class="font-medium text-gray-700">
+                                500 unidades
+                            </span>
+                        </p>
+
+                    </div>
+
+
+                    <div class="sm:w-36">
+
+                        <label
+                            for="agua"
+                            class="mb-1.5 block text-xs font-medium text-gray-600 sm:sr-only"
+                        >
+                            Tu aporte
+                        </label>
+
+                        <input
+                            id="agua"
+                            name="agua"
+                            type="number"
+                            min="0"
+                            value="0"
+                            class="block w-full rounded-lg border-0 py-2.5 px-3 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 transition focus:ring-2 focus:ring-inset focus:ring-primario"
+                        >
+
+                        <p class="mt-1 text-xs text-gray-400">
+                            Tu aporte
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Viandas -->
+
+                <div class="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-[1fr_auto] sm:items-center">
+
+                    <div>
+
+                        <p class="font-medium text-gray-900">
+                            Viandas
+                        </p>
+
+                        <p class="mt-1 text-sm text-gray-500">
+                            Cantidad requerida:
+                            <span class="font-medium text-gray-700">
+                                300 unidades
+                            </span>
+                        </p>
+
+                    </div>
+
+
+                    <div class="sm:w-36">
+
+                        <input
+                            id="viandas"
+                            name="viandas"
+                            type="number"
+                            min="0"
+                            value="0"
+                            class="block w-full rounded-lg border-0 py-2.5 px-3 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 transition focus:ring-2 focus:ring-inset focus:ring-primario"
+                        >
+
+                        <p class="mt-1 text-xs text-gray-400">
+                            Tu aporte
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Mantas -->
+
+                <div class="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-[1fr_auto] sm:items-center">
+
+                    <div>
+
+                        <p class="font-medium text-gray-900">
+                            Mantas
+                        </p>
+
+                        <p class="mt-1 text-sm text-gray-500">
+                            Cantidad requerida:
+                            <span class="font-medium text-gray-700">
+                                200 unidades
+                            </span>
+                        </p>
+
+                    </div>
+
+
+                    <div class="sm:w-36">
+
+                        <input
+                            id="mantas"
+                            name="mantas"
+                            type="number"
+                            min="0"
+                            value="0"
+                            class="block w-full rounded-lg border-0 py-2.5 px-3 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 transition focus:ring-2 focus:ring-inset focus:ring-primario"
+                        >
+
+                        <p class="mt-1 text-xs text-gray-400">
+                            Tu aporte
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Botiquines -->
+
+                <div class="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-[1fr_auto] sm:items-center">
+
+                    <div>
+
+                        <p class="font-medium text-gray-900">
+                            Botiquines
+                        </p>
+
+                        <p class="mt-1 text-sm text-gray-500">
+                            Cantidad requerida:
+                            <span class="font-medium text-gray-700">
+                                50 unidades
+                            </span>
+                        </p>
+
+                    </div>
+
+
+                    <div class="sm:w-36">
+
+                        <input
+                            id="botiquines"
+                            name="botiquines"
+                            type="number"
+                            min="0"
+                            value="0"
+                            class="block w-full rounded-lg border-0 py-2.5 px-3 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 transition focus:ring-2 focus:ring-inset focus:ring-primario"
+                        >
+
+                        <p class="mt-1 text-xs text-gray-400">
+                            Tu aporte
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================== -->
+        <!-- PERSONAL -->
+        <!-- ============================== -->
+
+        <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-200">
+
+            <div class="border-b border-gray-100 px-6 py-5">
+
+                <h2 class="text-base font-semibold text-gray-900">
+                    Personal requerido
+                </h2>
+
+                <p class="mt-1 text-sm text-gray-500">
+                    Indicá cuántas personas puede aportar tu organización.
+                </p>
+
+            </div>
+
+
+            <div class="divide-y divide-gray-100">
+
+
+                <!-- Médicos -->
+
+                <div class="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-[1fr_auto] sm:items-center">
+
+                    <div>
+
+                        <p class="font-medium text-gray-900">
+                            Médicos
+                        </p>
+
+                        <p class="mt-1 text-sm text-gray-500">
+                            Cantidad requerida:
+                            <span class="font-medium text-gray-700">
+                                4 personas
+                            </span>
+                        </p>
+
+                    </div>
+
+
+                    <div class="sm:w-36">
+
+                        <input
+                            type="number"
+                            min="0"
+                            value="0"
+                            class="block w-full rounded-lg border-0 py-2.5 px-3 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 transition focus:ring-2 focus:ring-inset focus:ring-primario"
+                        >
+
+                        <p class="mt-1 text-xs text-gray-400">
+                            Tu aporte
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Enfermeros -->
+
+                <div class="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-[1fr_auto] sm:items-center">
+
+                    <div>
+
+                        <p class="font-medium text-gray-900">
+                            Enfermeros
+                        </p>
+
+                        <p class="mt-1 text-sm text-gray-500">
+                            Cantidad requerida:
+                            <span class="font-medium text-gray-700">
+                                10 personas
+                            </span>
+                        </p>
+
+                    </div>
+
+
+                    <div class="sm:w-36">
+
+                        <input
+                            type="number"
+                            min="0"
+                            value="0"
+                            class="block w-full rounded-lg border-0 py-2.5 px-3 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 transition focus:ring-2 focus:ring-inset focus:ring-primario"
+                        >
+
+                        <p class="mt-1 text-xs text-gray-400">
+                            Tu aporte
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Voluntarios -->
+
+                <div class="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-[1fr_auto] sm:items-center">
+
+                    <div>
+
+                        <p class="font-medium text-gray-900">
+                            Voluntarios
+                        </p>
+
+                        <p class="mt-1 text-sm text-gray-500">
+                            Cantidad requerida:
+                            <span class="font-medium text-gray-700">
+                                20 personas
+                            </span>
+                        </p>
+
+                    </div>
+
+
+                    <div class="sm:w-36">
+
+                        <input
+                            type="number"
+                            min="0"
+                            value="0"
+                            class="block w-full rounded-lg border-0 py-2.5 px-3 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 transition focus:ring-2 focus:ring-inset focus:ring-primario"
+                        >
+
+                        <p class="mt-1 text-xs text-gray-400">
+                            Tu aporte
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================== -->
+        <!-- TIPO DE OFERTA -->
+        <!-- ============================== -->
+
+        <section class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
+
+            <div>
+
+                <h2 class="text-base font-semibold text-gray-900">
+                    Tipo de oferta
+                </h2>
+
+                <p class="mt-1 text-sm text-gray-500">
+                    Elegí si tu organización realizará la oferta sola
+                    o junto a otras organizaciones.
+                </p>
+
+            </div>
+
+
+            <div class="mt-5 space-y-3">
+
+
+                <!-- Individual -->
+
+                <label
+                    class="flex cursor-pointer items-start gap-4 rounded-xl border border-gray-200 p-4 transition hover:border-primario/40 hover:bg-acento/20"
+                >
+
+                    <input
+                        type="radio"
+                        name="tipo_oferta"
+                        value="individual"
+                        checked
+                        class="mt-1 size-4 border-gray-300 text-primario focus:ring-primario"
+                    >
+
+                    <div>
+
+                        <p class="font-medium text-gray-900">
+                            Oferta individual
+                        </p>
+
+                        <p class="mt-1 text-sm text-gray-500">
+                            Mi organización realizará la oferta por su cuenta.
+                        </p>
+
+                    </div>
+
+                </label>
+
+
+                <!-- Conjunta -->
+
+                <label
+                    class="flex cursor-pointer items-start gap-4 rounded-xl border border-gray-200 p-4 transition hover:border-primario/40 hover:bg-acento/20"
+                >
+
+                    <input
+                        id="joint-offer"
+                        type="radio"
+                        name="tipo_oferta"
+                        value="conjunta"
+                        class="mt-1 size-4 border-gray-300 text-primario focus:ring-primario"
+                    >
+
+                    <div>
+
+                        <p class="font-medium text-gray-900">
+                            Oferta conjunta
+                        </p>
+
+                        <p class="mt-1 text-sm text-gray-500">
+                            Asociate con otras organizaciones para realizar
+                            una oferta conjunta.
+                        </p>
+
+                    </div>
+
+                </label>
+
+            </div>
+
+
+            <!-- ============================== -->
+            <!-- CONSORCIO -->
+            <!-- ============================== -->
+
+            <div
+                id="consortium-section"
+                class="mt-6 hidden rounded-xl border border-primario/20 bg-acento/20 p-5"
+            >
+
+                <div>
+
+                    <h3 class="font-semibold text-gray-900">
+                        Organizaciones participantes
+                    </h3>
+
+                    <p class="mt-1 text-sm text-gray-600">
+                        Invitá a otras organizaciones a participar de esta
+                        oferta conjunta.
+                    </p>
+
+                </div>
+
+
+                <!-- Organización propia -->
+
+                <div class="mt-5 rounded-lg bg-white p-4 ring-1 ring-gray-200">
+
+                    <div class="flex items-center gap-3">
+
+                        <span class="flex size-9 items-center justify-center rounded-full bg-primario text-sm font-semibold text-white">
+                            R
+                        </span>
+
+                        <div class="min-w-0 flex-1">
+
+                            <p class="font-medium text-gray-900">
+                                Rescate La Plata
+                            </p>
+
+                            <p class="text-xs text-gray-500">
+                                Tu organización
+                            </p>
+
+                        </div>
+
+                        <svg
+                            class="size-5 text-exito"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke-width="2"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="m5 12 4 4L19 6"
+                            />
+                        </svg>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Buscar -->
+
+                <div class="mt-5">
+
+                    <label
+                        for="ong-search"
+                        class="block text-sm font-medium text-gray-700"
+                    >
+                        Agregar organizaciones
+                    </label>
+
+
+                    <div class="relative mt-2">
+
+                        <input
+                            id="ong-search"
+                            type="text"
+                            placeholder="Buscar una organización..."
+                            autocomplete="off"
+                            class="block w-full rounded-lg border-0 py-2.5 pl-10 pr-3 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primario"
+                        >
+
+                        <svg
+                            class="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke-width="1.8"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="m21 21-4.35-4.35m1.35-5.4a6.75 6.75 0 1 1-13.5 0 6.75 6.75 0 0 1 13.5 0Z"
+                            />
+                        </svg>
+
+                    </div>
+
+
+                    <!-- Resultados ficticios -->
+
+                    <div
+                        id="ong-results"
+                        class="mt-2 overflow-hidden rounded-lg bg-white shadow-md ring-1 ring-gray-200"
+                    >
+
+                        <button
+                            type="button"
+                            class="ong-option flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-acento/30"
+                            data-id="2"
+                            data-name="Ayuda Humanitaria"
+                        >
+
+                            <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-acento text-xs font-semibold text-primario">
+                                A
+                            </span>
+
+                            <span class="min-w-0 flex-1">
+
+                                <span class="block truncate text-sm font-medium text-gray-900">
+                                    Ayuda Humanitaria
+                                </span>
+
+                            </span>
+
+                            <span class="text-sm font-semibold text-primario">
+                                Agregar
+                            </span>
+
+                        </button>
+
+
+                        <button
+                            type="button"
+                            class="ong-option flex w-full items-center gap-3 border-t border-gray-100 px-4 py-3 text-left transition hover:bg-acento/30"
+                            data-id="3"
+                            data-name="Rescate Regional"
+                        >
+
+                            <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-acento text-xs font-semibold text-primario">
+                                R
+                            </span>
+
+                            <span class="min-w-0 flex-1">
+
+                                <span class="block truncate text-sm font-medium text-gray-900">
+                                    Rescate Regional
+                                </span>
+
+                            </span>
+
+                            <span class="text-sm font-semibold text-primario">
+                                Agregar
+                            </span>
+
+                        </button>
+
+
+                        <button
+                            type="button"
+                            class="ong-option flex w-full items-center gap-3 border-t border-gray-100 px-4 py-3 text-left transition hover:bg-acento/30"
+                            data-id="4"
+                            data-name="Voluntarios Unidos"
+                        >
+
+                            <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-acento text-xs font-semibold text-primario">
+                                V
+                            </span>
+
+                            <span class="min-w-0 flex-1">
+
+                                <span class="block truncate text-sm font-medium text-gray-900">
+                                    Voluntarios Unidos
+                                </span>
+
+                            </span>
+
+                            <span class="text-sm font-semibold text-primario">
+                                Agregar
+                            </span>
+
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Organizaciones seleccionadas -->
+
+                <div class="mt-5">
+
+                    <p class="text-sm font-medium text-gray-700">
+                        Organizaciones invitadas
+                    </p>
+
+
+                    <div
+                        id="selected-organizations"
+                        class="mt-2 space-y-2"
+                    ></div>
+
+
+                    <p
+                        id="no-organizations"
+                        class="mt-2 text-sm text-gray-500"
+                    >
+                        Todavía no agregaste otras organizaciones.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================== -->
+        <!-- BOTONES -->
+        <!-- ============================== -->
+
+        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+
+            <a
+                href="#"
+                class="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100"
+            >
+                Cancelar
+            </a>
+
+
+            <button
+                id="submit-button"
+                type="submit"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-primario px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-primario-dark hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
+            >
+
+                <svg
+                    id="submit-spinner"
+                    class="hidden size-5 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                >
+                    <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                    ></circle>
+
+                    <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                    ></path>
+                </svg>
+
+                <span id="submit-text">
+                    Enviar oferta
+                </span>
+
+            </button>
+
+        </div>
+
+    </form>
+
+</main>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    /*
+     * ==========================================
+     * TIPO DE OFERTA
+     * ==========================================
+     */
+
+    const jointOffer = document.querySelector("#joint-offer");
+    const consortiumSection = document.querySelector("#consortium-section");
+
+    document.querySelectorAll('input[name="tipo_oferta"]').forEach((radio) => {
+
+        radio.addEventListener("change", () => {
+
+            if (jointOffer.checked) {
+                consortiumSection.classList.remove("hidden");
+            } else {
+                consortiumSection.classList.add("hidden");
+            }
+
+        });
+
+    });
+
+
+    /*
+     * ==========================================
+     * ORGANIZACIONES
+     * ==========================================
+     */
+
+    const searchInput = document.querySelector("#ong-search");
+    const results = document.querySelector("#ong-results");
+    const selectedContainer = document.querySelector("#selected-organizations");
+    const noOrganizations = document.querySelector("#no-organizations");
+
+    const selectedOrganizations = new Map();
+
+
+    // Filtrar organizaciones
+
+    searchInput.addEventListener("input", () => {
+
+        const search = searchInput.value.toLowerCase().trim();
+
+        document.querySelectorAll(".ong-option").forEach((option) => {
+
+            const name = option.dataset.name.toLowerCase();
+
+            if (name.includes(search)) {
+                option.classList.remove("hidden");
+            } else {
+                option.classList.add("hidden");
+            }
+
+        });
+
+    });
+
+
+    // Agregar organización
+
+    document.querySelectorAll(".ong-option").forEach((option) => {
+
+        option.addEventListener("click", () => {
+
+            const id = option.dataset.id;
+            const name = option.dataset.name;
+
+            if (selectedOrganizations.has(id)) {
+                return;
+            }
+
+            selectedOrganizations.set(id, name);
+
+            agregarOrganizacion(id, name);
+
+            option.classList.add("hidden");
+
+        });
+
+    });
+
+
+    function agregarOrganizacion(id, name) {
+
+        noOrganizations.classList.add("hidden");
+
+        const organization = document.createElement("div");
+
+        organization.className =
+            "flex items-center gap-3 rounded-lg bg-white px-4 py-3 ring-1 ring-gray-200";
+
+        organization.dataset.id = id;
+
+        organization.innerHTML = `
+            <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-acento text-xs font-semibold text-primario">
+                ${name.charAt(0)}
+            </span>
+
+            <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-medium text-gray-900">
+                    ${name}
+                </span>
+
+                <span class="block text-xs text-gray-500">
+                    Invitación pendiente
+                </span>
+            </span>
+
+            <button
+                type="button"
+                class="remove-organization rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                aria-label="Quitar organización"
+            >
+                <svg
+                    class="size-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke-width="1.8"
+                    stroke="currentColor"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M6 18 18 6M6 6l12 12"
+                    />
+                </svg>
+            </button>
+        `;
+
+        selectedContainer.appendChild(organization);
+
+
+        organization
+            .querySelector(".remove-organization")
+            .addEventListener("click", () => {
+
+                selectedOrganizations.delete(id);
+                organization.remove();
+
+                document
+                    .querySelector(`.ong-option[data-id="${id}"]`)
+                    .classList.remove("hidden");
+
+                if (selectedOrganizations.size === 0) {
+                    noOrganizations.classList.remove("hidden");
+                }
+
+            });
+
+    }
+
+
+    /*
+     * ==========================================
+     * LOADING
+     * ==========================================
+     */
+
+    const form = document.querySelector("#offer-form");
+    const button = document.querySelector("#submit-button");
+    const spinner = document.querySelector("#submit-spinner");
+    const buttonText = document.querySelector("#submit-text");
+
+    form.addEventListener("submit", () => {
+
+        button.disabled = true;
+        spinner.classList.remove("hidden");
+        buttonText.textContent = "Enviando oferta...";
+
+    });
+
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,47 @@
+{#- Contexto: `sesion`, el diccionario de `servicios.describir_sesion()`. -#}
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina, insignia, dato %}
+
+{% block title %}Mi perfil{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta space-y-6">
+  {% call encabezado_pagina(sesion.nombre_completo, sesion.email) %}
+    <a class="btn btn-secundario" href="{{ url_for('sesion.formulario_de_contrasena') }}">{{ icono("llave") }} Cambiar contraseña</a>
+  {% endcall %}
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Tu cuenta</h2>
+      <dl class="lista-datos">
+        {% call dato("Perfil") %}
+          {%- for rol in sesion.roles %}{{ insignia(rol|etiqueta_rol, "primaria") }}{% endfor %}
+        {% endcall %}
+        {% call dato("Organización") %}
+          {%- if sesion.organizacion -%}
+          {{ sesion.organizacion.nombre }} <span class="text-gray-500">({{ sesion.organizacion.tipo|etiqueta_tipo_organizacion }})</span>
+          {%- else -%}—{%- endif -%}
+        {% endcall %}
+        {{ dato("Último acceso", sesion.ultimo_acceso_en|fecha) }}
+        {{ dato("Cuenta creada", sesion.creado_en|fecha) }}
+      </dl>
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Qué podés hacer</h2>
+      {%- if sesion.permisos %}
+      <ul class="space-y-2 text-sm text-gray-700">
+        {%- for permiso in sesion.permisos %}
+        <li class="flex gap-2">{{ icono("exito", "size-5 shrink-0 text-exito") }}<span>{{ permiso|descripcion_permiso }}</span></li>
+        {%- endfor %}
+      </ul>
+      {%- else %}
+      <p class="text-sm text-gray-500">Tu perfil todavía no tiene permisos asignados.</p>
+      {%- endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

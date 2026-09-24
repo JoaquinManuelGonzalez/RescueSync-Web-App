@@ -1,0 +1,73 @@
+{#- Tablas de listado y su paginacion.
+
+    {% from "componentes/tablas.html" import tabla, celda, paginacion %}
+
+    {% call tabla(["Nombre", "Estado", none]) %}
+      {% for fila in filas %}
+      <tr class="tabla-fila">
+        {% call celda("Nombre") %}{{ fila.nombre }}{% endcall %}
+        {% call celda("Estado") %}...{% endcall %}
+        {% call celda() %}<div class="tabla-acciones">...</div>{% endcall %}
+      </tr>
+      {% endfor %}
+    {% endcall %}
+    {{ paginacion(pagina) }}
+
+    Las tablas no tienen scroll horizontal: en pantallas angostas cada fila se apila como una
+    tarjeta y cada dato muestra su titulo, que sale de la etiqueta de `celda()`. Por eso toda
+    celda con un dato lleva su etiqueta; la de acciones va sin etiqueta (`none`). -#}
+
+{% from "componentes/iconos.html" import icono %}
+
+{% macro tabla(columnas) -%}
+<div class="tabla-contenedor">
+  <table class="tabla">
+    <thead>
+      <tr>
+        {%- for columna in columnas %}
+        <th scope="col" class="tabla-encabezado">{% if columna %}{{ columna }}{% else %}<span class="sr-only">Acciones</span>{% endif %}</th>
+        {%- endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {{ caller() }}
+    </tbody>
+  </table>
+</div>
+{%- endmacro %}
+
+{% macro celda(etiqueta=none) -%}
+<td class="tabla-celda"{% if etiqueta %} data-etiqueta="{{ etiqueta }}"{% endif %}>{{ caller() }}</td>
+{%- endmacro %}
+
+{#- `pagina` es un `app.core.interfaz.paginacion.Pagina`. Los enlaces conservan los filtros de la URL. -#}
+{% macro paginacion(pagina) -%}
+{%- if pagina.total %}
+<nav class="paginacion" aria-label="Paginación">
+  <p class="paginacion-resumen">Mostrando {{ pagina.desde }}–{{ pagina.hasta }} de {{ pagina.total }}</p>
+  {%- if pagina.paginas > 1 %}
+  <div class="paginacion-controles">
+    {%- if pagina.tiene_anterior %}
+    <a class="paginacion-enlace" href="{{ url_de_pagina(pagina.numero - 1) }}" rel="prev">{{ icono("anterior", "size-4") }}<span class="sr-only">Página anterior</span></a>
+    {%- else %}
+    <span class="paginacion-enlace paginacion-deshabilitado" aria-hidden="true">{{ icono("anterior", "size-4") }}</span>
+    {%- endif %}
+    {%- for numero in pagina.ventana() %}
+    {%- if numero is none %}
+    <span class="paginacion-enlace paginacion-deshabilitado">…</span>
+    {%- elif numero == pagina.numero %}
+    <span class="paginacion-enlace paginacion-actual" aria-current="page">{{ numero }}</span>
+    {%- else %}
+    <a class="paginacion-enlace" href="{{ url_de_pagina(numero) }}">{{ numero }}</a>
+    {%- endif %}
+    {%- endfor %}
+    {%- if pagina.tiene_siguiente %}
+    <a class="paginacion-enlace" href="{{ url_de_pagina(pagina.numero + 1) }}" rel="next">{{ icono("siguiente", "size-4") }}<span class="sr-only">Página siguiente</span></a>
+    {%- else %}
+    <span class="paginacion-enlace paginacion-deshabilitado" aria-hidden="true">{{ icono("siguiente", "size-4") }}</span>
+    {%- endif %}
+  </div>
+  {%- endif %}
+</nav>
+{%- endif %}
+{%- endmacro %}

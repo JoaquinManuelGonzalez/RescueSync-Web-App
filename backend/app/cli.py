@@ -75,3 +75,50 @@ def registrar_comandos(app: Flask) -> None:
             raise
 
         _imprimir_resumen(resultados)
+
+    @app.cli.command("crear-administrador")
+    @click.option("--email", required=True, help="Email con el que va a iniciar sesion.")
+    @click.option("--nombre", required=True, help="Nombre completo de la persona.")
+    @click.option(
+        "--contrasena",
+        default=None,
+        help="Contrasena inicial. Si se omite, se genera una y se imprime una sola vez.",
+    )
+    def crear_administrador(email: str, nombre: str, contrasena: str | None) -> None:
+        """Crea la primera cuenta de administrador.
+
+        Es el arranque en frio del sistema: el panel de gestion de usuarios exige estar
+        autenticado como administrador, asi que la primera de esas cuentas no puede salir de
+        ahi. Despues de esta, todas las demas se dan de alta desde el panel.
+        """
+        from app.core.acceso.permisos import NombreRol
+        from app.core.acceso.seguridad import generar_contrasena
+        from app.modulos.usuarios_roles import servicios
+
+        if not _base_migrada():
+            click.echo(MENSAJE_SIN_MIGRAR, err=True)
+            sys.exit(1)
+
+        generada = contrasena is None
+        if generada:
+            contrasena = generar_contrasena()
+
+        try:
+            usuario = servicios.crear_usuario(
+                email=email,
+                nombre_completo=nombre,
+                contrasena=contrasena,
+                nombre_rol=NombreRol.ADMINISTRADOR,
+                # El administrador de arranque no tiene a quien pedirle un cambio de clave.
+                debe_cambiar_contrasena=False,
+            )
+        except Exception as error:
+            db.session.rollback()
+            click.echo(f"No se pudo crear la cuenta: {error}", err=True)
+            sys.exit(1)
+
+        click.echo(f"Administrador creado: {usuario.email}")
+        if generada:
+            click.echo("")
+            click.echo(f"Contrasena generada: {contrasena}")
+            click.echo("Guardala ahora: no se vuelve a mostrar.")

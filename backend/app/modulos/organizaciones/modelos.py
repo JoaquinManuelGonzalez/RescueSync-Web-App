@@ -95,9 +95,8 @@ class Organizacion(db.Model):
 class Inventario(db.Model):
     """Stock de recursos disponibles de una organización.
 
-    Cada organización puede tener uno o más inventarios (ej: un almacén
-    central y depósitos regionales). La disponibilidad real de cada recurso
-    se desglosa en InventarioItem.
+    La relación con Organizacion es 1:1: `organizacion_id` es `unique`, de modo que cada
+    organización tiene un único inventario. El desglose por recurso vive en InventarioItem.
     """
 
     __tablename__ = "inventario"
