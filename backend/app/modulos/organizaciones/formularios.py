@@ -77,9 +77,9 @@ class FormularioInventarioItem(FlaskForm):
         validators=[
             InputRequired("La cantidad es obligatoria."),
             NumberRange(
-                min=0,
+                min=1,
                 max=9999999999,
-                message="La cantidad debe estar entre 0 y 9.999.999.999.",
+                message="La cantidad debe estar entre 1 y 9.999.999.999.",
             ),
         ],
     )
@@ -94,4 +94,3 @@ class FormularioInventarioItem(FlaskForm):
         if items is None:
             items = db.session.scalars(select(Item).order_by(Item.nombre)).all()
         self.item_id.choices = [(item.id, item.nombre) for item in items]
-

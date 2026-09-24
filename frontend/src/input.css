@@ -52,6 +52,7 @@
 
     --animate-fade: fade 0.5s ease-out;
     --animate-fade-up: fade-up 0.6s ease-out;
+    --animate-fade-down: fade-down 1s ease-out;
 }
 
 @keyframes fade {
@@ -68,6 +69,18 @@
     from {
         opacity: 0;
         transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fade-down {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
     }
 
     to {

@@ -169,6 +169,51 @@ def crear_item_inventario(
     return inventario_item
 
 
+def obtener_item_inventario(
+    organizacion_id: int,
+    inventario_item_id: int,
+) -> InventarioItem:
+    """Devuelve un item del inventario de la organizacion o corta con 404."""
+    inventario_item = db.session.execute(
+        select(InventarioItem)
+        .join(Inventario)
+        .where(
+            InventarioItem.id == inventario_item_id,
+            Inventario.organizacion_id == organizacion_id,
+        )
+    ).scalar_one_or_none()
+    if inventario_item is None:
+        raise RecursoNoEncontrado(MENSAJE_ITEM_NO_ENCONTRADO)
+    return inventario_item
+
+
+def editar_item_inventario(
+    organizacion_id: int,
+    inventario_item_id: int,
+    *,
+    item_id: int,
+    cantidad_disponible,
+) -> InventarioItem:
+    """Actualiza la cantidad de un item del inventario de la organizacion."""
+    inventario_item = obtener_item_inventario(organizacion_id, inventario_item_id)
+    if inventario_item.item_id != item_id:
+        raise SolicitudInvalida(detalle={"item_id": ["El item no coincide con el inventario."]})
+
+    inventario_item.cantidad_disponible = cantidad_disponible
+    db.session.commit()
+    return inventario_item
+
+
+def eliminar_item_inventario(
+    organizacion_id: int,
+    inventario_item_id: int,
+) -> None:
+    """Quita un item del inventario de la organizacion, sin borrar el item del catalogo."""
+    inventario_item = obtener_item_inventario(organizacion_id, inventario_item_id)
+    db.session.delete(inventario_item)
+    db.session.commit()
+
+
 def item_inventario_a_diccionario(inventario_item: InventarioItem) -> dict[str, Any]:
     """Representacion de un item de inventario para la respuesta HTTP."""
     return {

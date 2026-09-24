@@ -261,3 +261,45 @@ def crear_item_inventario():
         datos_json=servicios.item_inventario_a_diccionario(inventario_item),
         estado_json=201,
     )
+
+
+@blueprint_organizaciones.post("/inventario/<int:inventario_item_id>/editar")
+@requiere_permiso(INVENTARIO_EDITAR)
+def editar_item_inventario(inventario_item_id: int):
+    """Actualiza la cantidad de un item del inventario de la organizacion autenticada."""
+    inventario_item = servicios.obtener_item_inventario(
+        current_user.organizacion_id,
+        inventario_item_id,
+    )
+    formulario = construir_formulario(
+        FormularioInventarioItem,
+        items=[inventario_item.item],
+    )
+    validar_o_fallar(formulario)
+
+    inventario_item = servicios.editar_item_inventario(
+        current_user.organizacion_id,
+        inventario_item_id,
+        item_id=formulario.item_id.data,
+        cantidad_disponible=formulario.cantidad_disponible.data,
+    )
+    return redirigir(
+        "organizaciones.ver_inventario",
+        "Cantidad actualizada.",
+        datos_json=servicios.item_inventario_a_diccionario(inventario_item),
+    )
+
+
+@blueprint_organizaciones.post("/inventario/<int:inventario_item_id>/eliminar")
+@requiere_permiso(INVENTARIO_EDITAR)
+def eliminar_item_inventario(inventario_item_id: int):
+    """Quita un item del inventario de la organizacion autenticada."""
+    servicios.eliminar_item_inventario(
+        current_user.organizacion_id,
+        inventario_item_id,
+    )
+    return redirigir(
+        "organizaciones.ver_inventario",
+        "Item eliminado del inventario.",
+        datos_json={"mensaje": "Item eliminado del inventario."},
+    )
