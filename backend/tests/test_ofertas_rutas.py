@@ -28,6 +28,7 @@ from app.modulos.emergencias.modelos import (
     NivelGravedad,
     TipoNecesidad,
 )
+from app.modulos.ofertas import servicios
 from app.modulos.organizaciones.modelos import InventarioItem, Organizacion, TipoOrganizacion
 from app.modulos.usuarios_roles.modelos import Usuario
 
@@ -207,6 +208,37 @@ def test_crear_oferta_simple_exitosa(cliente_sembrado, cabecera_csrf, ingresar, 
     assert cuerpo["organizacion"]["id"] == datos_ofertas_web["ong_id"]
     assert len(cuerpo["items"]) == 1
     assert cuerpo["items"][0]["cantidad_ofrecida"] == 500.0
+
+
+def test_formulario_de_edicion_no_muestra_none_si_hay_valores_nulos(
+    cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
+):
+    """El formulario web no debe renderizar la cadena literal 'None' en campos opcionales."""
+    ingresar(EMAIL_REPRESENTANTE)
+
+    resp = cliente_sembrado.post(
+        "/ofertas",
+        json={
+            "convocatoria_id": datos_ofertas_web["convocatoria_id"],
+            "items": [
+                {
+                    "lote_item_id": datos_ofertas_web["lote_item1_id"],
+                    "cantidad_ofrecida": 50,
+                    "observaciones": None,
+                }
+            ],
+            "observaciones": None,
+        },
+        headers=cabecera_csrf(),
+    )
+
+    assert resp.status_code == 201
+    oferta_id = resp.get_json()["id"]
+
+    resp = cliente_sembrado.get(f"/ofertas/{oferta_id}/edicion")
+
+    assert resp.status_code == 200
+    assert b"None" not in resp.data
 
 
 def test_crear_oferta_validacion_invalida(

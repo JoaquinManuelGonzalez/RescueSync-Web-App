@@ -352,9 +352,41 @@ def modificar_oferta(
         )
 
     items_validados = None
+    hubo_cambios = False
     if items is not None:
         items_validados = _validar_y_procesar_items(items, oferta.convocatoria)
         _validar_disponibilidad_en_inventario(oferta.organizacion_lider.id, items_validados)
+
+        items_actuales = {
+            linea.lote_item_id: {
+                "cantidad_ofrecida": linea.cantidad_ofrecida,
+                "observaciones": linea.observaciones,
+            }
+            for linea in oferta.items
+        }
+        if len(items_validados) != len(items_actuales):
+            hubo_cambios = True
+        else:
+            for item_dato in items_validados:
+                lote_item_id = item_dato["lote_item_id"]
+                linea_actual = items_actuales.get(lote_item_id)
+                if linea_actual is None:
+                    hubo_cambios = True
+                    break
+                cantidad_nueva = Decimal(str(item_dato["cantidad_ofrecida"]))
+                observaciones_nueva = item_dato.get("observaciones") or None
+                if (
+                    linea_actual["cantidad_ofrecida"] != cantidad_nueva
+                    or (linea_actual["observaciones"] or None) != observaciones_nueva
+                ):
+                    hubo_cambios = True
+                    break
+
+    if observaciones is not None and (oferta.observaciones or "") != (observaciones or ""):
+        hubo_cambios = True
+
+    if not hubo_cambios:
+        return oferta
 
     # Guardar snapshot de la versión que se va a reemplazar
     _guardar_snapshot_version(oferta, usuario_id=usuario_id)

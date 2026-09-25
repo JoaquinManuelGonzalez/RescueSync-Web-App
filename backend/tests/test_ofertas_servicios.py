@@ -309,6 +309,29 @@ def test_modificar_oferta_incrementa_version(app, datos_base):
         assert modificada.items[0].cantidad_ofrecida == Decimal("1500")
 
 
+def test_modificar_oferta_no_crea_nueva_version_si_no_hubo_cambios(app, datos_base):
+    with app.app_context():
+        oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+            observaciones="Entrega en 24 horas",
+        )
+
+        sin_cambios = modificar_oferta(
+            oferta.id,
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+            observaciones="Entrega en 24 horas",
+            organizacion_id=datos_base["ong1_id"],
+            usuario_id=datos_base["usuario_id"],
+        )
+
+        assert sin_cambios.version == 1
+        assert sin_cambios.estado == EstadoOferta.presentada
+        assert sin_cambios.observaciones == "Entrega en 24 horas"
+
+
 def test_modificar_oferta_rechaza_organizacion_ajena(app, datos_base):
     with app.app_context():
         oferta = crear_oferta(

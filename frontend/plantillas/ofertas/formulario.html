@@ -42,17 +42,33 @@
             <p class="font-medium text-gray-900">{{ lote_item.item.nombre }}</p>
             <p class="mt-1 text-sm text-gray-500">Necesario: {{ lote_item.cantidad_solicitada|int }} {{ lote_item.item.unidad_medida }}</p>
             <label for="item-{{ lote_item.id }}-obs" class="mt-3 block text-xs font-medium text-gray-600">Detalle logístico (opcional)</label>
-            <input id="item-{{ lote_item.id }}-obs" name="item_obs_{{ lote_item.id }}" value="{{ valores.get('item_obs_' ~ lote_item.id, linea.observaciones if linea else '') }}" class="campo-control mt-1" maxlength="255">
+            <input
+              id="item-{{ lote_item.id }}-obs"
+              name="item_obs_{{ lote_item.id }}"
+              value="{{ valores.get('item_obs_' ~ lote_item.id) if valores.get('item_obs_' ~ lote_item.id) is not none else (linea.observaciones if linea and linea.observaciones is not none else '') }}"
+              class="campo-control mt-1"
+              maxlength="255"
+            >
           </div>
           <div>
             <label for="item-{{ lote_item.id }}" class="campo-etiqueta">Tu aporte</label>
-            <input id="item-{{ lote_item.id }}" name="item_{{ lote_item.id }}" type="number" min="0" max="{{ lote_item.cantidad_solicitada }}" step="0.01" value="{{ valores.get('item_' ~ lote_item.id, linea.cantidad_ofrecida if linea else '') }}" class="campo-control" inputmode="decimal">
+            <input
+              id="item-{{ lote_item.id }}"
+              name="item_{{ lote_item.id }}"
+              type="number"
+              min="0"
+              max="{{ lote_item.cantidad_solicitada }}"
+              step="0.01"
+              value="{{ valores.get('item_' ~ lote_item.id) if valores.get('item_' ~ lote_item.id) is not none else (linea.cantidad_ofrecida if linea and linea.cantidad_ofrecida is not none else '') }}"
+              class="campo-control"
+              inputmode="decimal"
+            >
           </div>
         </div>
         {% endfor %}
         <div>
           <label for="observaciones" class="campo-etiqueta">Observaciones generales</label>
-          <textarea id="observaciones" name="observaciones" rows="4" class="campo-control">{{ valores.get('observaciones', oferta.observaciones if oferta else '') }}</textarea>
+          <textarea id="observaciones" name="observaciones" rows="4" class="campo-control">{{ valores.get('observaciones') if valores.get('observaciones') is not none else (oferta.observaciones if oferta and oferta.observaciones is not none else '') }}</textarea>
         </div>
       </div>
     </section>
