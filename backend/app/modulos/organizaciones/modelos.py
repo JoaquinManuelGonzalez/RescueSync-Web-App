@@ -8,6 +8,11 @@ Existen tres tipos principales según el enunciado:
     el rol `representante_ong` y presentan ofertas de ayuda.
   - centro_coordinador_regional: centro coordinador regional. Sus usuarios tienen
     el rol `coordinador_regional` y gestionan emergencias.
+
+Cada organizacion declara su zona de cobertura (`ZonaDeCobertura`), o marca que opera en todo el
+pais (`cobertura_nacional`, que reemplaza a las zonas). Tambien lleva el estado de su verificacion
+contra el Sistema Nacional (`EstadoVerificacion`), que hoy nadie cambia: es el punto de extension
+que completa la Entrega 3 (ver `app/core/integraciones/api_nacional.py`).
 """
 
 from __future__ import annotations
@@ -16,7 +21,19 @@ import enum
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.extensiones import db
@@ -32,6 +49,18 @@ class TipoOrganizacion(enum.Enum):
     municipio = "municipio"
     ong = "ong"
     centro_coordinador_regional = "centro_coordinador_regional"
+
+
+class EstadoVerificacion(enum.Enum):
+    """Resultado de validar la organizacion contra el Sistema Nacional.
+
+    Nace `sin_verificar`. Solo lo cambia la integracion con la API Nacional (Entrega 3), nunca
+    un formulario: que una persona pudiera marcarse "verificada" le quitaria todo el sentido.
+    """
+
+    sin_verificar = "sin_verificar"
+    verificada = "verificada"
+    rechazada = "rechazada"
 
 
 class Organizacion(db.Model):
@@ -69,13 +98,40 @@ class Organizacion(db.Model):
         nullable=False,
         comment="Indica si el organismo está habilitado para operar.",
     )
+    cobertura_nacional: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=text("false"),
+        nullable=False,
+        comment="True si opera en todo el país: reemplaza a las zonas de cobertura.",
+    )
+    estado_verificacion: Mapped[EstadoVerificacion] = mapped_column(
+        Enum(EstadoVerificacion, name="estado_verificacion_enum"),
+        default=EstadoVerificacion.sin_verificar,
+        server_default=EstadoVerificacion.sin_verificar.value,
+        nullable=False,
+        comment="Resultado de la validación contra el Sistema Nacional (Entrega 3).",
+    )
     creado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
     )
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
 
     # --- relaciones -----------------------------------------------------------
+    zonas_de_cobertura: Mapped[list[ZonaDeCobertura]] = relationship(
+        "ZonaDeCobertura",
+        back_populates="organizacion",
+        cascade="all, delete-orphan",
+        order_by="(ZonaDeCobertura.provincia, ZonaDeCobertura.localidad)",
+        lazy="selectin",
+    )
     usuarios: Mapped[list[Usuario]] = relationship(
         "Usuario",
         back_populates="organizacion",
@@ -90,6 +146,61 @@ class Organizacion(db.Model):
 
     def __repr__(self) -> str:
         return f"<Organizacion id={self.id} nombre={self.nombre!r} tipo={self.tipo.value}>"
+
+
+# Mismo criterio que el email de las cuentas (ver usuarios_roles/modelos.py): el UNIQUE de la
+# columna distingue mayusculas y dejaria convivir "Cruz Solidaria" y "cruz solidaria". Se declara
+# fuera de la clase para que `func.lower` reciba la columna ya mapeada y no la cadena literal.
+Index("uq_organizacion_nombre_normalizado", func.lower(Organizacion.nombre), unique=True)
+
+
+class ZonaDeCobertura(db.Model):
+    """Una zona en la que la organizacion puede operar.
+
+    La provincia sale de la lista cerrada de `geografia.PROVINCIAS`; la localidad es opcional y,
+    si falta, la zona es la provincia completa. La normalizacion (duplicados, localidades que ya
+    cubre la provincia completa) vive en `servicios.py`.
+    """
+
+    __tablename__ = "organizacion_zona_cobertura"
+    __table_args__ = (
+        UniqueConstraint(
+            "organizacion_id",
+            "provincia",
+            "localidad",
+            name="uq_organizacion_zona_cobertura",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organizacion_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("organizacion.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    provincia: Mapped[str] = mapped_column(
+        String(60),
+        nullable=False,
+        index=True,
+        comment="Nombre oficial de la provincia (lista cerrada de geografia.PROVINCIAS).",
+    )
+    localidad: Mapped[str | None] = mapped_column(
+        String(150),
+        nullable=True,
+        comment="Partido o localidad. NULL significa toda la provincia.",
+    )
+
+    organizacion: Mapped[Organizacion] = relationship(
+        "Organizacion",
+        back_populates="zonas_de_cobertura",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<ZonaDeCobertura organizacion_id={self.organizacion_id}"
+            f" provincia={self.provincia!r} localidad={self.localidad!r}>"
+        )
 
 
 class Inventario(db.Model):

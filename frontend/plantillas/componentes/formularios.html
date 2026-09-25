@@ -4,6 +4,7 @@
 
     - csrf()                  campo oculto con el token CSRF. Va en TODO <form method="post">.
     - campo(field, ...)       etiqueta + control + errores de un campo WTForms.
+    - casilla(field, ...)     casilla de verificacion con su etiqueta y ayuda al costado.
     - boton_envio(texto, ...) boton de envio con spinner (el form lleva data-envio-con-carga).
     - formulario_accion(...)  formulario POST de un solo boton: cerrar sesion, activar, desbloquear.
     - filtro_texto / filtro_select: controles de la barra de filtros de un listado (GET).
@@ -78,6 +79,32 @@
     {%- endfor %}
   </div>
   {%- endif %}
+</div>
+{%- endmacro %}
+
+{#- Casilla de verificacion (BooleanField): la etiqueta y la ayuda van al costado del control,
+    no arriba como en `campo()`. -#}
+{% macro casilla(field, ayuda=none, atributos={}) -%}
+{%- set id_ayuda = field.id ~ "-ayuda" -%}
+{%- set id_error = field.id ~ "-error" -%}
+{%- set descripciones = ([id_ayuda] if ayuda else []) + ([id_error] if field.errors else []) -%}
+{%- set extra = dict(atributos) -%}
+{%- if descripciones %}{% set _ = extra.update({"aria-describedby": descripciones|join(" ")}) %}{% endif -%}
+<div class="campo-casilla">
+  {{ field(class_="campo-casilla-control", **extra) }}
+  <div>
+    <label for="{{ field.id }}" class="campo-etiqueta cursor-pointer">{{ field.label.text }}</label>
+    {%- if ayuda %}
+    <p id="{{ id_ayuda }}" class="campo-ayuda">{{ ayuda }}</p>
+    {%- endif %}
+    {%- if field.errors %}
+    <div id="{{ id_error }}">
+      {%- for error in field.errors %}
+      <p class="campo-error">{{ error }}</p>
+      {%- endfor %}
+    </div>
+    {%- endif %}
+  </div>
 </div>
 {%- endmacro %}
 

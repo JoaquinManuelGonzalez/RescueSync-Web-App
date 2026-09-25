@@ -5,6 +5,7 @@
 {% from "componentes/iconos.html" import icono %}
 {% from "componentes/diseno.html" import encabezado_pagina %}
 {% from "componentes/formularios.html" import csrf, campo, boton_envio %}
+{% from "organizaciones/componentes.html" import campos_de_zonas %}
 
 {%- set es_alta = modo == "alta" %}
 {%- set titulo = "Nueva organización" if es_alta else "Editar organización" %}
@@ -33,6 +34,7 @@
           {{ campo(formulario.contacto_email, atributos={"type": "email"}) }}
           {{ campo(formulario.contacto_telefono, atributos={"type": "tel"}) }}
           {{ campo(formulario.direccion) }}
+          {{ campos_de_zonas(formulario, obligatoria=true) }}
         </div>
         <div class="formulario-acciones">
           <a class="btn btn-cancelar" href="{{ destino_cancelar }}">Cancelar</a>

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
-from app.core.interfaz.paginacion import Pagina
+from app.core.interfaz.paginacion import POR_PAGINA_POR_DEFECTO, Pagina
 
 from .conftest import EMAIL_ADMINISTRADOR
 
@@ -18,7 +20,11 @@ def muchas_organizaciones(app, base_de_datos) -> int:
 
     with app.app_context():
         for numero in range(ORGANIZACIONES_EXTRA):
-            servicios.crear(nombre=f"ONG de prueba {numero:02d}", tipo="ong")
+            servicios.crear(
+                nombre=f"ONG de prueba {numero:02d}",
+                tipo="ong",
+                zonas=[{"provincia": "Buenos Aires"}],
+            )
         return len(servicios.listar(tipo="ong"))
 
 
@@ -39,26 +45,28 @@ def test_el_listado_json_trae_la_primera_pagina_y_sus_metadatos(
 
     cuerpo = cliente_sembrado.get("/organizaciones?tipo=ong").get_json()
 
-    assert len(cuerpo["organizaciones"]) == 20
+    assert len(cuerpo["organizaciones"]) == POR_PAGINA_POR_DEFECTO
     assert cuerpo["paginacion"] == {
         "pagina": 1,
-        "por_pagina": 20,
+        "por_pagina": POR_PAGINA_POR_DEFECTO,
         "total": muchas_organizaciones,
-        "paginas": 2,
+        "paginas": math.ceil(muchas_organizaciones / POR_PAGINA_POR_DEFECTO),
     }
 
 
-def test_la_segunda_pagina_trae_el_resto_sin_repetir(
+def test_las_paginas_siguientes_traen_el_resto_sin_repetir(
     cliente_sembrado, ingresar, muchas_organizaciones
 ) -> None:
     ingresar(EMAIL_ADMINISTRADOR)
 
-    primera = cliente_sembrado.get("/organizaciones?tipo=ong").get_json()["organizaciones"]
-    segunda = cliente_sembrado.get("/organizaciones?tipo=ong&pagina=2").get_json()
-    ids = {una["id"] for una in primera} | {una["id"] for una in segunda["organizaciones"]}
+    paginas = math.ceil(muchas_organizaciones / POR_PAGINA_POR_DEFECTO)
+    ids: list[int] = []
+    for numero in range(1, paginas + 1):
+        cuerpo = cliente_sembrado.get(f"/organizaciones?tipo=ong&pagina={numero}").get_json()
+        ids.extend(una["id"] for una in cuerpo["organizaciones"])
 
-    assert len(segunda["organizaciones"]) == muchas_organizaciones - 20
     assert len(ids) == muchas_organizaciones
+    assert len(set(ids)) == muchas_organizaciones
 
 
 def test_una_pagina_fuera_de_rango_muestra_la_ultima(
@@ -68,7 +76,9 @@ def test_una_pagina_fuera_de_rango_muestra_la_ultima(
 
     cuerpo = cliente_sembrado.get("/organizaciones?tipo=ong&pagina=99").get_json()
 
-    assert cuerpo["paginacion"]["pagina"] == 2
+    assert cuerpo["paginacion"]["pagina"] == math.ceil(
+        muchas_organizaciones / POR_PAGINA_POR_DEFECTO
+    )
 
 
 def test_el_tamano_de_pagina_tiene_tope(cliente_sembrado, ingresar, muchas_organizaciones) -> None:
@@ -95,7 +105,7 @@ def test_la_paginacion_de_la_pantalla_conserva_los_filtros(
 
     cuerpo = navegar("/organizaciones?tipo=ong").get_data(as_text=True)
 
-    assert f"Mostrando 1–20 de {muchas_organizaciones}" in cuerpo
+    assert f"Mostrando 1–{POR_PAGINA_POR_DEFECTO} de {muchas_organizaciones}" in cuerpo
     assert 'href="/organizaciones?tipo=ong&amp;pagina=2"' in cuerpo
     assert 'aria-current="page">1<' in cuerpo
 

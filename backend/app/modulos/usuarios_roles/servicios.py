@@ -55,6 +55,13 @@ MENSAJE_BLOQUEADA = (
 MENSAJE_INACTIVA = (
     "Tu cuenta está desactivada. Pedile a un administrador que la vuelva a habilitar."
 )
+MENSAJE_ORGANIZACION_INACTIVA = (
+    "Tu organización está dada de baja en RescueSync. Pedile a un administrador que la vuelva "
+    "a habilitar."
+)
+MENSAJE_ORGANIZACION_VINCULADA_INACTIVA = (
+    "La organización indicada está inactiva: no se le pueden vincular cuentas."
+)
 MENSAJE_EMAIL_EN_USO = "Ya existe una cuenta registrada con ese email."
 MENSAJE_NO_ENCONTRADO = "No encontramos la cuenta solicitada."
 MENSAJE_CONTRASENA_ACTUAL = "La contraseña actual no es correcta."
@@ -181,17 +188,35 @@ def obtener_rol(nombre_rol: str) -> Rol:
 # --- Sesion -------------------------------------------------------------------
 
 
+def puede_operar(usuario: Usuario) -> bool:
+    """La cuenta esta habilitada y, si pertenece a una organizacion, esta tambien lo esta.
+
+    Dar de baja una organizacion no toca sus cuentas: las deja sin acceso mientras dure la baja,
+    y al reactivarla vuelven a entrar sin que haya que rehabilitarlas una por una.
+    """
+    if not usuario.activo:
+        return False
+    if usuario.organizacion_id is None:
+        return True
+    return servicios_de_organizaciones.esta_activa(usuario.organizacion_id)
+
+
 def _cargar_usuario_de_sesion(id_usuario: str) -> Usuario | None:
     """`user_loader` de Flask-Login: traduce el id de la cookie a la cuenta.
 
     Devuelve None ante cualquier id que no corresponda a una cuenta existente, que es la forma
-    en que Flask-Login entiende "esta sesion no vale".
+    en que Flask-Login entiende "esta sesion no vale". Tambien si la cuenta o su organizacion
+    fueron desactivadas despues de abrir la sesion: sin esto, la baja recien se notaria cuando
+    la sesion expirara por inactividad.
     """
     try:
         identificador = int(id_usuario)
     except TypeError, ValueError:
         return None
-    return db.session.get(Usuario, identificador)
+    usuario = db.session.get(Usuario, identificador)
+    if usuario is None or not puede_operar(usuario):
+        return None
+    return usuario
 
 
 def instalar_cargador_de_sesion() -> None:
@@ -294,6 +319,17 @@ def autenticar(email: str, contrasena: str) -> Usuario:
         )
         raise PermisoDenegado(MENSAJE_INACTIVA)
 
+    # Mismo criterio que la cuenta desactivada: solo se le explica a quien acerto la contrasena.
+    if not puede_operar(usuario):
+        registrar_evento(
+            logging.WARNING,
+            "login_fallido",
+            motivo="organizacion_inactiva",
+            id_usuario=str(usuario.id),
+            id_correlacion=id_correlacion_actual(),
+        )
+        raise PermisoDenegado(MENSAJE_ORGANIZACION_INACTIVA)
+
     usuario.intentos_fallidos = 0
     usuario.bloqueado_hasta = None
     usuario.ultimo_acceso_en = _ahora()
@@ -328,13 +364,18 @@ def validar_politica_de_contrasena(contrasena: str, campo: str = "contrasena") -
 # --- Coherencia entre rol y organizacion --------------------------------------
 
 
-def verificar_coherencia_rol_organizacion(nombre_rol: str, organizacion_id: int | None) -> None:
+def verificar_coherencia_rol_organizacion(
+    nombre_rol: str, organizacion_id: int | None, *, exigir_activa: bool = False
+) -> None:
     """Comprueba que la organizacion asignada sea del tipo que el rol exige.
 
     No es una restriccion de base porque cruza `usuarios`, `usuario_rol` y `organizacion`, y
     eso no se expresa en un CHECK de columna. Sin esta verificacion se puede crear un
     "representante de ONG" apuntando a un municipio, y el alcance por organizacion del resto
     del sistema deja de significar nada.
+
+    `exigir_activa` rechaza ademas una organizacion dada de baja: se usa al vincular una cuenta
+    nueva, no al editar una que ya pertenecia a ella.
     """
     try:
         rol = NombreRol(nombre_rol)
@@ -379,6 +420,10 @@ def verificar_coherencia_rol_organizacion(nombre_rol: str, organizacion_id: int 
                     f"'{tipo_exigido}', y la indicada es de tipo '{tipo_real}'."
                 ]
             }
+        )
+    if exigir_activa and not servicios_de_organizaciones.esta_activa(organizacion_id):
+        raise SolicitudInvalida(
+            detalle={"organizacion_id": [MENSAJE_ORGANIZACION_VINCULADA_INACTIVA]}
         )
 
 
@@ -433,7 +478,7 @@ def crear_usuario(
         raise SolicitudInvalida(detalle={"email": ["El email es obligatorio."]})
 
     validar_politica_de_contrasena(contrasena)
-    verificar_coherencia_rol_organizacion(nombre_rol, organizacion_id)
+    verificar_coherencia_rol_organizacion(nombre_rol, organizacion_id, exigir_activa=True)
     _verificar_email_disponible(email_normalizado)
 
     usuario = Usuario(
@@ -470,7 +515,11 @@ def editar_usuario(
 ) -> Usuario:
     """Actualiza nombre, rol y organizacion. El email no se edita: es la clave natural."""
     usuario = obtener_usuario(usuario_id)
-    verificar_coherencia_rol_organizacion(nombre_rol, organizacion_id)
+    verificar_coherencia_rol_organizacion(
+        nombre_rol,
+        organizacion_id,
+        exigir_activa=organizacion_id != usuario.organizacion_id,
+    )
 
     usuario.nombre_completo = nombre_completo.strip()
     usuario.organizacion_id = organizacion_id

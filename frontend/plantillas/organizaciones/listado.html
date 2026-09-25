@@ -1,10 +1,12 @@
 {#- Contexto: `organizaciones` (diccionarios de `servicios.a_diccionario()`), `pagina`, `filtros`,
-    `opciones_de_tipo` y `opciones_de_estado`. -#}
+    `opciones_de_tipo`, `opciones_de_estado`, `opciones_de_provincia` y
+    `opciones_de_verificacion`. -#}
 {% extends "layout.html" %}
 {% from "componentes/iconos.html" import icono %}
 {% from "componentes/diseno.html" import encabezado_pagina, estado_vacio, insignia, insignia_estado %}
 {% from "componentes/formularios.html" import filtro_texto, filtro_select, formulario_accion %}
 {% from "componentes/tablas.html" import tabla, celda, paginacion %}
+{% from "organizaciones/componentes.html" import insignia_verificacion %}
 
 {% block title %}Organizaciones{% endblock %}
 
@@ -17,13 +19,19 @@
   {% endcall %}
 
   <form method="get" action="{{ url_for('organizaciones.listar') }}" class="barra-filtros" onchange="this.submit()">
-    {{ filtro_texto("texto", "Buscar", filtros.get("texto"), "Nombre") }}
-    {{ filtro_select("tipo", "Tipo", opciones_de_tipo, filtros.get("tipo")) }}
-    {{ filtro_select("activo", "Estado", opciones_de_estado, filtros.get("activo"), "Todas") }}
+    <div class="filtros-en-dos-filas">
+      {{ filtro_texto("texto", "Buscar", filtros.get("texto"), "Nombre, CUIT, email o localidad") }}
+      <div class="filtros-en-dos-filas-selects">
+        {{ filtro_select("tipo", "Tipo", opciones_de_tipo, filtros.get("tipo")) }}
+        {{ filtro_select("activo", "Estado", opciones_de_estado, filtros.get("activo"), "Todas") }}
+        {{ filtro_select("provincia", "Cobertura", opciones_de_provincia, filtros.get("provincia"), "Todas") }}
+        {{ filtro_select("estado_verificacion", "Verificación", opciones_de_verificacion, filtros.get("estado_verificacion")) }}
+      </div>
+    </div>
   </form>
 
   {%- if organizaciones %}
-  {% call tabla(["Nombre", "Tipo", "Contacto", "Estado", none]) %}
+  {% call tabla(["Nombre", "Tipo", "Cobertura", "Contacto", "Estado", none]) %}
         {%- for organizacion in organizaciones %}
         <tr class="tabla-fila">
           {% call celda("Nombre") %}
@@ -37,13 +45,20 @@
               {{ organizacion.tipo|etiqueta_tipo_organizacion }}
             </span>
           {% endcall %}
+          {% call celda("Cobertura") %}
+            {%- set provincias = organizacion.zonas_de_cobertura|map(attribute="provincia")|unique|list %}
+            <p>{{ "Todo el país" if organizacion.cobertura_nacional else (provincias|join(", ") if provincias else "—") }}</p>
+          {% endcall %}
           {% call celda("Contacto") %}
             <p>{{ organizacion.contacto_email or "—" }}</p>
             {%- if organizacion.contacto_telefono %}
             <p class="text-xs text-gray-500">{{ organizacion.contacto_telefono }}</p>
             {%- endif %}
           {% endcall %}
-          {% call celda("Estado") %}{{ insignia_estado(organizacion.activo) }}{% endcall %}
+          {% call celda("Estado") %}
+            {{ insignia_estado(organizacion.activo) }}
+            {%- if organizacion.tipo == "ong" %} {{ insignia_verificacion(organizacion.estado_verificacion) }}{% endif %}
+          {% endcall %}
           {% call celda() %}
             <div class="tabla-acciones">
               <a class="btn btn-fantasma btn-icono" href="{{ url_for('organizaciones.ver', organizacion_id=organizacion.id) }}" title="Ver detalle">
@@ -57,7 +72,7 @@
               {%- if puede("organizaciones:cambiar_estado") %}
               {%- if organizacion.activo %}
               {{ formulario_accion(url_for("organizaciones.cambiar_estado", organizacion_id=organizacion.id), "Desactivar", clase="btn btn-fantasma btn-icono",
-                                   confirmar=organizacion.nombre ~ " va a quedar inactiva. Podés volver a activarla cuando quieras.",
+                                   confirmar=organizacion.nombre ~ " va a quedar inactiva y sus cuentas no van a poder ingresar hasta que la vuelvas a activar.",
                                    confirmar_titulo="¿Desactivar esta organización?", confirmar_boton="Desactivar", icono_nombre="desactivar", solo_icono=true) }}
               {%- else %}
               {{ formulario_accion(url_for("organizaciones.cambiar_estado", organizacion_id=organizacion.id), "Activar", clase="btn btn-fantasma btn-icono",

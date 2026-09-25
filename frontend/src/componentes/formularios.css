@@ -55,6 +55,15 @@
         @apply text-xs text-gray-500;
     }
 
+    /* Casilla de verificacion con su etiqueta y ayuda al costado (macro `casilla()`). */
+    .campo-casilla {
+        @apply flex items-start gap-3 rounded-lg bg-gray-50 p-3 outline-1 -outline-offset-1 outline-gray-200;
+    }
+
+    .campo-casilla-control {
+        @apply mt-1 size-4 shrink-0 cursor-pointer accent-primario;
+    }
+
     /* Contraseña con boton para mostrarla u ocultarla. */
     .campo-contrasena {
         @apply relative;
@@ -93,6 +102,21 @@
 
     .barra-filtros {
         @apply mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end;
+    }
+
+    /* Barra con muchos filtros: la busqueda ocupa toda la primera fila y los select se reparten
+     * en columnas iguales en la segunda. Va dentro de .barra-filtros. `min-w-0` evita que un
+     * select con opciones largas (una provincia, por ejemplo) ensanche su columna. */
+    .filtros-en-dos-filas {
+        @apply grid w-full gap-3;
+    }
+
+    .filtros-en-dos-filas-selects {
+        @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-4;
+    }
+
+    .filtros-en-dos-filas-selects > * {
+        @apply min-w-0;
     }
 
     /* Un select de filtro: ancho suficiente para leer la opcion elegida. */

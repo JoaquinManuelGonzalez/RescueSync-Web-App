@@ -42,6 +42,9 @@ USUARIOS_DE_DEMOSTRACION: tuple[tuple[str, NombreRol, str | None], ...] = (
     ),
     ("operador@chascomus.test", NombreRol.OPERADOR_MUNICIPAL, "Municipio de Chascomús"),
     ("representante@cruzsolidaria.test", NombreRol.REPRESENTANTE_ONG, "Cruz Solidaria"),
+    # Segunda cuenta de la misma ONG: es la que demuestra que varias personas operan en nombre
+    # de una organizacion y ven y editan las mismas ofertas (hipotesis de la EPIC-19).
+    ("representante2@cruzsolidaria.test", NombreRol.REPRESENTANTE_ONG, "Cruz Solidaria"),
     (
         "representante@cruzroja.test",
         NombreRol.REPRESENTANTE_ONG,

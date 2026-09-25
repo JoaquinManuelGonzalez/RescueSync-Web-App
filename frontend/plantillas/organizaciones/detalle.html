@@ -1,8 +1,10 @@
-{#- Contexto: `organizacion`, el diccionario de `servicios.a_diccionario()`. -#}
+{#- Contexto: `organizacion`, el diccionario de `servicios.a_diccionario()`, y `miembros`, el de
+    `servicios.miembros()`. -#}
 {% extends "layout.html" %}
 {% from "componentes/iconos.html" import icono %}
 {% from "componentes/diseno.html" import encabezado_pagina, insignia, insignia_estado, dato %}
 {% from "componentes/formularios.html" import formulario_accion %}
+{% from "organizaciones/componentes.html" import lista_de_zonas, insignia_verificacion, tabla_de_miembros %}
 
 {% block title %}{{ organizacion.nombre }}{% endblock %}
 
@@ -25,11 +27,31 @@
         {% call dato("Tipo") %}{{ insignia(organizacion.tipo|etiqueta_tipo_organizacion, "info") }}{% endcall %}
         {% call dato("Estado") %}{{ insignia_estado(organizacion.activo) }}{% endcall %}
         {{ dato("Identificador nacional", organizacion.identificador_nacional) }}
+        {% call dato("Verificación nacional") %}{{ insignia_verificacion(organizacion.estado_verificacion) }}{% endcall %}
         {{ dato("Email de contacto", organizacion.contacto_email) }}
         {{ dato("Teléfono de contacto", organizacion.contacto_telefono) }}
         {{ dato("Dirección", organizacion.direccion) }}
         {{ dato("Alta", organizacion.creado_en|fecha) }}
       </dl>
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Zona de cobertura</h2>
+      {{ lista_de_zonas(organizacion.zonas_de_cobertura, organizacion.cobertura_nacional) }}
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <div class="mb-4 flex items-center justify-between gap-4">
+        <h2 class="tarjeta-titulo mb-0">Miembros</h2>
+        {%- if puede("usuarios:crear") and organizacion.activo %}
+        <a class="btn btn-secundario" href="{{ url_for('usuarios.formulario_de_alta', organizacion_id=organizacion.id) }}">{{ icono("mas") }} Vincular cuenta</a>
+        {%- endif %}
+      </div>
+      {{ tabla_de_miembros(miembros, enlazar=puede("usuarios:listar")) }}
     </div>
   </section>
 
@@ -40,7 +62,7 @@
         <h2 class="tarjeta-titulo mb-0">Estado</h2>
         {%- if organizacion.activo %}
         {{ formulario_accion(url_for("organizaciones.cambiar_estado", organizacion_id=organizacion.id), "Desactivar organización", "peligro",
-                             confirmar=organizacion.nombre ~ " va a quedar inactiva. Podés volver a activarla cuando quieras.",
+                             confirmar=organizacion.nombre ~ " va a quedar inactiva y sus cuentas no van a poder ingresar hasta que la vuelvas a activar.",
                              confirmar_titulo="¿Desactivar esta organización?", confirmar_boton="Desactivar", icono_nombre="desactivar") }}
         {%- else %}
         {{ formulario_accion(url_for("organizaciones.cambiar_estado", organizacion_id=organizacion.id), "Activar organización", "secundario",

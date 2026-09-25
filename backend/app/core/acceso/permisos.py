@@ -134,6 +134,11 @@ ORGANIZACIONES_CREAR = "organizaciones:crear"
 ORGANIZACIONES_EDITAR = "organizaciones:editar"
 ORGANIZACIONES_CAMBIAR_ESTADO = "organizaciones:cambiar_estado"
 
+# La organizacion propia, vista por sus miembros. Es otro recurso y no un alcance de
+# `organizaciones:*` a proposito: un miembro ve y actualiza la suya sin poder listar las demas.
+ORGANIZACION_PROPIA_VER = "organizacion_propia:ver"
+ORGANIZACION_PROPIA_EDITAR = "organizacion_propia:editar"
+
 # Etapa 1 del proceso: registro de la emergencia.
 EMERGENCIAS_CREAR = "emergencias:crear"
 EMERGENCIAS_LISTAR = "emergencias:listar"
@@ -189,6 +194,10 @@ CATALOGO_DE_PERMISOS: dict[str, str] = {
     ORGANIZACIONES_CREAR: "Dar de alta una organización.",
     ORGANIZACIONES_EDITAR: "Editar los datos de una organización.",
     ORGANIZACIONES_CAMBIAR_ESTADO: "Activar o desactivar una organización.",
+    ORGANIZACION_PROPIA_VER: "Ver los datos y los miembros de la propia organización.",
+    ORGANIZACION_PROPIA_EDITAR: (
+        "Actualizar el contacto y la zona de cobertura de la propia organización."
+    ),
     EMERGENCIAS_CREAR: "Registrar una emergencia nueva.",
     EMERGENCIAS_LISTAR: "Ver el listado de emergencias.",
     EMERGENCIAS_VER: "Ver el detalle de una emergencia.",
@@ -226,6 +235,8 @@ PERMISOS_POR_ROL: dict[NombreRol, frozenset[str]] = {
     # Carga la emergencia y, al final del proceso, elige que ofertas se adjudican.
     NombreRol.OPERADOR_MUNICIPAL: frozenset(
         {
+            ORGANIZACION_PROPIA_VER,
+            ORGANIZACION_PROPIA_EDITAR,
             EMERGENCIAS_CREAR,
             EMERGENCIAS_LISTAR,
             EMERGENCIAS_VER,
@@ -240,6 +251,8 @@ PERMISOS_POR_ROL: dict[NombreRol, frozenset[str]] = {
     # Desglosa la emergencia en lotes, publica la convocatoria y monitorea la ejecucion.
     NombreRol.COORDINADOR_REGIONAL: frozenset(
         {
+            ORGANIZACION_PROPIA_VER,
+            ORGANIZACION_PROPIA_EDITAR,
             EMERGENCIAS_LISTAR,
             EMERGENCIAS_VER,
             LOTES_CREAR,
@@ -255,9 +268,12 @@ PERMISOS_POR_ROL: dict[NombreRol, frozenset[str]] = {
             EJECUCION_MONITOREAR,
         }
     ),
-    # Exactamente lo que el enunciado le pide al perfil 3: inventario, ofertas y cierre propio.
+    # Lo que el enunciado le pide al perfil 3 (inventario, ofertas y cierre propio), mas los datos
+    # de su propia ONG: son varias personas operando en nombre de la misma organizacion.
     NombreRol.REPRESENTANTE_ONG: frozenset(
         {
+            ORGANIZACION_PROPIA_VER,
+            ORGANIZACION_PROPIA_EDITAR,
             CONVOCATORIAS_LISTAR,
             OFERTAS_CREAR,
             OFERTAS_EDITAR,
