@@ -1,0 +1,571 @@
+{% extends "layout.html" %}
+
+{% block title %}Agregar item al inventario{% endblock %}
+
+{% block content %}
+
+<main class="mx-auto max-w-2xl px-6 py-8">
+
+    <!-- ============================== -->
+    <!-- ENCABEZADO -->
+    <!-- ============================== -->
+
+    <div class="mb-8">
+
+        <a
+            href="{{ url_for('organizaciones.ver_inventario') }}"
+            class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-primario"
+        >
+            <svg
+                class="size-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+                stroke="currentColor"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
+                />
+            </svg>
+
+            Volver al inventario
+        </a>
+
+        <h1 class="text-2xl font-bold tracking-tight text-gray-900">
+            Agregar item al inventario
+        </h1>
+
+        <p class="mt-2 text-sm text-gray-600">
+            Seleccioná un item y la cantidad que tu organización tiene disponible.
+        </p>
+
+    </div>
+
+
+    <!-- ============================== -->
+    <!-- FORMULARIO -->
+    <!-- ============================== -->
+
+    <form
+        id="inventory-form"
+        action="{{ url_for('organizaciones.crear_item_inventario') }}"
+        method="POST"
+        class="rounded-xl bg-white shadow-sm ring-1 ring-gray-200"
+    >
+
+        {{ formulario.csrf_token }}
+
+        <div class="space-y-6 p-6">
+
+
+            <!-- ============================== -->
+            <!-- CATEGORÍA -->
+            <!-- ============================== -->
+
+            <div>
+
+                <label
+                    for="categoria"
+                    class="block text-sm font-medium text-gray-900"
+                >
+                    Categoría
+                </label>
+
+                <p class="mt-1 text-xs text-gray-500">
+                    Seleccioná una categoría para ver los items correspondientes.
+                </p>
+
+
+                <div class="relative mt-2">
+
+                    <select
+                        id="categoria"
+                        class="block w-full appearance-none rounded-lg border-0 bg-white py-2.5 pl-3 pr-10 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 transition focus:ring-2 focus:ring-inset focus:ring-primario"
+                    >
+
+                        <option value="">
+                            Seleccionar categoría
+                        </option>
+
+                        {% for categoria in categorias %}
+
+                            <option value="{{ categoria.value }}">
+                                {{ categoria.value | replace("_", " ") | title }}
+                            </option>
+
+                        {% endfor %}
+
+                    </select>
+
+
+                    <svg
+                        class="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-gray-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.8"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="m6 9 6 6 6-6"
+                        />
+                    </svg>
+
+                </div>
+
+            </div>
+
+
+            <!-- ============================== -->
+            <!-- ITEM -->
+            <!-- ============================== -->
+
+            <div>
+
+                <label
+                    for="item"
+                    class="block text-sm font-medium text-gray-900"
+                >
+                    Item
+                </label>
+
+                <p class="mt-1 text-xs text-gray-500">
+                    Seleccioná el item que querés agregar.
+                </p>
+
+
+                <div class="relative mt-2">
+
+                    <select
+                        id="item"
+                        name="item_id"
+                        disabled
+                        required
+                        class="block w-full appearance-none rounded-lg border-0 bg-white py-2.5 pl-3 pr-10 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 transition focus:ring-2 focus:ring-inset focus:ring-primario disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 disabled:opacity-70"
+                    >
+
+                        <option value="">
+                            Primero seleccioná una categoría
+                        </option>
+
+                    </select>
+
+
+                    <svg
+                        class="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-gray-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.8"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="m6 9 6 6 6-6"
+                        />
+                    </svg>
+
+                </div>
+
+            </div>
+
+
+            <!-- ============================== -->
+            <!-- INFORMACIÓN DEL ITEM -->
+            <!-- ============================== -->
+
+            <div
+                id="item-info"
+                class="hidden rounded-lg border border-primario/20 bg-acento/30 p-4"
+            >
+
+                <div class="flex gap-3">
+
+                    <div
+                        class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primario text-white"
+                    >
+                        <svg
+                            class="size-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke-width="1.8"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M20.25 7.5 12 3 3.75 7.5m16.5 0L12 12m8.25-4.5v9L12 21m0-9L3.75 7.5m8.25 4.5v9m-8.25-13.5v9L12 21"
+                            />
+                        </svg>
+                    </div>
+
+
+                    <div class="min-w-0">
+
+                        <p
+                            id="item-name"
+                            class="font-medium text-gray-900"
+                        ></p>
+
+                        <p
+                            id="item-description"
+                            class="mt-1 text-sm leading-5 text-gray-600"
+                        ></p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- ============================== -->
+            <!-- CANTIDAD -->
+            <!-- ============================== -->
+
+            <div>
+
+                <label
+                    for="cantidad"
+                    class="block text-sm font-medium text-gray-900"
+                >
+                    Cantidad
+                </label>
+
+                <p class="mt-1 text-xs text-gray-500">
+                    Ingresá la cantidad disponible.
+                </p>
+
+
+                <div class="mt-2 flex items-stretch">
+
+                    <input
+                        id="cantidad"
+                        name="cantidad_disponible"
+                        type="number"
+                        min="0"
+                        step="1"
+                        disabled
+                        required
+                        placeholder="0"
+                        class="block min-w-0 flex-1 rounded-l-lg border-0 bg-white py-2.5 px-3 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 transition focus:ring-2 focus:ring-inset focus:ring-primario disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 disabled:opacity-70"
+                    >
+
+                    <span
+                        id="unidad-medida"
+                        class="inline-flex min-w-24 items-center justify-center rounded-r-lg bg-gray-100 px-3 text-sm font-medium text-gray-600 ring-1 ring-inset ring-gray-300"
+                    >
+                        -
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- ============================== -->
+        <!-- BOTONES -->
+        <!-- ============================== -->
+
+        <div class="flex flex-col-reverse gap-3 border-t border-gray-100 px-6 py-4 sm:flex-row sm:justify-end">
+
+            <a
+                href="{{ url_for('organizaciones.ver_inventario') }}"
+                class="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100"
+            >
+                Cancelar
+            </a>
+
+
+            <button
+                id="submit-button"
+                type="submit"
+                disabled
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-primario px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-primario-dark hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+            >
+
+                <svg
+                    id="submit-spinner"
+                    class="hidden size-5 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                >
+                    <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                    ></circle>
+
+                    <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                    ></path>
+                </svg>
+
+                <span id="submit-text">
+                    Agregar al inventario
+                </span>
+
+            </button>
+
+        </div>
+
+    </form>
+
+</main>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    /*
+     * Los Items vienen de la base de datos a través de Jinja.
+     *
+     * Cada item queda disponible en JavaScript agrupado
+     * por su categoría.
+     */
+
+    const items = {
+
+        {% for item in items %}
+
+        "{{ item.categoria.value }}": [
+            {% for item_categoria in items if item_categoria.categoria == item.categoria %}
+            {
+                id: {{ item_categoria.id }},
+                nombre: {{ item_categoria.nombre | tojson }},
+                unidad: {{ item_categoria.unidad_medida | tojson }},
+                descripcion: {{ (item_categoria.descripcion or "") | tojson }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ]{% if not loop.last %},{% endif %}
+
+        {% endfor %}
+
+    };
+
+
+    /*
+     * ==========================================
+     * ELEMENTOS
+     * ==========================================
+     */
+
+    const categoriaSelect = document.querySelector("#categoria");
+    const itemSelect = document.querySelector("#item");
+
+    const itemInfo = document.querySelector("#item-info");
+    const itemName = document.querySelector("#item-name");
+    const itemDescription = document.querySelector("#item-description");
+
+    const cantidadInput = document.querySelector("#cantidad");
+    const unidadMedida = document.querySelector("#unidad-medida");
+
+    const submitButton = document.querySelector("#submit-button");
+
+
+    function actualizarEstadoVisual(campo) {
+
+        campo.classList.toggle("bg-gray-50", campo.disabled);
+        campo.classList.toggle("text-gray-400", campo.disabled);
+        campo.classList.toggle("bg-white", !campo.disabled);
+        campo.classList.toggle("text-gray-900", !campo.disabled);
+
+    }
+
+
+    /*
+     * ==========================================
+     * CAMBIO DE CATEGORÍA
+     * ==========================================
+     */
+
+    categoriaSelect.addEventListener("change", () => {
+
+        const categoria = categoriaSelect.value;
+
+        itemSelect.innerHTML = "";
+
+        itemInfo.classList.add("hidden");
+
+        cantidadInput.disabled = true;
+        cantidadInput.value = "";
+        actualizarEstadoVisual(cantidadInput);
+
+        submitButton.disabled = true;
+
+
+        if (!categoria) {
+
+            itemSelect.disabled = true;
+            actualizarEstadoVisual(itemSelect);
+
+            itemSelect.innerHTML = `
+                <option value="">
+                    Primero seleccioná una categoría
+                </option>
+            `;
+
+            unidadMedida.textContent = "-";
+
+            return;
+        }
+
+
+        const itemsCategoria = items[categoria] || [];
+
+
+        const placeholder = document.createElement("option");
+
+        placeholder.value = "";
+        placeholder.textContent = "Seleccionar item";
+
+        itemSelect.appendChild(placeholder);
+
+
+        itemsCategoria.forEach((item) => {
+
+            const option = document.createElement("option");
+
+            option.value = item.id;
+            option.textContent = item.nombre;
+
+            itemSelect.appendChild(option);
+
+        });
+
+
+        itemSelect.disabled = false;
+        actualizarEstadoVisual(itemSelect);
+
+    });
+
+
+    /*
+     * ==========================================
+     * CAMBIO DE ITEM
+     * ==========================================
+     */
+
+    itemSelect.addEventListener("change", () => {
+
+        const categoria = categoriaSelect.value;
+        const itemId = Number(itemSelect.value);
+
+
+        if (!itemId) {
+
+            itemInfo.classList.add("hidden");
+
+            cantidadInput.disabled = true;
+            cantidadInput.value = "";
+            actualizarEstadoVisual(cantidadInput);
+
+            unidadMedida.textContent = "-";
+
+            submitButton.disabled = true;
+
+            return;
+        }
+
+
+        const item = items[categoria].find(
+            (item) => item.id === itemId
+        );
+
+
+        if (!item) {
+            return;
+        }
+
+
+        itemName.textContent = item.nombre;
+
+
+        if (item.descripcion) {
+
+            itemDescription.textContent = item.descripcion;
+            itemDescription.classList.remove("hidden");
+
+        } else {
+
+            itemDescription.textContent = "";
+            itemDescription.classList.add("hidden");
+
+        }
+
+
+        itemInfo.classList.remove("hidden");
+
+
+        unidadMedida.textContent = item.unidad;
+
+
+        cantidadInput.disabled = false;
+        actualizarEstadoVisual(cantidadInput);
+        cantidadInput.focus();
+
+
+        actualizarBoton();
+
+    });
+
+
+    /*
+     * ==========================================
+     * CANTIDAD
+     * ==========================================
+     */
+
+    cantidadInput.addEventListener("input", () => {
+        actualizarBoton();
+    });
+
+
+    function actualizarBoton() {
+
+        const cantidad = Number(cantidadInput.value);
+
+        submitButton.disabled =
+            !itemSelect.value ||
+            !cantidad ||
+            cantidad <= 0;
+
+    }
+
+
+    /*
+     * ==========================================
+     * ENVÍO
+     * ==========================================
+     */
+
+    const form = document.querySelector("#inventory-form");
+
+    const spinner = document.querySelector("#submit-spinner");
+    const submitText = document.querySelector("#submit-text");
+
+
+    form.addEventListener("submit", () => {
+
+        submitButton.disabled = true;
+
+        spinner.classList.remove("hidden");
+
+        submitText.textContent = "Agregando...";
+
+    });
+
+});
+</script>
+
+{% endblock %}

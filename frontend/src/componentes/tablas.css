@@ -8,7 +8,7 @@
 
 @layer components {
     .tabla-contenedor {
-        @apply overflow-hidden rounded-xl bg-superficie shadow-sm ring-1 ring-gray-200;
+        @apply animate-fade-down overflow-hidden rounded-xl bg-superficie shadow-sm ring-1 ring-gray-200;
     }
 
     .tabla {

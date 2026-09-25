@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from app.core.acceso.permisos import CATALOGO_DE_PERMISOS, PERMISOS_POR_ROL, NombreRol
 from app.core.semillas import SEEDERS, importar_seeders
 from app.extensiones import db
-from app.modulos.organizaciones.modelos import Organizacion
+from app.modulos.organizaciones.modelos import Inventario, InventarioItem, Organizacion
 from app.modulos.usuarios_roles.modelos import Permiso, Rol, Usuario
 
 
@@ -27,17 +27,33 @@ def test_la_semilla_carga_el_catalogo_completo(app, base_de_datos: None) -> None
         assert _contar(Permiso) == len(CATALOGO_DE_PERMISOS)
         assert _contar(Rol) == len(NombreRol)
         assert _contar(Organizacion) == 10
+        assert _contar(Inventario) == 4
+        assert _contar(InventarioItem) == 12
         assert _contar(Usuario) == 6
 
 
 def test_volver_a_sembrar_no_duplica_nada(app, base_de_datos: None) -> None:
     """`flask seed` se puede correr las veces que haga falta."""
     with app.app_context():
-        antes = (_contar(Permiso), _contar(Rol), _contar(Organizacion), _contar(Usuario))
+        antes = (
+            _contar(Permiso),
+            _contar(Rol),
+            _contar(Organizacion),
+            _contar(Inventario),
+            _contar(InventarioItem),
+            _contar(Usuario),
+        )
         _volver_a_sembrar()
         _volver_a_sembrar()
 
-        assert (_contar(Permiso), _contar(Rol), _contar(Organizacion), _contar(Usuario)) == antes
+        assert (
+            _contar(Permiso),
+            _contar(Rol),
+            _contar(Organizacion),
+            _contar(Inventario),
+            _contar(InventarioItem),
+            _contar(Usuario),
+        ) == antes
 
 
 def test_cada_rol_queda_con_los_permisos_que_declara_la_matriz(app, base_de_datos: None) -> None:

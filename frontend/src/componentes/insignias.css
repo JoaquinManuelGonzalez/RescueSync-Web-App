@@ -28,4 +28,8 @@
     .insignia-info {
         @apply bg-blue-50 text-blue-700;
     }
+
+    .insignia-clasificacion {
+        @apply bg-secundario-light text-black;
+    }
 }

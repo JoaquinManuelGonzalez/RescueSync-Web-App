@@ -11,6 +11,8 @@ Es idempotente: identifica cada fila por su nombre, que es la clave natural, y n
 
 from __future__ import annotations
 
+from sqlalchemy import select
+
 from app.core.semillas import ResultadoSemilla, obtener_o_crear, registrar
 from app.modulos.emergencias.modelos import Item
 from app.modulos.organizaciones.modelos import (

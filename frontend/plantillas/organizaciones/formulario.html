@@ -15,8 +15,11 @@
 
 {% block content %}
 <div class="pagina-angosta">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-primario" href="{{ destino_cancelar }}">
+    {{ icono("volver", "size-4") }} Volver
+  </a>
+
   {% call encabezado_pagina(titulo, none if es_alta else organizacion.nombre) %}
-    <a class="btn btn-secundario" href="{{ destino_cancelar }}">{{ icono("volver") }} Volver</a>
   {% endcall %}
 
   <div class="tarjeta">
@@ -32,7 +35,7 @@
           {{ campo(formulario.direccion) }}
         </div>
         <div class="formulario-acciones">
-          <a class="btn btn-secundario" href="{{ destino_cancelar }}">Cancelar</a>
+          <a class="btn btn-cancelar" href="{{ destino_cancelar }}">Cancelar</a>
           {{ boton_envio("Crear organización" if es_alta else "Guardar cambios", "Guardando...") }}
         </div>
       </form>

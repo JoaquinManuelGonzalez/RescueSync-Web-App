@@ -24,7 +24,7 @@ from flask_wtf import FlaskForm
 from app.core.errores import SolicitudInvalida
 
 
-def construir_formulario[T: FlaskForm](clase_formulario: type[T]) -> T:
+def construir_formulario[T: FlaskForm](clase_formulario: type[T], **kwargs: object) -> T:
     """Instancia un formulario desde el cuerpo de la solicitud, venga como venga.
 
     - `Content-Type: application/json` -> se alimenta del objeto JSON.
@@ -38,9 +38,9 @@ def construir_formulario[T: FlaskForm](clase_formulario: type[T]) -> T:
         datos = request.get_json(silent=True)
         if not isinstance(datos, dict):
             datos = {}
-        formulario = clase_formulario(data=datos, meta={"csrf": False})
+        formulario = clase_formulario(data=datos, meta={"csrf": False}, **kwargs)
     else:
-        formulario = clase_formulario()
+        formulario = clase_formulario(**kwargs)
     g.formulario_en_curso = formulario
     return formulario
 
