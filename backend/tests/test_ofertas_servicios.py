@@ -11,6 +11,7 @@ import json
 
 from app.core.errores import (
     ConflictoDeEstado,
+    PermisoDenegado,
     RecursoNoEncontrado,
     ReglaDeNegocioIncumplida,
     SolicitudInvalida,
@@ -36,7 +37,12 @@ from app.modulos.ofertas.servicios import (
     obtener_ofertas_consolidadas_para_bonita,
     retirar_oferta,
 )
-from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
+from app.modulos.organizaciones.modelos import (
+    Inventario,
+    InventarioItem,
+    Organizacion,
+    TipoOrganizacion,
+)
 from app.modulos.usuarios_roles.modelos import Usuario
 
 
@@ -120,6 +126,31 @@ def datos_base(app):
         )
         db.session.add_all([lote_item1, lote_item2])
         db.session.flush()
+
+        inventario1 = Inventario(
+            organizacion_id=ong1.id,
+            nombre="Depósito Cruz Solidaria",
+        )
+        inventario2 = Inventario(
+            organizacion_id=ong2.id,
+            nombre="Depósito Manos Unidas",
+        )
+        db.session.add_all([inventario1, inventario2])
+        db.session.flush()
+        db.session.add_all(
+            [
+                InventarioItem(
+                    inventario_id=inventario1.id,
+                    item_id=item_agua.id,
+                    cantidad_disponible=Decimal("4000"),
+                ),
+                InventarioItem(
+                    inventario_id=inventario2.id,
+                    item_id=item_frazadas.id,
+                    cantidad_disponible=Decimal("500"),
+                ),
+            ]
+        )
 
         # Convocatoria abierta y vigente
         ahora = datetime.now(UTC)
@@ -231,6 +262,32 @@ def test_crear_oferta_falla_si_supera_cantidad_solicitada(app, datos_base):
         assert "supera la cantidad requerida" in exc_info.value.mensaje
 
 
+def test_crear_oferta_falla_si_supera_stock_local(app, datos_base):
+    with app.app_context():
+        with pytest.raises(ReglaDeNegocioIncumplida) as exc_info:
+            crear_oferta(
+                convocatoria_id=datos_base["convocatoria_abierta_id"],
+                usuario_id=datos_base["usuario_id"],
+                organizacion_id=datos_base["ong1_id"],
+                items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 4001}],
+            )
+
+        assert "stock disponible" in exc_info.value.mensaje
+
+
+def test_crear_oferta_falla_si_recurso_no_esta_en_inventario(app, datos_base):
+    with app.app_context():
+        with pytest.raises(ReglaDeNegocioIncumplida) as exc_info:
+            crear_oferta(
+                convocatoria_id=datos_base["convocatoria_abierta_id"],
+                usuario_id=datos_base["usuario_id"],
+                organizacion_id=datos_base["ong1_id"],
+                items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 1}],
+            )
+
+        assert "no tiene este recurso" in exc_info.value.mensaje
+
+
 def test_modificar_oferta_incrementa_version(app, datos_base):
     with app.app_context():
         oferta = crear_oferta(
@@ -252,6 +309,23 @@ def test_modificar_oferta_incrementa_version(app, datos_base):
         assert modificada.items[0].cantidad_ofrecida == Decimal("1500")
 
 
+def test_modificar_oferta_rechaza_organizacion_ajena(app, datos_base):
+    with app.app_context():
+        oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+
+        with pytest.raises(PermisoDenegado):
+            modificar_oferta(
+                oferta.id,
+                organizacion_id=datos_base["ong2_id"],
+                observaciones="Intento de modificación ajena",
+            )
+
+
 def test_retirar_oferta_cambia_estado(app, datos_base):
     with app.app_context():
         oferta = crear_oferta(
@@ -271,6 +345,19 @@ def test_retirar_oferta_cambia_estado(app, datos_base):
         # No se puede modificar una oferta retirada
         with pytest.raises(ConflictoDeEstado):
             modificar_oferta(oferta.id, observaciones="intento")
+
+
+def test_retirar_oferta_rechaza_organizacion_ajena(app, datos_base):
+    with app.app_context():
+        oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+
+        with pytest.raises(PermisoDenegado):
+            retirar_oferta(oferta.id, organizacion_id=datos_base["ong2_id"])
 
 
 def test_listar_ofertas_por_convocatoria(app, datos_base):

@@ -57,3 +57,4 @@ def registrar_modulos(app: Flask) -> None:
     registrar_entrada(app, rutas_de_usuarios_roles.ENTRADA_DE_MENU)
     registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU)
     registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU_INVENTARIO)
+    registrar_entrada(app, rutas_de_ofertas.ENTRADA_DE_MENU)

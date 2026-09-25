@@ -110,10 +110,21 @@ def sembrar_organizaciones() -> list[ResultadoSemilla]:
 # * Los nombres de ítems deben existir en emergencias/semillas_items.py::ITEMS.
 # * Sólo las ONGs tienen inventarios.
 #
-# `Cruz Solidaria` y `Manos Unidas` aún no tienen inventario.
-# Si más adelante hacen falta, se agregan aquí como cualquier otra ONG.
+# `Manos Unidas` aún no tiene inventario.
+# Cruz Solidaria tiene stock demo porque es la ONG utilizada para probar ofertas.
 
 INVENTARIOS: dict[str, dict] = {
+    "Cruz Solidaria": {
+        "inventario": {
+            "nombre": "Depósito Cruz Solidaria",
+            "descripcion": "Stock demo para ofertas de ayuda.",
+        },
+        "stock": {
+            "Agua potable envasada": 1000,
+            "Paramédicos": 10,
+            "Raciones de alimento no perecedero": 600,
+        },
+    },
     "Cruz Roja Argentina - Filial Bahía Blanca": {
         "inventario": {
             "nombre": "Depósito Cruz Roja Bahía Blanca",

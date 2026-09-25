@@ -25,7 +25,12 @@ from app.core.acceso.permisos import (
     OFERTAS_LISTAR,
     OFERTAS_RETIRAR,
 )
-from app.core.errores import NoAutenticado, SolicitudInvalida
+from app.core.errores import (
+    ErrorDeAplicacion,
+    NoAutenticado,
+    RecursoNoEncontrado,
+    SolicitudInvalida,
+)
 from app.core.interfaz.navegacion import EntradaDeMenu
 from app.core.interfaz.vistas import pide_json, redirigir
 from app.core.logging import registrar_evento
@@ -61,6 +66,22 @@ def _contexto_de_formulario(convocatoria_id: int, oferta: Oferta | None = None) 
     }
 
 
+def _formulario_con_error(
+    convocatoria_id: int,
+    *,
+    modo: str,
+    error: ErrorDeAplicacion,
+    oferta: Oferta | None = None,
+):
+    return render_template(
+        "ofertas/formulario.html",
+        modo=modo,
+        error_mensaje=error.mensaje,
+        valores=request.form,
+        **_contexto_de_formulario(convocatoria_id, oferta),
+    )
+
+
 def _items_desde_formulario(convocatoria: Convocatoria) -> list[dict[str, Any]]:
     items = []
     for lote in convocatoria.emergencia.lotes:
@@ -89,6 +110,18 @@ def _items_desde_formulario(convocatoria: Convocatoria) -> list[dict[str, Any]]:
     return items
 
 
+def _es_representante_ong() -> bool:
+    return current_user.tiene_rol("representante_ong")
+
+
+def _filtrar_oferta_para_ong(oferta: Oferta) -> None:
+    organizacion = oferta.organizacion_lider
+    if _es_representante_ong() and (
+        organizacion is None or organizacion.id != current_user.organizacion_id
+    ):
+        raise RecursoNoEncontrado("No encontramos la oferta solicitada.")
+
+
 @blueprint_ofertas.get("")
 @requiere_permiso(OFERTAS_LISTAR)
 def listar():
@@ -97,6 +130,12 @@ def listar():
     consulta = db.select(Oferta).order_by(Oferta.actualizado_en.desc(), Oferta.id.desc())
     if convocatoria_id:
         consulta = consulta.where(Oferta.convocatoria_id == convocatoria_id)
+    if _es_representante_ong():
+        consulta = consulta.where(
+            Oferta.organizaciones_consorcio.any(
+                organizacion_id=current_user.organizacion_id,
+            )
+        )
     ofertas = list(db.session.execute(consulta).scalars().all())
     if pide_json():
         return jsonify(
@@ -122,6 +161,7 @@ def formulario_de_alta():
     return render_template(
         "ofertas/formulario.html",
         modo="alta",
+        valores={},
         **_contexto_de_formulario(convocatoria_id),
     )
 
@@ -136,13 +176,18 @@ def crear_desde_formulario():
     convocatoria = db.session.get(Convocatoria, convocatoria_id)
     if not convocatoria:
         raise SolicitudInvalida("La convocatoria indicada no existe.")
-    oferta = servicios.crear_oferta(
-        convocatoria_id=convocatoria_id,
-        usuario_id=current_user.id,
-        organizacion_id=current_user.organizacion_id,
-        items=_items_desde_formulario(convocatoria),
-        observaciones=request.form.get("observaciones") or None,
-    )
+    try:
+        oferta = servicios.crear_oferta(
+            convocatoria_id=convocatoria_id,
+            usuario_id=current_user.id,
+            organizacion_id=current_user.organizacion_id,
+            items=_items_desde_formulario(convocatoria),
+            observaciones=request.form.get("observaciones") or None,
+        )
+    except ErrorDeAplicacion as error:
+        if pide_json():
+            raise
+        return _formulario_con_error(convocatoria_id, modo="alta", error=error)
     return redirigir("ofertas.obtener", "Oferta registrada.", oferta_id=oferta.id)
 
 
@@ -238,9 +283,7 @@ def crear():
         )
 
     # Identificar el usuario
-    usuario_id = datos.get("usuario_id")
-    if not usuario_id and current_user.is_authenticated:
-        usuario_id = getattr(current_user, "id", None)
+    usuario_id = getattr(current_user, "id", None)
 
     if not usuario_id:
         raise SolicitudInvalida(
@@ -249,9 +292,7 @@ def crear():
         )
 
     # Identificar la organización oferente
-    organizacion_id = datos.get("organizacion_id")
-    if not organizacion_id and current_user.is_authenticated:
-        organizacion_id = getattr(current_user, "organizacion_id", None)
+    organizacion_id = getattr(current_user, "organizacion_id", None)
 
     if not organizacion_id:
         raise SolicitudInvalida(
@@ -276,6 +317,7 @@ def crear():
 def obtener(oferta_id: int):
     """Devuelve el detalle de una oferta simple."""
     oferta = servicios.obtener_oferta_por_id(oferta_id)
+    _filtrar_oferta_para_ong(oferta)
     if not pide_json():
         historial = []
         for version in servicios.obtener_historial_de_oferta(oferta_id):
@@ -300,9 +342,11 @@ def obtener(oferta_id: int):
 def formulario_de_edicion(oferta_id: int):
     """Pantalla de edición de una oferta mientras la convocatoria siga abierta."""
     oferta = servicios.obtener_oferta_por_id(oferta_id)
+    _filtrar_oferta_para_ong(oferta)
     return render_template(
         "ofertas/formulario.html",
         modo="edicion",
+        valores={},
         **_contexto_de_formulario(oferta.convocatoria_id, oferta),
     )
 
@@ -312,12 +356,23 @@ def formulario_de_edicion(oferta_id: int):
 def editar_desde_formulario(oferta_id: int):
     """Guarda una nueva versión de una oferta enviada desde la pantalla web."""
     oferta = servicios.obtener_oferta_por_id(oferta_id)
-    modificada = servicios.modificar_oferta(
-        oferta_id,
-        items=_items_desde_formulario(oferta.convocatoria),
-        observaciones=request.form.get("observaciones") or None,
-        usuario_id=current_user.id,
-    )
+    try:
+        modificada = servicios.modificar_oferta(
+            oferta_id,
+            items=_items_desde_formulario(oferta.convocatoria),
+            observaciones=request.form.get("observaciones") or None,
+            organizacion_id=current_user.organizacion_id,
+            usuario_id=current_user.id,
+        )
+    except ErrorDeAplicacion as error:
+        if pide_json():
+            raise
+        return _formulario_con_error(
+            oferta.convocatoria_id,
+            modo="edicion",
+            oferta=oferta,
+            error=error,
+        )
     return redirigir("ofertas.obtener", "Versión actualizada.", oferta_id=modificada.id)
 
 
@@ -340,7 +395,7 @@ def modificar(oferta_id: int):
         oferta_id,
         items=items,
         observaciones=observaciones,
-        organizacion_id=organizacion_id,
+        organizacion_id=current_user.organizacion_id,
         usuario_id=usuario_id,
     )
     return jsonify(_serializar_oferta(oferta)), 200
@@ -350,8 +405,16 @@ def modificar(oferta_id: int):
 @requiere_permiso(OFERTAS_RETIRAR)
 def retirar(oferta_id: int):
     """Retira una oferta de ayuda de la convocatoria."""
-    oferta = servicios.retirar_oferta(oferta_id)
-    return jsonify(_serializar_oferta(oferta)), 200
+    oferta = servicios.retirar_oferta(
+        oferta_id,
+        organizacion_id=current_user.organizacion_id,
+    )
+    return redirigir(
+        "ofertas.listar",
+        "Oferta retirada.",
+        datos_json=_serializar_oferta(oferta),
+        convocatoria_id=oferta.convocatoria_id,
+    )
 
 
 @blueprint_ofertas.get("/<int:oferta_id>/historial")
@@ -392,7 +455,9 @@ def listar_por_convocatoria(convocatoria_id: int):
         "yes",
     )
     ofertas = servicios.listar_ofertas_por_convocatoria(
-        convocatoria_id, incluir_retiradas=incluir_retiradas
+        convocatoria_id,
+        incluir_retiradas=incluir_retiradas,
+        organizacion_id=(current_user.organizacion_id if _es_representante_ong() else None),
     )
     return (
         jsonify(

@@ -26,7 +26,7 @@ def test_el_formulario_no_ofrece_items_ya_cargados(ingresar_por_formulario, nave
     assert respuesta.status_code == 200
     cuerpo = respuesta.get_data(as_text=True)
     assert "Raciones de alimento no perecedero" not in cuerpo
-    assert "Agua potable envasada" in cuerpo
+    assert "Lentejas" in cuerpo
 
 
 def test_el_inventario_filtra_por_categoria(ingresar_por_formulario, navegar) -> None:

@@ -19,6 +19,7 @@ from sqlalchemy import select
 
 from app.core.errores import (
     ConflictoDeEstado,
+    PermisoDenegado,
     RecursoNoEncontrado,
     ReglaDeNegocioIncumplida,
     SolicitudInvalida,
@@ -34,7 +35,12 @@ from app.modulos.ofertas.modelos import (
     OfertaOrganizacion,
     OfertaVersion,
 )
-from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
+from app.modulos.organizaciones.modelos import (
+    Inventario,
+    InventarioItem,
+    Organizacion,
+    TipoOrganizacion,
+)
 
 
 def _formatear_fecha_iso(fecha: datetime | None) -> str | None:
@@ -153,6 +159,49 @@ def _validar_y_procesar_items(
     return items_datos
 
 
+def _validar_disponibilidad_en_inventario(
+    organizacion_id: int,
+    items_datos: list[dict[str, Any]],
+) -> None:
+    """Verifica que la ONG tenga stock local suficiente para cada ítem ofertado."""
+    lote_item_ids = [item["lote_item_id"] for item in items_datos]
+    lote_items = db.session.execute(
+        select(LoteItem).where(LoteItem.id.in_(lote_item_ids))
+    ).scalars()
+    item_id_por_lote = {lote_item.id: lote_item.item_id for lote_item in lote_items}
+
+    inventario_items = db.session.execute(
+        select(InventarioItem)
+        .join(Inventario)
+        .where(
+            Inventario.organizacion_id == organizacion_id,
+            InventarioItem.item_id.in_(item_id_por_lote.values()),
+        )
+    ).scalars()
+    stock_por_item = {item.item_id: item for item in inventario_items}
+
+    for dato in items_datos:
+        item_id = item_id_por_lote[dato["lote_item_id"]]
+        inventario_item = stock_por_item.get(item_id)
+        if inventario_item is None:
+            raise ReglaDeNegocioIncumplida(
+                "La organización no tiene este recurso en su inventario.",
+                detalle={"lote_item_id": dato["lote_item_id"]},
+            )
+
+        cantidad = Decimal(str(dato["cantidad_ofrecida"]))
+        disponible = Decimal(str(inventario_item.cantidad_disponible))
+        if cantidad > disponible:
+            raise ReglaDeNegocioIncumplida(
+                f"La cantidad ofrecida ({cantidad}) supera el stock disponible ({disponible}).",
+                detalle={
+                    "lote_item_id": dato["lote_item_id"],
+                    "cantidad_ofrecida": float(cantidad),
+                    "cantidad_disponible": float(disponible),
+                },
+            )
+
+
 def crear_oferta(
     *,
     convocatoria_id: int,
@@ -181,6 +230,7 @@ def crear_oferta(
     _validar_ventana_convocatoria(convocatoria)
     org_validada = _validar_y_obtener_organizacion(organizacion_id)
     items_validados = _validar_y_procesar_items(items, convocatoria)
+    _validar_disponibilidad_en_inventario(org_validada.id, items_validados)
 
     oferta = Oferta(
         convocatoria_id=convocatoria.id,
@@ -262,6 +312,18 @@ def _guardar_snapshot_version(
     return version_hist
 
 
+def _validar_organizacion_de_oferta(
+    oferta: Oferta,
+    organizacion_id: int | None,
+) -> None:
+    """Impide que una organizacion opere una oferta ajena."""
+    if organizacion_id is None:
+        return
+    organizacion = oferta.organizacion_lider
+    if organizacion is None or organizacion.id != organizacion_id:
+        raise PermisoDenegado("No puedes modificar una oferta de otra organización.")
+
+
 def modificar_oferta(
     oferta_id: int,
     *,
@@ -279,6 +341,7 @@ def modificar_oferta(
     if not oferta:
         raise RecursoNoEncontrado(f"Oferta con id {oferta_id} no encontrada.")
 
+    _validar_organizacion_de_oferta(oferta, organizacion_id)
     _validar_ventana_convocatoria(oferta.convocatoria)
 
     if oferta.estado == EstadoOferta.retirada:
@@ -287,6 +350,11 @@ def modificar_oferta(
         raise ConflictoDeEstado(
             f"No se puede modificar una oferta en estado final '{oferta.estado.value}'."
         )
+
+    items_validados = None
+    if items is not None:
+        items_validados = _validar_y_procesar_items(items, oferta.convocatoria)
+        _validar_disponibilidad_en_inventario(oferta.organizacion_lider.id, items_validados)
 
     # Guardar snapshot de la versión que se va a reemplazar
     _guardar_snapshot_version(oferta, usuario_id=usuario_id)
@@ -312,8 +380,7 @@ def modificar_oferta(
         db.session.add(oferta_org)
 
     # Actualizar ítems si fueron enviados
-    if items is not None:
-        items_validados = _validar_y_procesar_items(items, oferta.convocatoria)
+    if items_validados is not None:
         for linea in list(oferta.items):
             db.session.delete(linea)
         db.session.flush()
@@ -338,7 +405,7 @@ def modificar_oferta(
     return oferta
 
 
-def retirar_oferta(oferta_id: int) -> Oferta:
+def retirar_oferta(oferta_id: int, *, organizacion_id: int | None = None) -> Oferta:
     """Marca una oferta como retirada por parte de la ONG.
 
     Solo puede retirarse si la convocatoria sigue abierta.
@@ -347,6 +414,7 @@ def retirar_oferta(oferta_id: int) -> Oferta:
     if not oferta:
         raise RecursoNoEncontrado(f"Oferta con id {oferta_id} no encontrada.")
 
+    _validar_organizacion_de_oferta(oferta, organizacion_id)
     _validar_ventana_convocatoria(oferta.convocatoria)
 
     if oferta.estado == EstadoOferta.retirada:
@@ -377,7 +445,10 @@ def obtener_oferta_por_id(oferta_id: int) -> Oferta:
 
 
 def listar_ofertas_por_convocatoria(
-    convocatoria_id: int, *, incluir_retiradas: bool = False
+    convocatoria_id: int,
+    *,
+    incluir_retiradas: bool = False,
+    organizacion_id: int | None = None,
 ) -> list[Oferta]:
     """Lista las ofertas asociadas a una convocatoria."""
     convocatoria = db.session.get(Convocatoria, convocatoria_id)
@@ -389,6 +460,10 @@ def listar_ofertas_por_convocatoria(
         .where(Oferta.convocatoria_id == convocatoria_id)
         .order_by(Oferta.creado_en.asc())
     )
+    if organizacion_id is not None:
+        consulta = consulta.join(OfertaOrganizacion).where(
+            OfertaOrganizacion.organizacion_id == organizacion_id
+        )
     if not incluir_retiradas:
         consulta = consulta.where(Oferta.estado != EstadoOferta.retirada)
 

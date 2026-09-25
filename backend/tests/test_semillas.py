@@ -28,8 +28,8 @@ def test_la_semilla_carga_el_catalogo_completo(app, base_de_datos: None) -> None
         assert _contar(Rol) == len(NombreRol)
         assert _contar(Organizacion) == 10
         assert _contar(Inventario) == 4
-        assert _contar(InventarioItem) == 12
-        assert _contar(Usuario) == 6
+        assert _contar(InventarioItem) == 53
+        assert _contar(Usuario) == 7
 
 
 def test_volver_a_sembrar_no_duplica_nada(app, base_de_datos: None) -> None:

@@ -28,7 +28,7 @@ from app.modulos.emergencias.modelos import (
     NivelGravedad,
     TipoNecesidad,
 )
-from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
+from app.modulos.organizaciones.modelos import InventarioItem, Organizacion, TipoOrganizacion
 from app.modulos.usuarios_roles.modelos import Usuario
 
 from .conftest import (
@@ -105,6 +105,21 @@ def datos_ofertas_web(app, base_de_datos: None):
         )
         db.session.add_all([lote_item1, lote_item2])
         db.session.flush()
+
+        db.session.add_all(
+            [
+                InventarioItem(
+                    inventario_id=ong.inventario.id,
+                    item_id=item1.id,
+                    cantidad_disponible=Decimal("1000"),
+                ),
+                InventarioItem(
+                    inventario_id=ong.inventario.id,
+                    item_id=item2.id,
+                    cantidad_disponible=Decimal("5000"),
+                ),
+            ]
+        )
 
         # Convocatoria abierta
         ahora = datetime.now(UTC)
@@ -312,8 +327,59 @@ def test_detalle_html_muestra_el_historial_de_versiones(
     respuesta = navegar(f"/ofertas/{oferta_id}")
 
     assert respuesta.status_code == 200
-    assert "Trazabilidad de versiones" in respuesta.get_data(as_text=True)
-    assert "Versión 1" in respuesta.get_data(as_text=True)
+    assert "Historial de cambios" in respuesta.get_data(as_text=True)
+    assert "Actualización registrada" in respuesta.get_data(as_text=True)
+
+
+def test_retirar_oferta_desde_html_redirige_al_listado(
+    cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
+):
+    ingresar(EMAIL_REPRESENTANTE)
+    crear = cliente_sembrado.post(
+        "/ofertas",
+        json={
+            "convocatoria_id": datos_ofertas_web["convocatoria_id"],
+            "items": [
+                {
+                    "lote_item_id": datos_ofertas_web["lote_item1_id"],
+                    "cantidad_ofrecida": 300,
+                }
+            ],
+        },
+        headers=cabecera_csrf(),
+    )
+    oferta_id = crear.get_json()["id"]
+
+    respuesta = cliente_sembrado.post(
+        f"/ofertas/{oferta_id}/retirar",
+        headers={**cabecera_csrf(), "Accept": "text/html"},
+    )
+
+    assert respuesta.status_code == 302
+    assert respuesta.headers["Location"].endswith(
+        f"/ofertas?convocatoria_id={datos_ofertas_web['convocatoria_id']}"
+    )
+
+
+def test_alta_html_muestra_error_de_stock_en_el_formulario(
+    cliente_sembrado, cabecera_csrf, ingresar, navegar, datos_ofertas_web
+):
+    ingresar(EMAIL_REPRESENTANTE)
+
+    respuesta = cliente_sembrado.post(
+        "/ofertas/nueva",
+        data={
+            "convocatoria_id": datos_ofertas_web["convocatoria_id"],
+            f"item_{datos_ofertas_web['lote_item1_id']}": "1001",
+        },
+        headers={**cabecera_csrf(), "Accept": "text/html"},
+    )
+
+    cuerpo = respuesta.get_data(as_text=True)
+    assert respuesta.status_code == 200
+    assert "No se pudo guardar la oferta" in cuerpo
+    assert "stock disponible" in cuerpo
+    assert 'value="1001"' in cuerpo
 
 
 def test_listar_ofertas_por_convocatoria(

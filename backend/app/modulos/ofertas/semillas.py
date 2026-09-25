@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sqlalchemy import select
+
 from app.core.semillas import ResultadoSemilla, obtener_o_crear, registrar
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import Convocatoria
@@ -28,15 +30,22 @@ def sembrar_ofertas() -> list[ResultadoSemilla]:
     if organizacion is None:
         raise ValueError("La organización del representante demo no existe.")
 
-    oferta, oferta_creada = obtener_o_crear(
-        Oferta,
-        claves={"convocatoria_id": convocatoria.id, "usuario_id": usuario.id},
-        valores={
-            "version": 1,
-            "estado": EstadoOferta.presentada,
-            "observaciones": "Oferta demo para probar edición y trazabilidad.",
-        },
-    )
+    oferta = db.session.execute(
+        select(Oferta)
+        .where(Oferta.convocatoria_id == convocatoria.id, Oferta.usuario_id == usuario.id)
+        .order_by(Oferta.id.asc())
+    ).scalars().first()
+    oferta_creada = oferta is None
+    if oferta is None:
+        oferta = Oferta(
+            convocatoria_id=convocatoria.id,
+            usuario_id=usuario.id,
+            version=1,
+            estado=EstadoOferta.presentada,
+            observaciones="Oferta demo para probar edición y trazabilidad.",
+        )
+        db.session.add(oferta)
+        db.session.flush()
     resultado_oferta = ResultadoSemilla("ofertas")
     resultado_oferta.contar(oferta_creada)
 

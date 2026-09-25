@@ -19,13 +19,13 @@
     <article class="tarjeta">
       <div class="tarjeta-cuerpo flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div class="min-w-0">
-          <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Oferta #{{ oferta.id }} · Convocatoria #{{ oferta.convocatoria_id }}</p>
           <h2 class="mt-1 tarjeta-titulo">{{ oferta.organizacion.nombre if oferta.organizacion else "Organización no informada" }}</h2>
+          <p class="mt-1 text-sm text-gray-700">{{ oferta.convocatoria.emergencia.titulo }}</p>
           <p class="mt-1 text-sm text-gray-500">{{ oferta.items|length }} recurso(s) · Actualizada {{ oferta.actualizado_en|fecha }}</p>
         </div>
         <div class="flex items-center gap-3">
           {{ insignia(oferta.estado.value|capitalize, "exito" if oferta.estado.value in ["presentada", "modificada"] else "neutra") }}
-          <span class="insignia insignia-info">v{{ oferta.version }}</span>
+          <span class="insignia insignia-info">Versión actual</span>
           <a class="btn btn-fantasma btn-icono" href="{{ url_for('ofertas.obtener', oferta_id=oferta.id) }}" title="Ver oferta">
             {{ icono("ver") }}<span class="sr-only">Ver oferta {{ oferta.id }}</span>
           </a>

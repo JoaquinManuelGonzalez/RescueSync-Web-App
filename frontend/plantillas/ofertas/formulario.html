@@ -7,9 +7,16 @@
 
 {% block content %}
 <div class="pagina-angosta space-y-6">
-  {% call encabezado_pagina("Nueva oferta" if modo == "alta" else "Editar oferta", "Convocatoria #" ~ convocatoria.id ~ " · " ~ convocatoria.emergencia.titulo) %}
+  {% call encabezado_pagina("Nueva oferta" if modo == "alta" else "Editar oferta", convocatoria.emergencia.titulo ~ " · " ~ convocatoria.emergencia.zona_afectada) %}
     <a class="btn btn-secundario" href="{{ url_for('ofertas.listar', convocatoria_id=convocatoria.id) }}">{{ icono("volver") }} Volver</a>
   {% endcall %}
+
+  {% if error_mensaje %}
+  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+    <p class="font-semibold">No se pudo guardar la oferta</p>
+    <p class="mt-1">{{ error_mensaje }}</p>
+  </div>
+  {% endif %}
 
   <section class="tarjeta">
     <div class="tarjeta-cuerpo">
@@ -35,17 +42,17 @@
             <p class="font-medium text-gray-900">{{ lote_item.item.nombre }}</p>
             <p class="mt-1 text-sm text-gray-500">Necesario: {{ lote_item.cantidad_solicitada|int }} {{ lote_item.item.unidad_medida }}</p>
             <label for="item-{{ lote_item.id }}-obs" class="mt-3 block text-xs font-medium text-gray-600">Detalle logístico (opcional)</label>
-            <input id="item-{{ lote_item.id }}-obs" name="item_obs_{{ lote_item.id }}" value="{{ linea.observaciones if linea else '' }}" class="campo-control mt-1" maxlength="255">
+            <input id="item-{{ lote_item.id }}-obs" name="item_obs_{{ lote_item.id }}" value="{{ valores.get('item_obs_' ~ lote_item.id, linea.observaciones if linea else '') }}" class="campo-control mt-1" maxlength="255">
           </div>
           <div>
             <label for="item-{{ lote_item.id }}" class="campo-etiqueta">Tu aporte</label>
-            <input id="item-{{ lote_item.id }}" name="item_{{ lote_item.id }}" type="number" min="0" max="{{ lote_item.cantidad_solicitada }}" step="0.01" value="{{ linea.cantidad_ofrecida if linea else '' }}" class="campo-control" inputmode="decimal">
+            <input id="item-{{ lote_item.id }}" name="item_{{ lote_item.id }}" type="number" min="0" max="{{ lote_item.cantidad_solicitada }}" step="0.01" value="{{ valores.get('item_' ~ lote_item.id, linea.cantidad_ofrecida if linea else '') }}" class="campo-control" inputmode="decimal">
           </div>
         </div>
         {% endfor %}
         <div>
           <label for="observaciones" class="campo-etiqueta">Observaciones generales</label>
-          <textarea id="observaciones" name="observaciones" rows="4" class="campo-control">{{ oferta.observaciones if oferta else '' }}</textarea>
+          <textarea id="observaciones" name="observaciones" rows="4" class="campo-control">{{ valores.get('observaciones', oferta.observaciones if oferta else '') }}</textarea>
         </div>
       </div>
     </section>
