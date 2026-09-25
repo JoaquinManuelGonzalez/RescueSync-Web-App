@@ -1,0 +1,56 @@
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina, insignia, dato %}
+{% from "componentes/formularios.html" import formulario_accion %}
+
+{% block title %}Oferta #{{ oferta.id }}{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta space-y-6">
+  {% call encabezado_pagina("Oferta #" ~ oferta.id, oferta.organizacion.nombre if oferta.organizacion else "Organización no informada") %}
+    <a class="btn btn-secundario" href="{{ url_for('ofertas.listar', convocatoria_id=oferta.convocatoria_id) }}">{{ icono("volver") }} Volver</a>
+    {% if puede("ofertas:editar") and oferta.puede_modificarse() %}
+    <a class="btn btn-primario" href="{{ url_for('ofertas.formulario_de_edicion', oferta_id=oferta.id) }}">{{ icono("editar") }} Editar</a>
+    {% endif %}
+  {% endcall %}
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <dl class="lista-datos">
+        {{ dato("Convocatoria", "#" ~ oferta.convocatoria_id) }}
+        {% call dato("Estado") %}{{ insignia(oferta.estado.value|capitalize, "exito" if oferta.estado.value in ["presentada", "modificada"] else "neutra") }}{% endcall %}
+        {{ dato("Versión actual", "v" ~ oferta.version) }}
+        {{ dato("Última actualización", oferta.actualizado_en|fecha) }}
+        {{ dato("Observaciones", oferta.observaciones) }}
+      </dl>
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Recursos ofrecidos</h2>
+      <div class="mt-4 space-y-3">
+        {% for linea in oferta.items %}
+        <div class="flex items-center justify-between gap-4 border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+          <div><p class="font-medium text-gray-900">{{ linea.lote_item.item.nombre }}</p><p class="text-xs text-gray-500">{{ linea.observaciones or "Sin detalle adicional" }}</p></div>
+          <span class="font-semibold text-gray-900">{{ linea.cantidad_ofrecida|int }} {{ linea.lote_item.item.unidad_medida }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Trazabilidad de versiones</h2>
+      {% if historial %}
+      <div class="mt-4 space-y-4">
+        {% for version in historial %}
+        <div class="border-l-2 border-primario/30 pl-4"><p class="font-medium text-gray-900">Versión {{ version["version"] }} · {{ version["fecha"]|fecha }}</p><p class="mt-1 text-sm text-gray-500">{{ version["items"]|length }} recurso(s) registrados antes de la actualización.</p><p class="mt-1 text-sm text-gray-600">{{ version["observaciones"] or "Sin observaciones" }}</p></div>
+        {% endfor %}
+      </div>
+      {% else %}<p class="mt-2 text-sm text-gray-500">Todavía no hay versiones anteriores.</p>{% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

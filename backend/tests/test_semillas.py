@@ -26,7 +26,7 @@ def test_la_semilla_carga_el_catalogo_completo(app, base_de_datos: None) -> None
     with app.app_context():
         assert _contar(Permiso) == len(CATALOGO_DE_PERMISOS)
         assert _contar(Rol) == len(NombreRol)
-        assert _contar(Organizacion) == 4
+        assert _contar(Organizacion) == 10
         assert _contar(Usuario) == 6
 
 

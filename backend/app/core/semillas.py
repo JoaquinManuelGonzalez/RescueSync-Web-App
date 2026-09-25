@@ -120,10 +120,14 @@ def importar_seeders() -> None:
     # from app.modulos.emergencias import semillas as _emergencias  # noqa: F401
 
     # Orden de sembrado:
-    # items → organizaciones → inventarios → permisos → roles → usuarios → emergencias
-    from app.modulos.emergencias import semillas_items as _items  # noqa: F401
+    # items → organizaciones → inventarios → permisos → roles → usuarios → emergencias →
+    # convocatorias → ofertas
+    # El orden de estos imports es el orden de ejecución de los seeders.
+    from app.modulos.emergencias import semillas_items as _items  # noqa: F401, I001
     from app.modulos.organizaciones import semillas as _organizaciones  # noqa: F401
     from app.modulos.usuarios_roles import semillas as _usuarios_roles  # noqa: F401
-    from app.modulos.emergencias import semillas_emergencias as _emergencias  # noqa: F401
+    from app.modulos.emergencias import semillas_emergencias as _emergencias  # noqa: F401, I001
+    from app.modulos.convocatorias import semillas as _convocatorias  # noqa: F401, I001
+    from app.modulos.ofertas import semillas as _ofertas  # noqa: F401, I001
 
     return

@@ -80,14 +80,15 @@ def test_el_hub_muestra_solo_lo_que_el_perfil_puede_usar(
     assert ('href="/organizaciones"' in cuerpo) is es_administrador
 
 
-def test_los_perfiles_sin_pantallas_todavia_ven_el_estado_vacio(
+def test_el_operador_municipal_ve_la_pantalla_de_ofertas(
     ingresar_por_formulario, navegar
 ) -> None:
     ingresar_por_formulario(EMAIL_OPERADOR)
 
     cuerpo = _texto(navegar("/inicio"))
 
-    assert "Todavía no hay funcionalidades habilitadas para tu perfil" in cuerpo
+    assert 'href="/ofertas"' in cuerpo
+    assert "Ofertas de ayuda" in cuerpo
 
 
 def test_una_pantalla_nueva_aparece_en_el_menu_solo_declarando_su_entrada(

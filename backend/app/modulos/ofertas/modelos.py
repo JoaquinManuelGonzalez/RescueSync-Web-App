@@ -118,6 +118,13 @@ class Oferta(db.Model):
     #     lazy="select",
     # )
 
+    versiones: Mapped[list[OfertaVersion]] = relationship(
+        "OfertaVersion",
+        back_populates="oferta",
+        lazy="select",
+        order_by="OfertaVersion.version.asc()",
+    )
+
     @property
     def organizacion_lider(self) -> Organizacion | None:
         """Devuelve la organización líder del consorcio si existe."""
@@ -127,6 +134,11 @@ class Oferta(db.Model):
         return (
             self.organizaciones_consorcio[0].organizacion if self.organizaciones_consorcio else None
         )
+
+    @property
+    def organizacion(self) -> Organizacion | None:
+        """Devuelve la organización de la oferta simple."""
+        return self.organizacion_lider
 
     def puede_modificarse(self) -> bool:
         """Una oferta solo puede modificarse si la convocatoria está vigente y no fue retirada."""
@@ -205,4 +217,63 @@ class OfertaLinea(db.Model):
         return (
             f"<OfertaLinea id={self.id} oferta_id={self.oferta_id} "
             f"lote_item_id={self.lote_item_id} cant={self.cantidad_ofrecida}>"
+        )
+
+
+class OfertaVersion(db.Model):
+    """Snapshot histórico de una oferta antes de ser modificada.
+
+    Cada vez que una ONG modifica su oferta, se guarda una foto del estado
+    previo (cabecera + líneas serializadas como JSON) para mantener la
+    trazabilidad exigida por el enunciado de la Entrega 2.
+    """
+
+    __tablename__ = "oferta_version"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    oferta_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("oferta.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Número de versión que se está reemplazando.",
+    )
+    estado_anterior: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment="Estado de la oferta antes de la modificación.",
+    )
+    observaciones_anteriores: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+    items_snapshot: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="JSON con las líneas de la oferta previas a la modificación.",
+    )
+    modificado_por: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("usuarios.id"),
+        nullable=True,
+        comment="Usuario que realizó la modificación.",
+    )
+    registrado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    # --- relaciones -----------------------------------------------------------
+    oferta: Mapped[Oferta] = relationship("Oferta", back_populates="versiones")
+
+    def __repr__(self) -> str:
+        return (
+            f"<OfertaVersion id={self.id} oferta_id={self.oferta_id} "
+            f"version={self.version}>"
         )
