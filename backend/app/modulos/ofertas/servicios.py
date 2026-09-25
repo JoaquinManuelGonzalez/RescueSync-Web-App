@@ -256,6 +256,32 @@ def _validar_organizaciones_conjuntas(
     return organizaciones
 
 
+def _validar_organizaciones_sin_oferta(
+    convocatoria_id: int, organizaciones_ids: list[int]
+) -> None:
+    """Impide que una organización participe en más de una oferta activa."""
+    if not organizaciones_ids:
+        return
+
+    organizaciones_ocupadas = set(
+        db.session.execute(
+            select(OfertaOrganizacion.organizacion_id)
+            .join(Oferta, Oferta.id == OfertaOrganizacion.oferta_id)
+            .where(
+                Oferta.convocatoria_id == convocatoria_id,
+                OfertaOrganizacion.organizacion_id.in_(organizaciones_ids),
+                Oferta.estado.notin_([EstadoOferta.retirada, EstadoOferta.rechazada]),
+            )
+        ).scalars()
+    )
+    if organizaciones_ocupadas:
+        raise ReglaDeNegocioIncumplida(
+            "Una organización no puede tener más de una oferta activa en la misma convocatoria.",
+            codigo="ORGANIZACION_YA_TIENE_OFERTA",
+            detalle={"organizacion_ids": sorted(organizaciones_ocupadas)},
+        )
+
+
 def _actualizar_estado_por_invitaciones(oferta: Oferta) -> None:
     """Deriva el estado de la oferta a partir de las respuestas del consorcio."""
     if any(m.estado_participacion == "rechazada" for m in oferta.organizaciones_consorcio):
@@ -292,6 +318,10 @@ def crear_oferta(
     org_validada = _validar_y_obtener_organizacion(organizacion_id)
     organizaciones_validas = _validar_organizaciones_conjuntas(
         organizaciones_ids or [], org_validada.id
+    )
+    _validar_organizaciones_sin_oferta(
+        convocatoria.id,
+        [org_validada.id, *(organizacion.id for organizacion in organizaciones_validas)],
     )
     items_validados = _validar_y_procesar_items(items, convocatoria)
     _validar_disponibilidad_en_inventario(org_validada.id, items_validados)

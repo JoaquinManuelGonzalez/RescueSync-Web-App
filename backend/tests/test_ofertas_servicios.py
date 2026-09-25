@@ -210,6 +210,67 @@ def test_crear_oferta_individual_exitosa(app, datos_base):
         assert oferta.items[0].cantidad_ofrecida == Decimal("1000")
 
 
+def test_una_organizacion_no_puede_tener_dos_ofertas_en_la_convocatoria(app, datos_base):
+    with app.app_context():
+        crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+
+        with pytest.raises(ReglaDeNegocioIncumplida) as exc_info:
+            crear_oferta(
+                convocatoria_id=datos_base["convocatoria_abierta_id"],
+                usuario_id=datos_base["usuario_id"],
+                organizacion_id=datos_base["ong1_id"],
+                items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 50}],
+            )
+
+        assert exc_info.value.codigo == "ORGANIZACION_YA_TIENE_OFERTA"
+
+
+def test_invitacion_pendiente_tambien_reserva_la_organizacion(app, datos_base):
+    with app.app_context():
+        crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            organizaciones_ids=[datos_base["ong2_id"]],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+
+        with pytest.raises(ReglaDeNegocioIncumplida) as exc_info:
+            crear_oferta(
+                convocatoria_id=datos_base["convocatoria_abierta_id"],
+                usuario_id=datos_base["usuario_id"],
+                organizacion_id=datos_base["ong2_id"],
+                items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 50}],
+            )
+
+        assert exc_info.value.codigo == "ORGANIZACION_YA_TIENE_OFERTA"
+
+
+def test_oferta_retirada_no_reserva_la_organizacion(app, datos_base):
+    with app.app_context():
+        oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+        retirar_oferta(oferta.id, organizacion_id=datos_base["ong1_id"])
+
+        segunda_oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 50}],
+        )
+
+        assert segunda_oferta.organizacion_lider.id == datos_base["ong1_id"]
+
+
 def test_oferta_conjunta_queda_pendiente_hasta_aceptacion(app, datos_base):
     with app.app_context():
         oferta = crear_oferta(
@@ -308,6 +369,14 @@ def test_organizacion_puede_rechazar_invitacion(app, datos_base):
                 usuario_id=datos_base["usuario_id"],
                 items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 50}],
             )
+
+        nueva_oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong2_id"],
+            items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 50}],
+        )
+        assert nueva_oferta.organizacion_lider.id == datos_base["ong2_id"]
 
 
 def test_no_se_puede_responder_invitacion_de_oferta_retirada(app, datos_base):

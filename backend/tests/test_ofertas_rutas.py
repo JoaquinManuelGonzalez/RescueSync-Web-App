@@ -439,7 +439,7 @@ def test_listar_ofertas_por_convocatoria(
     ingresar(EMAIL_REPRESENTANTE)
     cid = datos_ofertas_web["convocatoria_id"]
 
-    # Crear dos ofertas
+    # Crear una oferta y retirarla para poder presentar otra de la misma organización
     resp1 = cliente_sembrado.post(
         "/ofertas",
         json={
@@ -451,6 +451,9 @@ def test_listar_ofertas_por_convocatoria(
         },
         headers=cabecera_csrf(),
     )
+    of1_id = resp1.get_json()["id"]
+    cliente_sembrado.post(f"/ofertas/{of1_id}/retirar", headers=cabecera_csrf())
+
     resp2 = cliente_sembrado.post(
         "/ofertas",
         json={
@@ -464,14 +467,11 @@ def test_listar_ofertas_por_convocatoria(
     )
     of2_id = resp2.get_json()["id"]
 
-    # Retirar la segunda oferta
-    cliente_sembrado.post(f"/ofertas/{of2_id}/retirar", headers=cabecera_csrf())
-
     # Listar activas
     resp_activas = cliente_sembrado.get(f"/ofertas/convocatoria/{cid}")
     assert resp_activas.status_code == 200
     assert len(resp_activas.get_json()["ofertas"]) == 1
-    assert resp_activas.get_json()["ofertas"][0]["id"] == resp1.get_json()["id"]
+    assert resp_activas.get_json()["ofertas"][0]["id"] == of2_id
 
     # Listar incluyendo retiradas
     resp_todas = cliente_sembrado.get(f"/ofertas/convocatoria/{cid}?incluir_retiradas=true")
