@@ -11,7 +11,7 @@
 {% block title %}{{ usuario.nombre_completo }}{% endblock %}
 
 {% block content %}
-<div class="pagina-angosta space-y-6">
+<div class="pagina space-y-6">
   {% call encabezado_pagina(usuario.nombre_completo, usuario.email) %}
     <a class="btn btn-secundario" href="{{ url_for('usuarios.listar') }}">{{ icono("volver") }} Volver</a>
     {%- if puede("usuarios:editar") %}

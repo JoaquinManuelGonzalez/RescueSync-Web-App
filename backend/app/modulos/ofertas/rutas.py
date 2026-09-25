@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import json
 import logging
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, current_app, flash, jsonify, render_template, request
 from flask_login import current_user
 
 from app.core.acceso.autorizacion import requiere_permiso
@@ -32,13 +33,19 @@ from app.core.errores import (
     SolicitudInvalida,
 )
 from app.core.interfaz.navegacion import EntradaDeMenu
-from app.core.interfaz.vistas import pide_json, redirigir
+from app.core.interfaz.vistas import ERROR, pide_json, redirigir
 from app.core.logging import registrar_evento
 from app.extensiones import csrf, db
 from app.modulos.convocatorias.modelos import Convocatoria
 from app.modulos.ofertas import servicios
 from app.modulos.ofertas.modelos import Oferta
 from app.modulos.ofertas.servicios import _formatear_fecha_iso
+from app.modulos.organizaciones.modelos import (
+    Inventario,
+    InventarioItem,
+    Organizacion,
+    TipoOrganizacion,
+)
 
 blueprint_ofertas = Blueprint("ofertas", __name__)
 
@@ -47,7 +54,7 @@ ENTRADA_DE_MENU = EntradaDeMenu(
     titulo="Ofertas de ayuda",
     permiso=OFERTAS_LISTAR,
     descripcion="Propuestas, versiones y trazabilidad de las ONG",
-    icono="carpeta",
+    icono="lista",
     orden=30,
 )
 
@@ -58,11 +65,36 @@ def _contexto_de_formulario(convocatoria_id: int, oferta: Oferta | None = None) 
         raise SolicitudInvalida("La convocatoria indicada no existe.")
     lotes = [item for lote in convocatoria.emergencia.lotes for item in lote.lote_items]
     cantidades = {linea.lote_item_id: linea for linea in oferta.items} if oferta else {}
+    item_ids = {lote_item.item_id for lote_item in lotes}
+    inventario_items = db.session.execute(
+        db.select(InventarioItem)
+        .join(Inventario)
+        .where(
+            Inventario.organizacion_id == current_user.organizacion_id,
+            InventarioItem.item_id.in_(item_ids),
+        )
+    ).scalars()
+    stock_por_item = {
+        inventario_item.item_id: inventario_item.cantidad_disponible
+        for inventario_item in inventario_items
+    }
+    organizaciones_disponibles = db.session.scalars(
+        db.select(Organizacion)
+        .where(
+            Organizacion.tipo == TipoOrganizacion.ong,
+            Organizacion.activo.is_(True),
+            Organizacion.id != current_user.organizacion_id,
+        )
+        .order_by(Organizacion.nombre)
+    ).all()
     return {
         "convocatoria": convocatoria,
         "lote_items": lotes,
         "oferta": oferta,
         "cantidades": cantidades,
+        "stock_por_item": stock_por_item,
+        "organizacion_actual": db.session.get(Organizacion, current_user.organizacion_id),
+        "organizaciones_disponibles": organizaciones_disponibles,
     }
 
 
@@ -73,10 +105,10 @@ def _formulario_con_error(
     error: ErrorDeAplicacion,
     oferta: Oferta | None = None,
 ):
+    flash(f"No se pudo guardar la oferta: {error.mensaje}", ERROR)
     return render_template(
         "ofertas/formulario.html",
         modo=modo,
-        error_mensaje=error.mensaje,
         valores=request.form,
         **_contexto_de_formulario(convocatoria_id, oferta),
     )
@@ -90,12 +122,18 @@ def _items_desde_formulario(convocatoria: Convocatoria) -> list[dict[str, Any]]:
             if not valor:
                 continue
             try:
-                cantidad = float(valor)
-            except ValueError as error:
+                cantidad_decimal = Decimal(valor)
+            except InvalidOperation as error:
                 raise SolicitudInvalida(
                     "Las cantidades ofrecidas deben ser números válidos.",
                     detalle={f"item_{lote_item.id}": "Ingresá un número válido."},
                 ) from error
+            if not cantidad_decimal.is_finite() or cantidad_decimal != cantidad_decimal.to_integral_value():
+                raise SolicitudInvalida(
+                    "Las cantidades ofrecidas deben ser números enteros.",
+                    detalle={f"item_{lote_item.id}": "Ingresá una cantidad entera."},
+                )
+            cantidad = int(cantidad_decimal)
             if cantidad <= 0:
                 continue
             items.append(
@@ -183,6 +221,7 @@ def crear_desde_formulario():
             organizacion_id=current_user.organizacion_id,
             items=_items_desde_formulario(convocatoria),
             observaciones=request.form.get("observaciones") or None,
+            organizaciones_ids=request.form.getlist("organizacion_id_conjunta", type=int),
         )
     except ErrorDeAplicacion as error:
         if pide_json():
@@ -308,6 +347,9 @@ def crear():
         organizacion_id=int(organizacion_id),
         items=items,
         observaciones=observaciones,
+        organizaciones_ids=datos.get("organizaciones_ids")
+        if isinstance(datos.get("organizaciones_ids"), list)
+        else None,
     )
     return jsonify(_serializar_oferta(oferta)), 201
 
@@ -362,6 +404,7 @@ def editar_desde_formulario(oferta_id: int):
             items=_items_desde_formulario(oferta.convocatoria),
             observaciones=request.form.get("observaciones") or None,
             organizacion_id=current_user.organizacion_id,
+            organizaciones_ids=request.form.getlist("organizacion_id_conjunta", type=int),
             usuario_id=current_user.id,
         )
     except ErrorDeAplicacion as error:
@@ -396,6 +439,9 @@ def modificar(oferta_id: int):
         items=items,
         observaciones=observaciones,
         organizacion_id=current_user.organizacion_id,
+        organizaciones_ids=datos.get("organizaciones_ids")
+        if isinstance(datos.get("organizaciones_ids"), list)
+        else None,
         usuario_id=usuario_id,
     )
     return jsonify(_serializar_oferta(oferta)), 200

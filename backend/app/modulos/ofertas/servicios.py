@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from sqlalchemy import select
@@ -202,6 +202,20 @@ def _validar_disponibilidad_en_inventario(
             )
 
 
+def _validar_organizaciones_conjuntas(
+    organizaciones_ids: list[int], organizacion_lider_id: int
+) -> list[Organizacion]:
+    """Valida las organizaciones ONG que participarán junto a la líder."""
+    organizaciones = []
+    ids_vistos = set()
+    for organizacion_id in organizaciones_ids:
+        if organizacion_id in ids_vistos or organizacion_id == organizacion_lider_id:
+            continue
+        ids_vistos.add(organizacion_id)
+        organizaciones.append(_validar_y_obtener_organizacion(organizacion_id))
+    return organizaciones
+
+
 def crear_oferta(
     *,
     convocatoria_id: int,
@@ -209,17 +223,14 @@ def crear_oferta(
     organizacion_id: int,
     items: list[dict[str, Any]],
     observaciones: str | None = None,
+    organizaciones_ids: list[int] | None = None,
 ) -> Oferta:
     """Registra una nueva oferta simple para una convocatoria activa.
-
-    Args:
-        convocatoria_id: ID de la convocatoria sobre la que se presenta.
-        usuario_id: ID del usuario (representante ONG) que carga la oferta.
         organizacion_id: ID de la ONG que presenta la oferta.
         items: Lista de dicts `{"lote_item_id": int, "cantidad_ofrecida": float,
             "observaciones": str | None}`.
         observaciones: Notas adicionales sobre la oferta.
-
+        organizaciones_ids: IDs de las ONG participantes además de la líder.
     Returns:
         Oferta: La entidad persistida con sus relaciones.
     """
@@ -229,6 +240,9 @@ def crear_oferta(
 
     _validar_ventana_convocatoria(convocatoria)
     org_validada = _validar_y_obtener_organizacion(organizacion_id)
+    organizaciones_validas = _validar_organizaciones_conjuntas(
+        organizaciones_ids or [], org_validada.id
+    )
     items_validados = _validar_y_procesar_items(items, convocatoria)
     _validar_disponibilidad_en_inventario(org_validada.id, items_validados)
 
@@ -248,6 +262,14 @@ def crear_oferta(
         rol_consorcio="lider",
     )
     db.session.add(oferta_org)
+    for organizacion in organizaciones_validas:
+        db.session.add(
+            OfertaOrganizacion(
+                oferta_id=oferta.id,
+                organizacion_id=organizacion.id,
+                rol_consorcio="aportante",
+            )
+        )
 
     for item_dato in items_validados:
         linea = OfertaLinea(
@@ -330,6 +352,7 @@ def modificar_oferta(
     items: list[dict[str, Any]] | None = None,
     observaciones: str | None = None,
     organizacion_id: int | None = None,
+    organizaciones_ids: list[int] | None = None,
     usuario_id: int | None = None,
 ) -> Oferta:
     """Modifica una oferta existente, incrementando su versión.
@@ -343,6 +366,11 @@ def modificar_oferta(
 
     _validar_organizacion_de_oferta(oferta, organizacion_id)
     _validar_ventana_convocatoria(oferta.convocatoria)
+    organizaciones_validas = None
+    if organizaciones_ids is not None:
+        organizaciones_validas = _validar_organizaciones_conjuntas(
+            organizaciones_ids, oferta.organizacion_lider.id
+        )
 
     if oferta.estado == EstadoOferta.retirada:
         raise ConflictoDeEstado("No se puede modificar una oferta que ya ha sido retirada.")
@@ -385,6 +413,14 @@ def modificar_oferta(
     if observaciones is not None and (oferta.observaciones or "") != (observaciones or ""):
         hubo_cambios = True
 
+    if organizaciones_validas is not None:
+        ids_actuales = {miembro.organizacion_id for miembro in oferta.organizaciones_consorcio}
+        ids_nuevos = {oferta.organizacion_lider.id} | {
+            organizacion.id for organizacion in organizaciones_validas
+        }
+        if ids_actuales != ids_nuevos:
+            hubo_cambios = True
+
     if not hubo_cambios:
         return oferta
 
@@ -398,8 +434,10 @@ def modificar_oferta(
         oferta.observaciones = observaciones
 
     # Actualizar organización oferente si fue enviada
-    if organizacion_id is not None:
-        org_validada = _validar_y_obtener_organizacion(organizacion_id)
+    if organizaciones_validas is not None or organizacion_id is not None:
+        org_validada = _validar_y_obtener_organizacion(
+            organizacion_id or oferta.organizacion_lider.id
+        )
         for org_asoc in list(oferta.organizaciones_consorcio):
             db.session.delete(org_asoc)
         db.session.flush()
@@ -410,6 +448,14 @@ def modificar_oferta(
             rol_consorcio="lider",
         )
         db.session.add(oferta_org)
+        for organizacion in organizaciones_validas or []:
+            db.session.add(
+                OfertaOrganizacion(
+                    oferta_id=oferta.id,
+                    organizacion_id=organizacion.id,
+                    rol_consorcio="aportante",
+                )
+            )
 
     # Actualizar ítems si fueron enviados
     if items_validados is not None:

@@ -16,7 +16,7 @@
 {% block title %}{{ titulo }}{% endblock %}
 
 {% block content %}
-<div class="pagina-angosta">
+<div class="pagina">
   {% call encabezado_pagina(titulo, "La persona deberá cambiar la contraseña inicial en su primer ingreso." if es_alta else usuario.email) %}
     <a class="btn btn-secundario" href="{{ destino_cancelar }}">{{ icono("volver") }} Volver</a>
   {% endcall %}

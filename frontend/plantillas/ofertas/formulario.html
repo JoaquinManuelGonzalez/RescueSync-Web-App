@@ -1,81 +1,239 @@
 {% extends "layout.html" %}
 {% from "componentes/iconos.html" import icono %}
-{% from "componentes/diseno.html" import encabezado_pagina, insignia %}
+{% from "componentes/diseno.html" import insignia %}
 {% from "componentes/formularios.html" import csrf, boton_envio %}
 
 {% block title %}{{ "Nueva oferta" if modo == "alta" else "Editar oferta" }}{% endblock %}
 
 {% block content %}
-<div class="pagina-angosta space-y-6">
-  {% call encabezado_pagina("Nueva oferta" if modo == "alta" else "Editar oferta", convocatoria.emergencia.titulo ~ " · " ~ convocatoria.emergencia.zona_afectada) %}
-    <a class="btn btn-secundario" href="{{ url_for('ofertas.listar', convocatoria_id=convocatoria.id) }}">{{ icono("volver") }} Volver</a>
-  {% endcall %}
+<main class="mx-auto max-w-4xl px-6 py-8">
+  <div class="mb-8">
+    <a href="{{ url_for('ofertas.listar', convocatoria_id=convocatoria.id) }}" class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-primario">
+      {{ icono("volver") }}
+      Volver a ofertas
+    </a>
 
-  {% if error_mensaje %}
-  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
-    <p class="font-semibold">No se pudo guardar la oferta</p>
-    <p class="mt-1">{{ error_mensaje }}</p>
+    <h1 class="text-2xl font-bold tracking-tight text-gray-900">
+      {{ "Nueva oferta" if modo == "alta" else "Editar oferta" }}
+    </h1>
+    <p class="mt-2 text-sm text-gray-600">
+      Indicá los recursos que tu organización puede aportar para esta emergencia.
+    </p>
   </div>
-  {% endif %}
 
-  <section class="tarjeta">
-    <div class="tarjeta-cuerpo">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 class="tarjeta-titulo">Recursos que puede aportar tu organización</h2>
-          <p class="mt-1 text-sm text-gray-500">Solo se guardan los ítems con una cantidad mayor a cero.</p>
-        </div>
-        {{ insignia("Ventana abierta" if convocatoria.esta_vigente() else "Ventana cerrada", "exito" if convocatoria.esta_vigente() else "error") }}
+  <section class="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
+    <div class="flex items-start justify-between gap-4">
+      <div class="min-w-0">
+        <p class="text-sm font-medium text-primario">Convocatoria #{{ convocatoria.id }}</p>
+        <h2 class="mt-1 text-lg font-semibold text-gray-900">{{ convocatoria.emergencia.titulo }}</h2>
+      </div>
+      <div class="shrink-0 whitespace-nowrap pt-0.5">
+        {{ insignia("Oferta abierta" if convocatoria.esta_vigente() else "Oferta cerrada", "exito" if convocatoria.esta_vigente() else "error") }}
       </div>
     </div>
+
+    {% if convocatoria.emergencia.descripcion %}
+    <p class="mt-3 text-sm leading-6 text-gray-600">{{ convocatoria.emergencia.descripcion }}</p>
+    {% endif %}
+
+    <div class="mt-5 grid grid-cols-1 gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
+      <div>
+        <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Zona afectada</p>
+        <p class="mt-1 text-sm font-medium text-gray-900">{{ convocatoria.emergencia.zona_afectada }}</p>
+      </div>
+      <div>
+        <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Fecha límite</p>
+        <p class="mt-1 text-sm font-medium text-gray-900">{{ convocatoria.fecha_cierre.strftime('%d/%m/%Y - %H:%M') }} hs</p>
+      </div>
+    </div>
+
+    {% if convocatoria.observaciones %}
+    <div class="mt-5 border-t border-gray-100 pt-5">
+      <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Indicaciones</p>
+      <p class="mt-1 text-sm leading-6 text-gray-600">{{ convocatoria.observaciones }}</p>
+    </div>
+    {% endif %}
   </section>
 
   <form method="post" action="{{ url_for('ofertas.formulario_de_alta') if modo == 'alta' else url_for('ofertas.editar_desde_formulario', oferta_id=oferta.id) }}" class="space-y-6" data-envio-con-carga>
     {{ csrf() }}
     <input type="hidden" name="convocatoria_id" value="{{ convocatoria.id }}">
-    <section class="tarjeta">
-      <div class="tarjeta-cuerpo space-y-5">
+
+    <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-200">
+      <div class="border-b border-gray-100 px-6 py-5">
+        <h2 class="text-base font-semibold text-gray-900">Recursos necesarios</h2>
+        <p class="mt-1 text-sm text-gray-500">Indicá cuánto de cada recurso puede aportar tu organización.</p>
+      </div>
+
+      <div class="divide-y divide-gray-100">
         {% for lote_item in lote_items %}
         {% set linea = cantidades.get(lote_item.id) %}
-        <div class="grid gap-3 border-b border-gray-100 pb-5 last:border-0 last:pb-0 sm:grid-cols-[1fr_10rem] sm:items-end">
+        {% set stock = stock_por_item.get(lote_item.item_id, 0) %}
+        <div class="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-[minmax(0,1fr)_8rem_8rem_10rem] sm:items-start sm:gap-5">
           <div>
             <p class="font-medium text-gray-900">{{ lote_item.item.nombre }}</p>
-            <p class="mt-1 text-sm text-gray-500">Necesario: {{ lote_item.cantidad_solicitada|int }} {{ lote_item.item.unidad_medida }}</p>
-            <label for="item-{{ lote_item.id }}-obs" class="mt-3 block text-xs font-medium text-gray-600">Detalle logístico (opcional)</label>
-            <input
-              id="item-{{ lote_item.id }}-obs"
-              name="item_obs_{{ lote_item.id }}"
-              value="{{ valores.get('item_obs_' ~ lote_item.id) if valores.get('item_obs_' ~ lote_item.id) is not none else (linea.observaciones if linea and linea.observaciones is not none else '') }}"
-              class="campo-control mt-1"
-              maxlength="255"
-            >
           </div>
           <div>
-            <label for="item-{{ lote_item.id }}" class="campo-etiqueta">Tu aporte</label>
-            <input
-              id="item-{{ lote_item.id }}"
-              name="item_{{ lote_item.id }}"
-              type="number"
-              min="0"
-              max="{{ lote_item.cantidad_solicitada }}"
-              step="0.01"
-              value="{{ valores.get('item_' ~ lote_item.id) if valores.get('item_' ~ lote_item.id) is not none else (linea.cantidad_ofrecida if linea and linea.cantidad_ofrecida is not none else '') }}"
-              class="campo-control"
-              inputmode="decimal"
-            >
+            <p class="text-xs font-medium text-gray-600">Cantidad requerida</p>
+            <p class="mt-2 font-medium text-gray-900">{{ lote_item.cantidad_solicitada|int }} {{ lote_item.item.unidad_medida }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-gray-600">Stock disponible</p>
+            {% if stock|int > 0 %}
+            <p class="mt-2 font-medium text-gray-900">{{ stock|int }} {{ lote_item.item.unidad_medida }}</p>
+            {% else %}
+            <p class="mt-2 font-medium text-amber-700">Sin stock</p>
+            {% endif %}
+          </div>
+          <div>
+            <label for="item-{{ lote_item.id }}" class="mb-1.5 block text-xs font-medium text-gray-600">Tu aporte</label>
+            <input id="item-{{ lote_item.id }}" name="item_{{ lote_item.id }}" type="number" min="0" max="{{ lote_item.cantidad_solicitada|int }}" step="1" value="{{ valores.get('item_' ~ lote_item.id) if valores.get('item_' ~ lote_item.id) is not none else (linea.cantidad_ofrecida|int if linea and linea.cantidad_ofrecida is not none else '') }}" class="campo-control" inputmode="numeric" pattern="[0-9]*">
+          </div>
+          <div class="sm:col-span-4">
+            <label for="item-{{ lote_item.id }}-obs" class="block text-xs font-medium text-gray-600">Detalle logístico (opcional)</label>
+            <input id="item-{{ lote_item.id }}-obs" name="item_obs_{{ lote_item.id }}" value="{{ valores.get('item_obs_' ~ lote_item.id) if valores.get('item_obs_' ~ lote_item.id) is not none else (linea.observaciones if linea and linea.observaciones is not none else '') }}" class="campo-control mt-1" maxlength="255">
           </div>
         </div>
         {% endfor %}
-        <div>
-          <label for="observaciones" class="campo-etiqueta">Observaciones generales</label>
-          <textarea id="observaciones" name="observaciones" rows="4" class="campo-control">{{ valores.get('observaciones') if valores.get('observaciones') is not none else (oferta.observaciones if oferta and oferta.observaciones is not none else '') }}</textarea>
+      </div>
+    </section>
+
+    <section class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
+      <label for="observaciones" class="text-base font-semibold text-gray-900">Observaciones generales</label>
+      <p class="mt-1 text-sm text-gray-500">Agregá información útil para coordinar la entrega.</p>
+      <textarea id="observaciones" name="observaciones" rows="4" class="campo-control mt-5">{{ valores.get('observaciones') if valores.get('observaciones') is not none else (oferta.observaciones if oferta and oferta.observaciones is not none else '') }}</textarea>
+    </section>
+
+    <section class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
+      <div>
+        <h2 class="text-base font-semibold text-gray-900">Tipo de oferta</h2>
+        <p class="mt-1 text-sm text-gray-500">Elegí si tu organización realizará la oferta sola o junto a otras organizaciones.</p>
+      </div>
+
+      <div class="mt-5 space-y-3">
+        <label class="flex cursor-pointer items-start gap-4 rounded-xl border border-gray-200 p-4 transition hover:border-primario/40 hover:bg-acento/20">
+          <input type="radio" name="tipo_oferta" value="individual" {% if valores.get('tipo_oferta') != 'conjunta' and not (oferta and oferta.organizaciones_consorcio|length > 1) %}checked{% endif %} class="mt-1 size-4 border-gray-300 text-primario focus:ring-primario">
+          <span>
+            <span class="block font-medium text-gray-900">Oferta individual</span>
+            <span class="mt-1 block text-sm text-gray-500">Mi organización realizará la oferta por su cuenta.</span>
+          </span>
+        </label>
+
+        <label class="flex cursor-pointer items-start gap-4 rounded-xl border border-gray-200 p-4 transition hover:border-primario/40 hover:bg-acento/20">
+          <input id="oferta-conjunta" type="radio" name="tipo_oferta" value="conjunta" {% if valores.get('tipo_oferta') == 'conjunta' or (oferta and oferta.organizaciones_consorcio|length > 1) %}checked{% endif %} class="mt-1 size-4 border-gray-300 text-primario focus:ring-primario">
+          <span>
+            <span class="block font-medium text-gray-900">Oferta conjunta</span>
+            <span class="mt-1 block text-sm text-gray-500">Asociate con otras organizaciones para realizar una oferta conjunta.</span>
+          </span>
+        </label>
+      </div>
+
+      <div id="organizaciones-conjuntas" class="mt-6 {% if valores.get('tipo_oferta') != 'conjunta' and not (oferta and oferta.organizaciones_consorcio|length > 1) %}hidden{% endif %} rounded-xl border border-primario/20 bg-acento/20 p-5">
+        <h3 class="font-semibold text-gray-900">Organizaciones participantes</h3>
+        <p class="mt-1 text-sm text-gray-600">Tu organización será la líder. Podés sumar otras ONG activas como aportantes.</p>
+
+        <div class="mt-5 flex items-center gap-3 rounded-lg bg-white p-4 ring-1 ring-gray-200">
+          <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primario text-sm font-semibold text-white">{{ organizacion_actual.nombre[:1]|upper }}</span>
+          <div class="min-w-0 flex-1">
+            <p class="truncate font-medium text-gray-900">{{ organizacion_actual.nombre }}</p>
+            <p class="text-xs text-gray-500">Tu organización · Líder</p>
+          </div>
+        </div>
+
+        <label for="buscar-organizacion" class="mt-5 block text-sm font-medium text-gray-700">Agregar organizaciones</label>
+        <input id="buscar-organizacion" type="search" placeholder="Buscar una organización..." autocomplete="off" class="campo-control mt-2">
+
+        <div id="resultados-organizaciones" class="mt-2 overflow-hidden rounded-lg bg-white shadow-md ring-1 ring-gray-200">
+          {% for organizacion in organizaciones_disponibles %}
+          <button type="button" class="opcion-organizacion flex w-full items-center gap-3 border-b border-gray-100 px-4 py-3 text-left transition last:border-0 hover:bg-acento/30" data-id="{{ organizacion.id }}" data-nombre="{{ organizacion.nombre }}">
+            <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-acento text-xs font-semibold text-primario">{{ organizacion.nombre[:1]|upper }}</span>
+            <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">{{ organizacion.nombre }}</span>
+            <span class="text-sm font-semibold text-primario">Agregar</span>
+          </button>
+          {% else %}
+          <p class="px-4 py-3 text-sm text-gray-500">No hay otras organizaciones disponibles.</p>
+          {% endfor %}
+        </div>
+
+        <div class="mt-5">
+          <p class="text-sm font-medium text-gray-700">Organizaciones invitadas</p>
+          <div id="organizaciones-seleccionadas" class="mt-2 space-y-2">
+            {% if oferta %}
+            {% for miembro in oferta.organizaciones_consorcio if miembro.organizacion_id != organizacion_actual.id %}
+            <div class="organizacion-seleccionada flex items-center gap-3 rounded-lg bg-white px-4 py-3 ring-1 ring-gray-200" data-id="{{ miembro.organizacion_id }}">
+              <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">{{ miembro.organizacion.nombre }}</span>
+              <input type="hidden" name="organizacion_id_conjunta" value="{{ miembro.organizacion_id }}">
+              <button type="button" class="quitar-organizacion text-sm font-semibold text-red-700">Quitar</button>
+            </div>
+            {% endfor %}
+            {% endif %}
+          </div>
+          <p id="sin-organizaciones" class="mt-2 text-sm text-gray-500">Todavía no agregaste otras organizaciones.</p>
         </div>
       </div>
     </section>
+
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-      <a class="btn btn-secundario" href="{{ url_for('ofertas.listar', convocatoria_id=convocatoria.id) }}">Cancelar</a>
-      {{ boton_envio("Guardar oferta" if modo == "alta" else "Guardar nueva versión", texto_cargando="Guardando...", icono_nombre="guardar") }}
+      <a href="{{ url_for('ofertas.listar', convocatoria_id=convocatoria.id) }}" class="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100">Cancelar</a>
+      {{ boton_envio("Guardar oferta" if modo == "alta" else "Guardar nueva versión", texto_cargando="Guardando...") }}
     </div>
   </form>
-</div>
+</main>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const ofertaConjunta = document.querySelector("#oferta-conjunta");
+  const organizacionesConjuntas = document.querySelector("#organizaciones-conjuntas");
+  const buscarOrganizacion = document.querySelector("#buscar-organizacion");
+  const organizacionesSeleccionadas = document.querySelector("#organizaciones-seleccionadas");
+  const sinOrganizaciones = document.querySelector("#sin-organizaciones");
+
+  const actualizarEstado = () => {
+    organizacionesConjuntas.classList.toggle("hidden", !ofertaConjunta.checked);
+  };
+
+  const actualizarVacio = () => {
+    sinOrganizaciones.classList.toggle("hidden", organizacionesSeleccionadas.children.length > 0);
+  };
+
+  const quitarOrganizacion = (elemento) => {
+    elemento.remove();
+    const opcion = document.querySelector(`.opcion-organizacion[data-id="${elemento.dataset.id}"]`);
+    if (opcion) opcion.classList.remove("hidden");
+    actualizarVacio();
+  };
+
+  document.querySelectorAll(".quitar-organizacion").forEach((boton) => {
+    boton.addEventListener("click", () => quitarOrganizacion(boton.closest(".organizacion-seleccionada")));
+  });
+
+  document.querySelectorAll(".opcion-organizacion").forEach((opcion) => {
+    opcion.addEventListener("click", () => {
+      if (organizacionesSeleccionadas.querySelector(`[data-id="${opcion.dataset.id}"]`)) return;
+      const seleccionada = document.createElement("div");
+      seleccionada.className = "organizacion-seleccionada flex items-center gap-3 rounded-lg bg-white px-4 py-3 ring-1 ring-gray-200";
+      seleccionada.dataset.id = opcion.dataset.id;
+      seleccionada.innerHTML = `<span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">${opcion.dataset.nombre}</span><input type="hidden" name="organizacion_id_conjunta" value="${opcion.dataset.id}"><button type="button" class="quitar-organizacion text-sm font-semibold text-red-700">Quitar</button>`;
+      seleccionada.querySelector(".quitar-organizacion").addEventListener("click", () => quitarOrganizacion(seleccionada));
+      organizacionesSeleccionadas.appendChild(seleccionada);
+      opcion.classList.add("hidden");
+      actualizarVacio();
+    });
+  });
+
+  buscarOrganizacion.addEventListener("input", () => {
+    const texto = buscarOrganizacion.value.toLowerCase().trim();
+    document.querySelectorAll(".opcion-organizacion").forEach((opcion) => {
+      const yaSeleccionada = organizacionesSeleccionadas.querySelector(`[data-id="${opcion.dataset.id}"]`);
+      opcion.classList.toggle("hidden", !opcion.dataset.nombre.toLowerCase().includes(texto) || yaSeleccionada !== null);
+    });
+  });
+
+  document.querySelectorAll('input[name="tipo_oferta"]').forEach((opcion) => {
+    opcion.addEventListener("change", actualizarEstado);
+  });
+  actualizarEstado();
+  actualizarVacio();
+});
+</script>
 {% endblock %}

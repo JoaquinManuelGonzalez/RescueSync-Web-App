@@ -35,7 +35,7 @@
           </a>
           {% endif %}
           {% if puede("ofertas:retirar") and oferta.estado.value not in ["retirada", "adjudicada", "rechazada"] %}
-          {{ formulario_accion(url_for("ofertas.retirar", oferta_id=oferta.id), "Retirar", clase="btn btn-fantasma btn-icono text-red-600", confirmar="La oferta va a quedar retirada y ya no podrá modificarse.", confirmar_titulo="¿Retirar esta oferta?", confirmar_boton="Retirar", icono_nombre="desactivar", solo_icono=true) }}
+          {{ formulario_accion(url_for("ofertas.retirar", oferta_id=oferta.id), "Retirar", clase="btn btn-fantasma btn-icono", confirmar="La oferta va a quedar retirada y ya no podrá modificarse.", confirmar_titulo="¿Retirar esta oferta?", confirmar_boton="Retirar", icono_nombre="eliminar", solo_icono=true) }}
           {% endif %}
         </div>
       </div>

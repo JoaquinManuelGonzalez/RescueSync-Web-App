@@ -6,9 +6,12 @@
 {% block title %}Oferta de {{ oferta.organizacion.nombre if oferta.organizacion else "organización" }}{% endblock %}
 
 {% block content %}
-<div class="pagina-angosta space-y-6">
+<div class="pagina space-y-6">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primario" href="{{ url_for('ofertas.listar', convocatoria_id=oferta.convocatoria_id) }}">
+    {{ icono("volver", "size-4") }} Volver a ofertas
+  </a>
+
   {% call encabezado_pagina("Oferta de " ~ (oferta.organizacion.nombre if oferta.organizacion else "organización no informada"), oferta.convocatoria.emergencia.titulo) %}
-    <a class="btn btn-secundario" href="{{ url_for('ofertas.listar', convocatoria_id=oferta.convocatoria_id) }}">{{ icono("volver") }} Volver</a>
     {% if puede("ofertas:editar") and oferta.puede_modificarse() %}
     <a class="btn btn-primario" href="{{ url_for('ofertas.formulario_de_edicion', oferta_id=oferta.id) }}">{{ icono("editar") }} Editar</a>
     {% endif %}
