@@ -24,7 +24,7 @@ from sqlalchemy import Select, func, select
 from app.core.interfaz.formularios import parametro_entero
 from app.extensiones import db
 
-POR_PAGINA_POR_DEFECTO = 20
+POR_PAGINA_POR_DEFECTO = 10
 POR_PAGINA_MAXIMO = 100
 
 

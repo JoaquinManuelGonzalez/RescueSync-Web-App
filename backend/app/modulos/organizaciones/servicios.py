@@ -20,11 +20,20 @@ from sqlalchemy import Select, select
 from app.core.errores import ConflictoDeEstado, RecursoNoEncontrado, SolicitudInvalida
 from app.core.interfaz.paginacion import Pagina, paginar
 from app.extensiones import db
-from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
+from app.modulos.emergencias.modelos import Item
+from app.modulos.organizaciones.modelos import (
+    Inventario,
+    InventarioItem,
+    Organizacion,
+    TipoOrganizacion,
+)
 
 MENSAJE_NOMBRE_EN_USO = "Ya existe una organización registrada con ese nombre."
 MENSAJE_IDENTIFICADOR_EN_USO = "Ya existe una organización con ese identificador nacional."
 MENSAJE_NO_ENCONTRADA = "No encontramos la organización solicitada."
+MENSAJE_INVENTARIO_NO_ENCONTRADO = "No encontramos el inventario de la organización."
+MENSAJE_ITEM_NO_ENCONTRADO = "No encontramos el item solicitado."
+MENSAJE_ITEM_YA_CARGADO = "El item ya está cargado en el inventario."
 
 
 def _normalizar_texto(valor: str | None) -> str | None:
@@ -67,6 +76,152 @@ def obtener_tipo_de_organizacion(organizacion_id: int) -> str | None:
     ).scalar_one_or_none()
     return None if tipo is None else tipo.value
 
+def obtener_inventario(organizacion_id: int) -> Inventario | None:
+    """Devuelve el inventario de la organizacion."""
+    return db.session.execute(
+        select(Inventario).where(Inventario.organizacion_id == organizacion_id)
+    ).scalar_one_or_none()
+
+
+def paginar_items_de_inventario(
+    organizacion_id: int,
+    categoria: str | None = None,
+    texto: str | None = None,
+    *,
+    pagina: int,
+    por_pagina: int,
+):
+    """Devuelve una pagina de items, filtrada opcionalmente por categoria y nombre."""
+    consulta = (
+        select(InventarioItem)
+        .join(Inventario)
+        .join(Item)
+        .where(Inventario.organizacion_id == organizacion_id)
+        .order_by(Item.nombre)
+    )
+    if categoria:
+        consulta = consulta.where(Item.categoria == categoria)
+    if texto:
+        consulta = consulta.where(Item.nombre.ilike(f"%{texto.strip()}%"))
+    return paginar(consulta, pagina, por_pagina)
+
+
+def categorias_de_inventario(organizacion_id: int) -> list[tuple[str, str]]:
+    """Devuelve las categorias presentes en el inventario, con valor y etiqueta."""
+    consulta = (
+        select(Item.categoria)
+        .join(InventarioItem, InventarioItem.item_id == Item.id)
+        .join(Inventario, Inventario.id == InventarioItem.inventario_id)
+        .where(Inventario.organizacion_id == organizacion_id)
+        .distinct()
+        .order_by(Item.categoria)
+    )
+    return [
+        (categoria.value, categoria.value.replace("_", " ").title())
+        for categoria in db.session.scalars(consulta)
+    ]
+
+
+def listar_items() -> list[Item]:
+    """Devuelve el catalogo de items ordenado para los formularios."""
+    return list(db.session.scalars(select(Item).order_by(Item.nombre)))
+
+
+def listar_items_disponibles(organizacion_id: int) -> list[Item]:
+    """Devuelve los items que aun no fueron cargados en el inventario indicado."""
+    items_cargados = select(InventarioItem.item_id).join(Inventario).where(
+        Inventario.organizacion_id == organizacion_id
+    )
+    consulta = select(Item).where(~Item.id.in_(items_cargados)).order_by(Item.nombre)
+    return list(db.session.scalars(consulta))
+
+
+def crear_item_inventario(
+    organizacion_id: int,
+    *,
+    item_id: int,
+    cantidad_disponible,
+) -> InventarioItem:
+    """Agrega un item al inventario de la organizacion."""
+    inventario = obtener_inventario(organizacion_id)
+    if inventario is None:
+        raise RecursoNoEncontrado(MENSAJE_INVENTARIO_NO_ENCONTRADO)
+
+    if db.session.get(Item, item_id) is None:
+        raise RecursoNoEncontrado(MENSAJE_ITEM_NO_ENCONTRADO)
+
+    existente = db.session.execute(
+        select(InventarioItem).where(
+            InventarioItem.inventario_id == inventario.id,
+            InventarioItem.item_id == item_id,
+        )
+    ).scalar_one_or_none()
+    if existente is not None:
+        raise ConflictoDeEstado(MENSAJE_ITEM_YA_CARGADO)
+
+    inventario_item = InventarioItem(
+        inventario_id=inventario.id,
+        item_id=item_id,
+        cantidad_disponible=cantidad_disponible,
+    )
+    db.session.add(inventario_item)
+    db.session.commit()
+    return inventario_item
+
+
+def obtener_item_inventario(
+    organizacion_id: int,
+    inventario_item_id: int,
+) -> InventarioItem:
+    """Devuelve un item del inventario de la organizacion o corta con 404."""
+    inventario_item = db.session.execute(
+        select(InventarioItem)
+        .join(Inventario)
+        .where(
+            InventarioItem.id == inventario_item_id,
+            Inventario.organizacion_id == organizacion_id,
+        )
+    ).scalar_one_or_none()
+    if inventario_item is None:
+        raise RecursoNoEncontrado(MENSAJE_ITEM_NO_ENCONTRADO)
+    return inventario_item
+
+
+def editar_item_inventario(
+    organizacion_id: int,
+    inventario_item_id: int,
+    *,
+    item_id: int,
+    cantidad_disponible,
+) -> InventarioItem:
+    """Actualiza la cantidad de un item del inventario de la organizacion."""
+    inventario_item = obtener_item_inventario(organizacion_id, inventario_item_id)
+    if inventario_item.item_id != item_id:
+        raise SolicitudInvalida(detalle={"item_id": ["El item no coincide con el inventario."]})
+
+    inventario_item.cantidad_disponible = cantidad_disponible
+    db.session.commit()
+    return inventario_item
+
+
+def eliminar_item_inventario(
+    organizacion_id: int,
+    inventario_item_id: int,
+) -> None:
+    """Quita un item del inventario de la organizacion, sin borrar el item del catalogo."""
+    inventario_item = obtener_item_inventario(organizacion_id, inventario_item_id)
+    db.session.delete(inventario_item)
+    db.session.commit()
+
+
+def item_inventario_a_diccionario(inventario_item: InventarioItem) -> dict[str, Any]:
+    """Representacion de un item de inventario para la respuesta HTTP."""
+    return {
+        "id": inventario_item.id,
+        "inventario_id": inventario_item.inventario_id,
+        "item_id": inventario_item.item_id,
+        "cantidad_disponible": int(inventario_item.cantidad_disponible),
+    }
 
 def esta_activa(organizacion_id: int) -> bool:
     """Indica si la organizacion existe y esta habilitada para operar."""

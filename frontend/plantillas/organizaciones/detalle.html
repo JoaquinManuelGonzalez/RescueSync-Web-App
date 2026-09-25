@@ -8,8 +8,11 @@
 
 {% block content %}
 <div class="pagina-angosta space-y-6">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-primario" href="{{ url_for('organizaciones.listar') }}">
+    {{ icono("volver", "size-4") }} Volver a organizaciones
+  </a>
+
   {% call encabezado_pagina(organizacion.nombre, organizacion.tipo|etiqueta_tipo_organizacion) %}
-    <a class="btn btn-secundario" href="{{ url_for('organizaciones.listar') }}">{{ icono("volver") }} Volver</a>
     {%- if puede("organizaciones:editar") %}
     <a class="btn btn-primario" href="{{ url_for('organizaciones.formulario_de_edicion', organizacion_id=organizacion.id) }}">{{ icono("editar") }} Editar</a>
     {%- endif %}
@@ -33,15 +36,17 @@
   {%- if puede("organizaciones:cambiar_estado") %}
   <section class="tarjeta">
     <div class="tarjeta-cuerpo">
-      <h2 class="tarjeta-titulo">Estado</h2>
-      {%- if organizacion.activo %}
-      {{ formulario_accion(url_for("organizaciones.cambiar_estado", organizacion_id=organizacion.id), "Desactivar organización", "peligro",
-                           confirmar=organizacion.nombre ~ " va a quedar inactiva. Podés volver a activarla cuando quieras.",
-                           confirmar_titulo="¿Desactivar esta organización?", confirmar_boton="Desactivar", icono_nombre="desactivar") }}
-      {%- else %}
-      {{ formulario_accion(url_for("organizaciones.cambiar_estado", organizacion_id=organizacion.id), "Activar organización", "secundario",
-                           campos={"activo": "y"}, icono_nombre="activar") }}
-      {%- endif %}
+      <div class="flex items-center justify-between gap-4">
+        <h2 class="tarjeta-titulo mb-0">Estado</h2>
+        {%- if organizacion.activo %}
+        {{ formulario_accion(url_for("organizaciones.cambiar_estado", organizacion_id=organizacion.id), "Desactivar organización", "peligro",
+                             confirmar=organizacion.nombre ~ " va a quedar inactiva. Podés volver a activarla cuando quieras.",
+                             confirmar_titulo="¿Desactivar esta organización?", confirmar_boton="Desactivar", icono_nombre="desactivar") }}
+        {%- else %}
+        {{ formulario_accion(url_for("organizaciones.cambiar_estado", organizacion_id=organizacion.id), "Activar organización", "secundario",
+                             campos={"activo": "y"}, icono_nombre="activar") }}
+        {%- endif %}
+      </div>
     </div>
   </section>
   {%- endif %}
