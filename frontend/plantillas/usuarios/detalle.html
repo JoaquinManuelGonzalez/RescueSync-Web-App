@@ -12,8 +12,11 @@
 
 {% block content %}
 <div class="pagina space-y-6">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-primario" href="{{ url_for('usuarios.listar') }}">
+    {{ icono("volver", "size-4") }} Volver
+  </a>
+
   {% call encabezado_pagina(usuario.nombre_completo, usuario.email) %}
-    <a class="btn btn-secundario" href="{{ url_for('usuarios.listar') }}">{{ icono("volver") }} Volver</a>
     {%- if puede("usuarios:editar") %}
     <a class="btn btn-primario" href="{{ url_for('usuarios.formulario_de_edicion', usuario_id=usuario.id) }}">{{ icono("editar") }} Editar</a>
     {%- endif %}
@@ -44,8 +47,8 @@
   {%- if puede("usuarios:cambiar_estado") or (usuario.esta_bloqueado and puede("usuarios:restablecer_contrasena")) %}
   <section class="tarjeta">
     <div class="tarjeta-cuerpo">
-      <h2 class="tarjeta-titulo">Acceso</h2>
-      <div class="flex flex-wrap gap-3">
+      <div class="flex items-center justify-between gap-4">
+        <h2 class="tarjeta-titulo mb-0">Acceso</h2>
         {%- if puede("usuarios:cambiar_estado") %}
         {%- if usuario.activo %}
         {{ formulario_accion(url_for("usuarios.cambiar_estado", usuario_id=usuario.id), "Desactivar cuenta", "peligro",
@@ -57,10 +60,12 @@
                              campos={"activo": "y"}, icono_nombre="activar") }}
         {%- endif %}
         {%- endif %}
-        {%- if usuario.esta_bloqueado and puede("usuarios:restablecer_contrasena") %}
-        {{ formulario_accion(url_for("usuarios.desbloquear", usuario_id=usuario.id), "Desbloquear", "secundario", icono_nombre="desbloquear") }}
-        {%- endif %}
       </div>
+      {%- if usuario.esta_bloqueado and puede("usuarios:restablecer_contrasena") %}
+      <div class="mt-3 flex flex-wrap gap-3">
+        {{ formulario_accion(url_for("usuarios.desbloquear", usuario_id=usuario.id), "Desbloquear", "secundario", icono_nombre="desbloquear") }}
+      </div>
+      {%- endif %}
     </div>
   </section>
   {%- endif %}

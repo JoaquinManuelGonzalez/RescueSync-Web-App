@@ -3,7 +3,7 @@
 {% from "componentes/diseno.html" import insignia %}
 {% from "componentes/formularios.html" import csrf, boton_envio %}
 
-{% block title %}{{ "Nueva oferta" if modo == "alta" else "Editar oferta" }}{% endblock %}
+{% block title %}{{ "Nueva oferta" if modo == "alta" else ("Aceptar invitación" if modo == "aceptacion" else "Editar oferta") }}{% endblock %}
 
 {% block content %}
 <main class="mx-auto max-w-4xl px-6 py-8">
@@ -14,7 +14,7 @@
     </a>
 
     <h1 class="text-2xl font-bold tracking-tight text-gray-900">
-      {{ "Nueva oferta" if modo == "alta" else "Editar oferta" }}
+      {{ "Nueva oferta" if modo == "alta" else ("Aceptar invitación" if modo == "aceptacion" else "Editar oferta") }}
     </h1>
     <p class="mt-2 text-sm text-gray-600">
       Indicá los recursos que tu organización puede aportar para esta emergencia.
@@ -55,7 +55,7 @@
     {% endif %}
   </section>
 
-  <form method="post" action="{{ url_for('ofertas.formulario_de_alta') if modo == 'alta' else url_for('ofertas.editar_desde_formulario', oferta_id=oferta.id) }}" class="space-y-6" data-envio-con-carga>
+  <form method="post" action="{{ url_for('ofertas.formulario_de_alta') if modo == 'alta' else (url_for('ofertas.aceptar_desde_formulario', oferta_id=oferta.id) if modo == 'aceptacion' else url_for('ofertas.editar_desde_formulario', oferta_id=oferta.id)) }}" class="space-y-6" data-envio-con-carga>
     {{ csrf() }}
     <input type="hidden" name="convocatoria_id" value="{{ convocatoria.id }}">
 
@@ -85,6 +85,21 @@
             <p class="mt-2 font-medium text-amber-700">Sin stock</p>
             {% endif %}
           </div>
+          {% if oferta and oferta.organizaciones_consorcio|length > 1 %}
+          <div>
+              <p class="text-xs font-medium text-gray-600">Aporte de otras ONG</p>
+              {% set aportes = aportes_por_lote_item.get(lote_item.id, []) %}
+              {% if aportes %}
+              <div class="mt-2 space-y-1">
+                {% for aporte in aportes %}
+                <p class="text-sm text-gray-900">{{ aporte.organizacion.nombre }}: {{ aporte.cantidad_ofrecida|int }} {{ lote_item.item.unidad_medida }}</p>
+                {% endfor %}
+              </div>
+              {% else %}
+              <p class="mt-2 text-sm text-gray-500">Todavía no hay aportes.</p>
+              {% endif %}
+          </div>
+          {% endif %}
           <div>
             <label for="item-{{ lote_item.id }}" class="mb-1.5 block text-xs font-medium text-gray-600">Tu aporte</label>
             <input id="item-{{ lote_item.id }}" name="item_{{ lote_item.id }}" type="number" min="0" max="{{ lote_item.cantidad_solicitada|int }}" step="1" value="{{ valores.get('item_' ~ lote_item.id) if valores.get('item_' ~ lote_item.id) is not none else (linea.cantidad_ofrecida|int if linea and linea.cantidad_ofrecida is not none else '') }}" class="campo-control" inputmode="numeric" pattern="[0-9]*">
@@ -98,12 +113,15 @@
       </div>
     </section>
 
+    {% if modo == "alta" %}
     <section class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
       <label for="observaciones" class="text-base font-semibold text-gray-900">Observaciones generales</label>
       <p class="mt-1 text-sm text-gray-500">Agregá información útil para coordinar la entrega.</p>
       <textarea id="observaciones" name="observaciones" rows="4" class="campo-control mt-5">{{ valores.get('observaciones') if valores.get('observaciones') is not none else (oferta.observaciones if oferta and oferta.observaciones is not none else '') }}</textarea>
     </section>
+    {% endif %}
 
+    {% if modo == "alta" %}
     <section class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
       <div>
         <h2 class="text-base font-semibold text-gray-900">Tipo de oferta</h2>
@@ -172,14 +190,16 @@
         </div>
       </div>
     </section>
+    {% endif %}
 
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
       <a href="{{ url_for('ofertas.listar', convocatoria_id=convocatoria.id) }}" class="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100">Cancelar</a>
-      {{ boton_envio("Guardar oferta" if modo == "alta" else "Guardar nueva versión", texto_cargando="Guardando...") }}
+      {{ boton_envio("Guardar oferta" if modo == "alta" else ("Aceptar y sumar aporte" if modo == "aceptacion" else "Guardar nueva versión"), texto_cargando="Guardando...") }}
     </div>
   </form>
 </main>
 
+{% if modo == "alta" %}
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const ofertaConjunta = document.querySelector("#oferta-conjunta");
@@ -187,6 +207,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const buscarOrganizacion = document.querySelector("#buscar-organizacion");
   const organizacionesSeleccionadas = document.querySelector("#organizaciones-seleccionadas");
   const sinOrganizaciones = document.querySelector("#sin-organizaciones");
+  const formulario = document.querySelector("form");
 
   const actualizarEstado = () => {
     organizacionesConjuntas.classList.toggle("hidden", !ofertaConjunta.checked);
@@ -232,8 +253,22 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll('input[name="tipo_oferta"]').forEach((opcion) => {
     opcion.addEventListener("change", actualizarEstado);
   });
+  formulario.addEventListener("submit", (evento) => {
+    const esConjunta = ofertaConjunta.checked;
+    const tieneOrganizaciones = organizacionesSeleccionadas.children.length > 0;
+    buscarOrganizacion.setCustomValidity(
+      esConjunta && !tieneOrganizaciones
+        ? "Seleccioná al menos una organización para crear una oferta conjunta."
+        : ""
+    );
+    if (esConjunta && !tieneOrganizaciones) {
+      evento.preventDefault();
+      buscarOrganizacion.reportValidity();
+    }
+  });
   actualizarEstado();
   actualizarVacio();
 });
 </script>
+{% endif %}
 {% endblock %}

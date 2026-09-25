@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
@@ -202,6 +202,46 @@ def _validar_disponibilidad_en_inventario(
             )
 
 
+def _validar_totales_del_consorcio(
+    oferta: Oferta | None,
+    items_datos: list[dict[str, Any]],
+    organizacion_id: int,
+) -> None:
+    """Impide que la suma de aportes del consorcio supere cada necesidad."""
+    aportes_existentes: dict[int, Decimal] = {}
+    if oferta is not None:
+        for linea in oferta.items:
+            if linea.organizacion_id != organizacion_id:
+                aportes_existentes[linea.lote_item_id] = (
+                    aportes_existentes.get(linea.lote_item_id, Decimal("0"))
+                    + Decimal(str(linea.cantidad_ofrecida))
+                )
+
+    lote_items = db.session.execute(
+        select(LoteItem).where(
+            LoteItem.id.in_([item["lote_item_id"] for item in items_datos])
+        )
+    ).scalars()
+    lote_item_por_id = {lote_item.id: lote_item for lote_item in lote_items}
+    for item_dato in items_datos:
+        lote_item_id = item_dato["lote_item_id"]
+        total = aportes_existentes.get(lote_item_id, Decimal("0")) + Decimal(
+            str(item_dato["cantidad_ofrecida"])
+        )
+        cantidad_requerida = Decimal(str(lote_item_por_id[lote_item_id].cantidad_solicitada))
+        if total > cantidad_requerida:
+            raise ReglaDeNegocioIncumplida(
+                f"El aporte acumulado ({total}) supera la cantidad requerida "
+                f"({cantidad_requerida}) para el ítem {lote_item_id}.",
+                codigo="OFERTA_CONJUNTA_SUPERA_NECESIDAD",
+                detalle={
+                    "lote_item_id": lote_item_id,
+                    "cantidad_acumulada": float(total),
+                    "cantidad_solicitada": float(cantidad_requerida),
+                },
+            )
+
+
 def _validar_organizaciones_conjuntas(
     organizaciones_ids: list[int], organizacion_lider_id: int
 ) -> list[Organizacion]:
@@ -214,6 +254,16 @@ def _validar_organizaciones_conjuntas(
         ids_vistos.add(organizacion_id)
         organizaciones.append(_validar_y_obtener_organizacion(organizacion_id))
     return organizaciones
+
+
+def _actualizar_estado_por_invitaciones(oferta: Oferta) -> None:
+    """Deriva el estado de la oferta a partir de las respuestas del consorcio."""
+    if any(m.estado_participacion == "rechazada" for m in oferta.organizaciones_consorcio):
+        oferta.estado = EstadoOferta.rechazada
+    elif any(m.estado_participacion == "pendiente" for m in oferta.organizaciones_consorcio):
+        oferta.estado = EstadoOferta.pendiente
+    else:
+        oferta.estado = EstadoOferta.presentada
 
 
 def crear_oferta(
@@ -245,12 +295,13 @@ def crear_oferta(
     )
     items_validados = _validar_y_procesar_items(items, convocatoria)
     _validar_disponibilidad_en_inventario(org_validada.id, items_validados)
+    _validar_totales_del_consorcio(None, items_validados, org_validada.id)
 
     oferta = Oferta(
         convocatoria_id=convocatoria.id,
         usuario_id=usuario_id,
         version=1,
-        estado=EstadoOferta.presentada,
+        estado=EstadoOferta.pendiente if organizaciones_validas else EstadoOferta.presentada,
         observaciones=observaciones,
     )
     db.session.add(oferta)
@@ -260,6 +311,7 @@ def crear_oferta(
         oferta_id=oferta.id,
         organizacion_id=org_validada.id,
         rol_consorcio="lider",
+        estado_participacion="aceptada",
     )
     db.session.add(oferta_org)
     for organizacion in organizaciones_validas:
@@ -268,6 +320,7 @@ def crear_oferta(
                 oferta_id=oferta.id,
                 organizacion_id=organizacion.id,
                 rol_consorcio="aportante",
+                estado_participacion="pendiente",
             )
         )
 
@@ -277,6 +330,7 @@ def crear_oferta(
             lote_item_id=item_dato["lote_item_id"],
             cantidad_ofrecida=Decimal(str(item_dato["cantidad_ofrecida"])),
             observaciones=item_dato.get("observaciones"),
+            organizacion_id=org_validada.id,
         )
         db.session.add(linea)
 
@@ -341,9 +395,18 @@ def _validar_organizacion_de_oferta(
     """Impide que una organizacion opere una oferta ajena."""
     if organizacion_id is None:
         return
-    organizacion = oferta.organizacion_lider
-    if organizacion is None or organizacion.id != organizacion_id:
-        raise PermisoDenegado("No puedes modificar una oferta de otra organización.")
+    miembro = next(
+        (
+            miembro
+            for miembro in oferta.organizaciones_consorcio
+            if miembro.organizacion_id == organizacion_id
+        ),
+        None,
+    )
+    if miembro is None:
+        raise PermisoDenegado("No puedes operar una oferta de otra organización.")
+    if miembro.estado_participacion != "aceptada":
+        raise ConflictoDeEstado("Debes aceptar la invitación antes de aportar a la oferta.")
 
 
 def modificar_oferta(
@@ -366,10 +429,9 @@ def modificar_oferta(
 
     _validar_organizacion_de_oferta(oferta, organizacion_id)
     _validar_ventana_convocatoria(oferta.convocatoria)
-    organizaciones_validas = None
     if organizaciones_ids is not None:
-        organizaciones_validas = _validar_organizaciones_conjuntas(
-            organizaciones_ids, oferta.organizacion_lider.id
+        raise PermisoDenegado(
+            "La composición de la oferta no puede modificarse durante la edición."
         )
 
     if oferta.estado == EstadoOferta.retirada:
@@ -383,7 +445,14 @@ def modificar_oferta(
     hubo_cambios = False
     if items is not None:
         items_validados = _validar_y_procesar_items(items, oferta.convocatoria)
-        _validar_disponibilidad_en_inventario(oferta.organizacion_lider.id, items_validados)
+        _validar_disponibilidad_en_inventario(
+            organizacion_id or oferta.organizacion_lider.id, items_validados
+        )
+        _validar_totales_del_consorcio(
+            oferta,
+            items_validados,
+            organizacion_id or oferta.organizacion_lider.id,
+        )
 
         items_actuales = {
             linea.lote_item_id: {
@@ -391,6 +460,7 @@ def modificar_oferta(
                 "observaciones": linea.observaciones,
             }
             for linea in oferta.items
+            if linea.organizacion_id == (organizacion_id or oferta.organizacion_lider.id)
         }
         if len(items_validados) != len(items_actuales):
             hubo_cambios = True
@@ -413,14 +483,6 @@ def modificar_oferta(
     if observaciones is not None and (oferta.observaciones or "") != (observaciones or ""):
         hubo_cambios = True
 
-    if organizaciones_validas is not None:
-        ids_actuales = {miembro.organizacion_id for miembro in oferta.organizaciones_consorcio}
-        ids_nuevos = {oferta.organizacion_lider.id} | {
-            organizacion.id for organizacion in organizaciones_validas
-        }
-        if ids_actuales != ids_nuevos:
-            hubo_cambios = True
-
     if not hubo_cambios:
         return oferta
 
@@ -429,38 +491,16 @@ def modificar_oferta(
 
     # Actualizar cabecera
     oferta.version += 1
-    oferta.estado = EstadoOferta.modificada
+    _actualizar_estado_por_invitaciones(oferta)
     if observaciones is not None:
         oferta.observaciones = observaciones
 
-    # Actualizar organización oferente si fue enviada
-    if organizaciones_validas is not None or organizacion_id is not None:
-        org_validada = _validar_y_obtener_organizacion(
-            organizacion_id or oferta.organizacion_lider.id
-        )
-        for org_asoc in list(oferta.organizaciones_consorcio):
-            db.session.delete(org_asoc)
-        db.session.flush()
-
-        oferta_org = OfertaOrganizacion(
-            oferta_id=oferta.id,
-            organizacion_id=org_validada.id,
-            rol_consorcio="lider",
-        )
-        db.session.add(oferta_org)
-        for organizacion in organizaciones_validas or []:
-            db.session.add(
-                OfertaOrganizacion(
-                    oferta_id=oferta.id,
-                    organizacion_id=organizacion.id,
-                    rol_consorcio="aportante",
-                )
-            )
-
     # Actualizar ítems si fueron enviados
     if items_validados is not None:
+        organizacion_editora = organizacion_id or oferta.organizacion_lider.id
         for linea in list(oferta.items):
-            db.session.delete(linea)
+            if linea.organizacion_id == organizacion_editora:
+                db.session.delete(linea)
         db.session.flush()
 
         for item_dato in items_validados:
@@ -469,6 +509,7 @@ def modificar_oferta(
                 lote_item_id=item_dato["lote_item_id"],
                 cantidad_ofrecida=Decimal(str(item_dato["cantidad_ofrecida"])),
                 observaciones=item_dato.get("observaciones"),
+                organizacion_id=organizacion_editora,
             )
             db.session.add(linea)
 
@@ -510,6 +551,104 @@ def retirar_oferta(oferta_id: int, *, organizacion_id: int | None = None) -> Ofe
         "oferta_retirada",
         oferta_id=oferta.id,
         convocatoria_id=oferta.convocatoria_id,
+    )
+    return oferta
+
+
+def aceptar_invitacion(
+    oferta_id: int,
+    *,
+    organizacion_id: int,
+    usuario_id: int,
+    items: list[dict[str, Any]],
+) -> Oferta:
+    """Acepta una invitación y agrega el aporte de la ONG al consorcio."""
+    oferta = db.session.get(Oferta, oferta_id)
+    if not oferta:
+        raise RecursoNoEncontrado(f"Oferta con id {oferta_id} no encontrada.")
+    _validar_ventana_convocatoria(oferta.convocatoria)
+    if oferta.estado in (
+        EstadoOferta.retirada,
+        EstadoOferta.rechazada,
+        EstadoOferta.adjudicada,
+    ):
+        raise ConflictoDeEstado(
+            f"No se puede aceptar una invitación de una oferta en estado '{oferta.estado.value}'."
+        )
+    miembro = next(
+        (m for m in oferta.organizaciones_consorcio if m.organizacion_id == organizacion_id),
+        None,
+    )
+    if miembro is None:
+        raise PermisoDenegado("Tu organización no fue invitada a esta oferta.")
+    if miembro.estado_participacion != "pendiente":
+        raise ConflictoDeEstado("La invitación ya no está pendiente de aceptación.")
+
+    items_validados = _validar_y_procesar_items(items, oferta.convocatoria)
+    _validar_disponibilidad_en_inventario(organizacion_id, items_validados)
+    _validar_totales_del_consorcio(oferta, items_validados, organizacion_id)
+    for item_dato in items_validados:
+        db.session.add(
+            OfertaLinea(
+                oferta_id=oferta.id,
+                lote_item_id=item_dato["lote_item_id"],
+                cantidad_ofrecida=Decimal(str(item_dato["cantidad_ofrecida"])),
+                observaciones=item_dato.get("observaciones"),
+                organizacion_id=organizacion_id,
+            )
+        )
+    miembro.estado_participacion = "aceptada"
+    _actualizar_estado_por_invitaciones(oferta)
+    oferta.version += 1
+    db.session.commit()
+    registrar_evento(
+        logging.INFO,
+        "invitacion_oferta_aceptada",
+        oferta_id=oferta.id,
+        organizacion_id=organizacion_id,
+        usuario_id=usuario_id,
+    )
+    return oferta
+
+
+def rechazar_invitacion(
+    oferta_id: int,
+    *,
+    organizacion_id: int,
+    usuario_id: int,
+) -> Oferta:
+    """Rechaza una invitación pendiente al consorcio."""
+    oferta = db.session.get(Oferta, oferta_id)
+    if not oferta:
+        raise RecursoNoEncontrado(f"Oferta con id {oferta_id} no encontrada.")
+    _validar_ventana_convocatoria(oferta.convocatoria)
+    if oferta.estado in (
+        EstadoOferta.retirada,
+        EstadoOferta.rechazada,
+        EstadoOferta.adjudicada,
+    ):
+        raise ConflictoDeEstado(
+            f"No se puede responder una invitación de una oferta en estado '{oferta.estado.value}'."
+        )
+    miembro = next(
+        (m for m in oferta.organizaciones_consorcio if m.organizacion_id == organizacion_id),
+        None,
+    )
+    if miembro is None:
+        raise PermisoDenegado("Tu organización no fue invitada a esta oferta.")
+    if miembro.estado_participacion != "pendiente":
+        raise ConflictoDeEstado("La invitación ya no está pendiente de respuesta.")
+
+    miembro.estado_participacion = "rechazada"
+    _actualizar_estado_por_invitaciones(oferta)
+    oferta.version += 1
+    db.session.commit()
+    registrar_evento(
+        logging.INFO,
+        "invitacion_oferta_rechazada",
+        oferta_id=oferta.id,
+        organizacion_id=organizacion_id,
+        usuario_id=usuario_id,
     )
     return oferta
 
@@ -600,7 +739,7 @@ def obtener_ofertas_consolidadas_para_bonita(convocatoria_id: int) -> dict[str, 
 
 
 def obtener_historial_de_oferta(oferta_id: int) -> list[OfertaVersion]:
-    """Obtiene el historial de versiones anteriores archivadas de una oferta, ordenadas por versión."""
+    """Obtiene el historial archivado de una oferta, ordenado por versión."""
     oferta = db.session.get(Oferta, oferta_id)
     if not oferta:
         raise RecursoNoEncontrado(f"Oferta con id {oferta_id} no encontrada.")

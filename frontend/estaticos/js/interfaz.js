@@ -244,6 +244,24 @@
     });
   }
 
+  function iniciarBusquedasAutomaticas() {
+    document.querySelectorAll("form[data-busqueda-automatica]").forEach((formulario) => {
+      let temporizador = null;
+      const campoTexto = formulario.querySelector('input[name="texto"]');
+
+      const enviar = () => formulario.requestSubmit ? formulario.requestSubmit() : formulario.submit();
+
+      formulario.querySelectorAll("select").forEach((select) => {
+        select.addEventListener("change", enviar);
+      });
+
+      campoTexto?.addEventListener("input", () => {
+        window.clearTimeout(temporizador);
+        temporizador = window.setTimeout(enviar, 300);
+      });
+    });
+  }
+
   // Alta y edicion de cuentas: muestra solo las organizaciones del tipo que exige el rol.
   // Es comodidad; la coherencia la valida el servidor.
   function iniciarFiltroDeOrganizaciones() {
@@ -294,6 +312,7 @@
     iniciarRequisitosDeContrasena();
     iniciarConfirmaciones();
     iniciarEnviosConCarga();
+    iniciarBusquedasAutomaticas();
     iniciarFiltroDeOrganizaciones();
     iniciarAvisoDeInactividad();
   });

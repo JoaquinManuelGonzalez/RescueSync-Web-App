@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -64,7 +65,17 @@ def _contexto_de_formulario(convocatoria_id: int, oferta: Oferta | None = None) 
     if not convocatoria:
         raise SolicitudInvalida("La convocatoria indicada no existe.")
     lotes = [item for lote in convocatoria.emergencia.lotes for item in lote.lote_items]
-    cantidades = {linea.lote_item_id: linea for linea in oferta.items} if oferta else {}
+    organizacion_actual_id = current_user.organizacion_id
+    cantidades = {
+        linea.lote_item_id: linea
+        for linea in (oferta.items if oferta else [])
+        if linea.organizacion_id == organizacion_actual_id
+    }
+    aportes_por_lote_item: dict[int, list[Any]] = defaultdict(list)
+    if oferta:
+        for linea in oferta.items:
+            if linea.organizacion_id != organizacion_actual_id:
+                aportes_por_lote_item[linea.lote_item_id].append(linea)
     item_ids = {lote_item.item_id for lote_item in lotes}
     inventario_items = db.session.execute(
         db.select(InventarioItem)
@@ -92,6 +103,7 @@ def _contexto_de_formulario(convocatoria_id: int, oferta: Oferta | None = None) 
         "lote_items": lotes,
         "oferta": oferta,
         "cantidades": cantidades,
+        "aportes_por_lote_item": dict(aportes_por_lote_item),
         "stock_por_item": stock_por_item,
         "organizacion_actual": db.session.get(Organizacion, current_user.organizacion_id),
         "organizaciones_disponibles": organizaciones_disponibles,
@@ -128,7 +140,10 @@ def _items_desde_formulario(convocatoria: Convocatoria) -> list[dict[str, Any]]:
                     "Las cantidades ofrecidas deben ser números válidos.",
                     detalle={f"item_{lote_item.id}": "Ingresá un número válido."},
                 ) from error
-            if not cantidad_decimal.is_finite() or cantidad_decimal != cantidad_decimal.to_integral_value():
+            if (
+                not cantidad_decimal.is_finite()
+                or cantidad_decimal != cantidad_decimal.to_integral_value()
+            ):
                 raise SolicitudInvalida(
                     "Las cantidades ofrecidas deben ser números enteros.",
                     detalle={f"item_{lote_item.id}": "Ingresá una cantidad entera."},
@@ -153,10 +168,11 @@ def _es_representante_ong() -> bool:
 
 
 def _filtrar_oferta_para_ong(oferta: Oferta) -> None:
-    organizacion = oferta.organizacion_lider
-    if _es_representante_ong() and (
-        organizacion is None or organizacion.id != current_user.organizacion_id
-    ):
+    es_miembro = any(
+        miembro.organizacion_id == current_user.organizacion_id
+        for miembro in oferta.organizaciones_consorcio
+    )
+    if _es_representante_ong() and not es_miembro:
         raise RecursoNoEncontrado("No encontramos la oferta solicitada.")
 
 
@@ -215,13 +231,18 @@ def crear_desde_formulario():
     if not convocatoria:
         raise SolicitudInvalida("La convocatoria indicada no existe.")
     try:
+        organizaciones_ids = request.form.getlist("organizacion_id_conjunta", type=int)
+        if request.form.get("tipo_oferta") == "conjunta" and not organizaciones_ids:
+            raise SolicitudInvalida(
+                "Seleccioná al menos una organización para crear una oferta conjunta."
+            )
         oferta = servicios.crear_oferta(
             convocatoria_id=convocatoria_id,
             usuario_id=current_user.id,
             organizacion_id=current_user.organizacion_id,
             items=_items_desde_formulario(convocatoria),
             observaciones=request.form.get("observaciones") or None,
-            organizaciones_ids=request.form.getlist("organizacion_id_conjunta", type=int),
+            organizaciones_ids=organizaciones_ids,
         )
     except ErrorDeAplicacion as error:
         if pide_json():
@@ -250,12 +271,22 @@ def _serializar_oferta(oferta: Oferta) -> dict[str, Any]:
             if org
             else None
         ),
+        "organizaciones_consorcio": [
+            {
+                "id": miembro.organizacion_id,
+                "nombre": miembro.organizacion.nombre,
+                "rol": miembro.rol_consorcio,
+                "estado": miembro.estado_participacion,
+            }
+            for miembro in oferta.organizaciones_consorcio
+        ],
         "items": [
             {
                 "id": linea.id,
                 "lote_item_id": linea.lote_item_id,
                 "cantidad_ofrecida": float(linea.cantidad_ofrecida),
                 "observaciones": linea.observaciones,
+                "organizacion_id": linea.organizacion_id,
                 "recurso": (
                     {
                         "item_id": linea.lote_item.item.id,
@@ -385,9 +416,33 @@ def formulario_de_edicion(oferta_id: int):
     """Pantalla de edición de una oferta mientras la convocatoria siga abierta."""
     oferta = servicios.obtener_oferta_por_id(oferta_id)
     _filtrar_oferta_para_ong(oferta)
+    miembro_actual = next(
+        (
+            miembro
+            for miembro in oferta.organizaciones_consorcio
+            if miembro.organizacion_id == current_user.organizacion_id
+        ),
+        None,
+    )
+    if miembro_actual is not None and miembro_actual.estado_participacion != "aceptada":
+        raise RecursoNoEncontrado("No encontramos la oferta solicitada.")
     return render_template(
         "ofertas/formulario.html",
         modo="edicion",
+        valores={},
+        **_contexto_de_formulario(oferta.convocatoria_id, oferta),
+    )
+
+
+@blueprint_ofertas.get("/<int:oferta_id>/aceptacion")
+@requiere_permiso(OFERTAS_CREAR)
+def formulario_de_aceptacion(oferta_id: int):
+    """Muestra el formulario para aceptar una invitación con un aporte propio."""
+    oferta = servicios.obtener_oferta_por_id(oferta_id)
+    _filtrar_oferta_para_ong(oferta)
+    return render_template(
+        "ofertas/formulario.html",
+        modo="aceptacion",
         valores={},
         **_contexto_de_formulario(oferta.convocatoria_id, oferta),
     )
@@ -404,7 +459,6 @@ def editar_desde_formulario(oferta_id: int):
             items=_items_desde_formulario(oferta.convocatoria),
             observaciones=request.form.get("observaciones") or None,
             organizacion_id=current_user.organizacion_id,
-            organizaciones_ids=request.form.getlist("organizacion_id_conjunta", type=int),
             usuario_id=current_user.id,
         )
     except ErrorDeAplicacion as error:
@@ -419,6 +473,30 @@ def editar_desde_formulario(oferta_id: int):
     return redirigir("ofertas.obtener", "Versión actualizada.", oferta_id=modificada.id)
 
 
+@blueprint_ofertas.post("/<int:oferta_id>/aceptacion")
+@requiere_permiso(OFERTAS_CREAR)
+def aceptar_desde_formulario(oferta_id: int):
+    """Acepta una invitación desde la interfaz web."""
+    oferta = servicios.obtener_oferta_por_id(oferta_id)
+    try:
+        aceptada = servicios.aceptar_invitacion(
+            oferta_id,
+            organizacion_id=current_user.organizacion_id,
+            usuario_id=current_user.id,
+            items=_items_desde_formulario(oferta.convocatoria),
+        )
+    except ErrorDeAplicacion as error:
+        if pide_json():
+            raise
+        return _formulario_con_error(
+            oferta.convocatoria_id,
+            modo="aceptacion",
+            oferta=oferta,
+            error=error,
+        )
+    return redirigir("ofertas.obtener", "Invitación aceptada.", oferta_id=aceptada.id)
+
+
 @blueprint_ofertas.put("/<int:oferta_id>")
 @requiere_permiso(OFERTAS_EDITAR)
 def modificar(oferta_id: int):
@@ -429,7 +507,6 @@ def modificar(oferta_id: int):
 
     items = datos.get("items")
     observaciones = datos.get("observaciones")
-    organizacion_id = datos.get("organizacion_id")
     usuario_id = datos.get("usuario_id")
     if not usuario_id and current_user.is_authenticated:
         usuario_id = getattr(current_user, "id", None)
@@ -439,12 +516,42 @@ def modificar(oferta_id: int):
         items=items,
         observaciones=observaciones,
         organizacion_id=current_user.organizacion_id,
-        organizaciones_ids=datos.get("organizaciones_ids")
-        if isinstance(datos.get("organizaciones_ids"), list)
-        else None,
         usuario_id=usuario_id,
     )
     return jsonify(_serializar_oferta(oferta)), 200
+
+
+@blueprint_ofertas.post("/<int:oferta_id>/aceptar")
+@requiere_permiso(OFERTAS_CREAR)
+def aceptar(oferta_id: int):
+    """Acepta una invitación al consorcio aportando recursos propios."""
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict) or not isinstance(datos.get("items"), list):
+        raise SolicitudInvalida("Debes indicar los ítems que aporta tu organización.")
+    oferta = servicios.aceptar_invitacion(
+        oferta_id,
+        organizacion_id=current_user.organizacion_id,
+        usuario_id=current_user.id,
+        items=datos["items"],
+    )
+    return jsonify(_serializar_oferta(oferta)), 200
+
+
+@blueprint_ofertas.post("/<int:oferta_id>/rechazar")
+@requiere_permiso(OFERTAS_CREAR)
+def rechazar(oferta_id: int):
+    """Rechaza una invitación pendiente al consorcio."""
+    oferta = servicios.rechazar_invitacion(
+        oferta_id,
+        organizacion_id=current_user.organizacion_id,
+        usuario_id=current_user.id,
+    )
+    return redirigir(
+        "ofertas.listar",
+        "Invitación rechazada.",
+        datos_json=_serializar_oferta(oferta),
+        convocatoria_id=oferta.convocatoria_id,
+    )
 
 
 @blueprint_ofertas.post("/<int:oferta_id>/retirar")
