@@ -152,7 +152,7 @@ def test_el_listado_se_filtra_por_rol_y_por_organizacion(cliente_sembrado, ingre
     ingresar(EMAIL_ADMINISTRADOR)
 
     representantes = cliente_sembrado.get("/usuarios?rol=representante_ong").get_json()["usuarios"]
-    assert len(representantes) == 2
+    assert len(representantes) == 3
     assert all(uno["roles"] == ["representante_ong"] for uno in representantes)
 
     municipio = _id_de_organizacion(cliente_sembrado, "Municipio de Chascomús")

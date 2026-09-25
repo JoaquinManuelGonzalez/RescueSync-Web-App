@@ -42,6 +42,11 @@ USUARIOS_DE_DEMOSTRACION: tuple[tuple[str, NombreRol, str | None], ...] = (
     ),
     ("operador@chascomus.test", NombreRol.OPERADOR_MUNICIPAL, "Municipio de Chascomús"),
     ("representante@cruzsolidaria.test", NombreRol.REPRESENTANTE_ONG, "Cruz Solidaria"),
+    (
+        "representante@cruzroja.test",
+        NombreRol.REPRESENTANTE_ONG,
+        "Cruz Roja Argentina - Filial Bahía Blanca",
+    ),
     ("representante@manosunidas.test", NombreRol.REPRESENTANTE_ONG, "Manos Unidas"),
 )
 

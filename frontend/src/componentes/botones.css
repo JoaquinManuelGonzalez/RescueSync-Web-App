@@ -24,7 +24,6 @@
             hover:bg-acento/40 hover:ring-primario/30
             active:bg-acento;
     }
-    
     .btn-cancelar {
         @apply text-gray-700 hover:bg-gray-100;
     }

@@ -1,0 +1,81 @@
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina, insignia %}
+{% from "componentes/formularios.html" import csrf, boton_envio %}
+
+{% block title %}{{ "Nueva oferta" if modo == "alta" else "Editar oferta" }}{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta space-y-6">
+  {% call encabezado_pagina("Nueva oferta" if modo == "alta" else "Editar oferta", convocatoria.emergencia.titulo ~ " · " ~ convocatoria.emergencia.zona_afectada) %}
+    <a class="btn btn-secundario" href="{{ url_for('ofertas.listar', convocatoria_id=convocatoria.id) }}">{{ icono("volver") }} Volver</a>
+  {% endcall %}
+
+  {% if error_mensaje %}
+  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+    <p class="font-semibold">No se pudo guardar la oferta</p>
+    <p class="mt-1">{{ error_mensaje }}</p>
+  </div>
+  {% endif %}
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="tarjeta-titulo">Recursos que puede aportar tu organización</h2>
+          <p class="mt-1 text-sm text-gray-500">Solo se guardan los ítems con una cantidad mayor a cero.</p>
+        </div>
+        {{ insignia("Ventana abierta" if convocatoria.esta_vigente() else "Ventana cerrada", "exito" if convocatoria.esta_vigente() else "error") }}
+      </div>
+    </div>
+  </section>
+
+  <form method="post" action="{{ url_for('ofertas.formulario_de_alta') if modo == 'alta' else url_for('ofertas.editar_desde_formulario', oferta_id=oferta.id) }}" class="space-y-6" data-envio-con-carga>
+    {{ csrf() }}
+    <input type="hidden" name="convocatoria_id" value="{{ convocatoria.id }}">
+    <section class="tarjeta">
+      <div class="tarjeta-cuerpo space-y-5">
+        {% for lote_item in lote_items %}
+        {% set linea = cantidades.get(lote_item.id) %}
+        <div class="grid gap-3 border-b border-gray-100 pb-5 last:border-0 last:pb-0 sm:grid-cols-[1fr_10rem] sm:items-end">
+          <div>
+            <p class="font-medium text-gray-900">{{ lote_item.item.nombre }}</p>
+            <p class="mt-1 text-sm text-gray-500">Necesario: {{ lote_item.cantidad_solicitada|int }} {{ lote_item.item.unidad_medida }}</p>
+            <label for="item-{{ lote_item.id }}-obs" class="mt-3 block text-xs font-medium text-gray-600">Detalle logístico (opcional)</label>
+            <input
+              id="item-{{ lote_item.id }}-obs"
+              name="item_obs_{{ lote_item.id }}"
+              value="{{ valores.get('item_obs_' ~ lote_item.id) if valores.get('item_obs_' ~ lote_item.id) is not none else (linea.observaciones if linea and linea.observaciones is not none else '') }}"
+              class="campo-control mt-1"
+              maxlength="255"
+            >
+          </div>
+          <div>
+            <label for="item-{{ lote_item.id }}" class="campo-etiqueta">Tu aporte</label>
+            <input
+              id="item-{{ lote_item.id }}"
+              name="item_{{ lote_item.id }}"
+              type="number"
+              min="0"
+              max="{{ lote_item.cantidad_solicitada }}"
+              step="0.01"
+              value="{{ valores.get('item_' ~ lote_item.id) if valores.get('item_' ~ lote_item.id) is not none else (linea.cantidad_ofrecida if linea and linea.cantidad_ofrecida is not none else '') }}"
+              class="campo-control"
+              inputmode="decimal"
+            >
+          </div>
+        </div>
+        {% endfor %}
+        <div>
+          <label for="observaciones" class="campo-etiqueta">Observaciones generales</label>
+          <textarea id="observaciones" name="observaciones" rows="4" class="campo-control">{{ valores.get('observaciones') if valores.get('observaciones') is not none else (oferta.observaciones if oferta and oferta.observaciones is not none else '') }}</textarea>
+        </div>
+      </div>
+    </section>
+    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <a class="btn btn-secundario" href="{{ url_for('ofertas.listar', convocatoria_id=convocatoria.id) }}">Cancelar</a>
+      {{ boton_envio("Guardar oferta" if modo == "alta" else "Guardar nueva versión", texto_cargando="Guardando...", icono_nombre="guardar") }}
+    </div>
+  </form>
+</div>
+{% endblock %}

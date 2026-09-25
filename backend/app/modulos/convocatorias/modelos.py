@@ -8,7 +8,7 @@ durante la cual las ONGs pueden postular sus ofertas colaborativas.
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Text, func
@@ -99,7 +99,10 @@ class Convocatoria(db.Model):
 
     def esta_vigente(self) -> bool:
         """Verifica si la convocatoria está en estado abierta y dentro de la ventana temporal."""
-        ahora = datetime.now(self.fecha_inicio.tzinfo)
+        if self.fecha_inicio.tzinfo is not None:
+            ahora = datetime.now(self.fecha_inicio.tzinfo)
+        else:
+            ahora = datetime.now(UTC).replace(tzinfo=None)
         return (
             self.estado == EstadoConvocatoria.abierta
             and self.fecha_inicio <= ahora <= self.fecha_cierre
