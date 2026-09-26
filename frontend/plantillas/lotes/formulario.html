@@ -1,0 +1,223 @@
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina %}
+{% from "componentes/formularios.html" import csrf, boton_envio %}
+
+{% block title %}Nuevo lote de necesidades{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta space-y-6">
+  {% call encabezado_pagina(
+      "Nuevo lote de necesidades",
+      "Desglosá la emergencia en ítems cuantificados para la convocatoria"
+  ) %}
+    <a class="btn btn-secundario"
+       href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">
+      {{ icono("volver") }} Volver
+    </a>
+  {% endcall %}
+
+  {# --- Contexto de la emergencia --- #}
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">{{ emergencia.titulo }}</h2>
+      <p class="mt-1 text-sm text-gray-500">
+        {{ emergencia.zona_afectada }}
+        · Gravedad {{ emergencia.nivel_gravedad.value|capitalize }}
+        · Estado {{ emergencia.estado.value|replace("_", " ")|capitalize }}
+      </p>
+      <p class="mt-3 whitespace-pre-line text-gray-700">{{ emergencia.descripcion }}</p>
+    </div>
+  </section>
+
+  {% if error_mensaje %}
+  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+    <p class="font-semibold">No se pudo guardar el lote</p>
+    <p class="mt-1">{{ error_mensaje }}</p>
+  </div>
+  {% endif %}
+
+  <form method="post"
+        action="{{ url_for('lotes.crear_desde_formulario', emergencia_id=emergencia.id) }}"
+        class="space-y-6"
+        data-envio-con-carga
+        id="form-lote">
+    {{ csrf() }}
+
+    {# --- Descripción del lote --- #}
+    <section class="tarjeta">
+      <div class="tarjeta-cuerpo space-y-5">
+        <div>
+          <label for="descripcion" class="campo-etiqueta">Descripción del lote</label>
+          <input
+            id="descripcion"
+            name="descripcion"
+            type="text"
+            maxlength="255"
+            value="{{ valores.get('descripcion', '') }}"
+            class="campo-control"
+            placeholder="Ej: Lote 1 - Víveres urgentes"
+          >
+          {% if errores_por_campo.get('descripcion') %}
+            <p class="mt-1 text-xs text-red-600">{{ errores_por_campo['descripcion'] }}</p>
+          {% endif %}
+          <p class="mt-1 text-xs text-gray-500">
+            Opcional. Sirve para identificar el lote dentro de la emergencia.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    {# --- Ítems del lote --- #}
+    <section class="tarjeta">
+      <div class="tarjeta-cuerpo space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="tarjeta-titulo">Ítems del lote</h2>
+            <p class="mt-1 text-sm text-gray-500">
+              Agregá cada recurso con su cantidad y unidad de medida.
+            </p>
+          </div>
+          <button type="button" id="btn-agregar-item" class="btn btn-secundario">
+            {{ icono("mas") }} Agregar ítem
+          </button>
+        </div>
+
+        {% if errores_por_campo.get('items') %}
+          <p class="text-xs text-red-600">{{ errores_por_campo['items'] }}</p>
+        {% endif %}
+
+        <div id="items-container" class="space-y-3"></div>
+
+        <p id="items-vacio"
+           class="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
+          Todavía no agregaste ítems. Usá “Agregar ítem” para comenzar.
+        </p>
+      </div>
+    </section>
+
+    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <a class="btn btn-secundario"
+         href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">
+        Cancelar
+      </a>
+      {{ boton_envio("Generar lote", texto_cargando="Guardando...", icono_nombre="guardar") }}
+    </div>
+  </form>
+</div>
+
+{# --- Template de fila de ítem --- #}
+<template id="fila-item-template">
+  <div class="fila-item rounded-lg border border-gray-100 p-4">
+    <div class="grid gap-4 sm:grid-cols-12">
+
+      <div class="sm:col-span-5">
+        <label class="campo-etiqueta">Ítem</label>
+        <select name="items[__INDEX__][item_id]" class="campo-control" required>
+          <option value="">-- Seleccioná --</option>
+          {% for item in items_catalogo %}
+            <option value="{{ item.id }}" data-unidad="{{ item.unidad_medida }}">
+              {{ item.nombre }} — {{ item.categoria.value|replace("_", " ")|capitalize }}
+            </option>
+          {% endfor %}
+        </select>
+        <p class="mt-1 text-xs text-gray-500 ayuda-unidad"></p>
+      </div>
+
+      <div class="sm:col-span-3">
+        <label class="campo-etiqueta">Cantidad</label>
+        <input
+          type="number"
+          step="1"
+          min="1"
+          required
+          name="items[__INDEX__][cantidad_solicitada]"
+          class="campo-control"
+          placeholder="0"
+        >
+      </div>
+
+      <div class="sm:col-span-3">
+        <label class="campo-etiqueta">Observaciones</label>
+        <input
+          type="text"
+          maxlength="255"
+          name="items[__INDEX__][observaciones]"
+          class="campo-control"
+          placeholder="Ej: aptas para celíacos"
+        >
+      </div>
+
+      <div class="flex items-end justify-end sm:col-span-1">
+        <button type="button"
+                class="btn-eliminar-item text-red-500 hover:text-red-700"
+                title="Quitar ítem"
+                aria-label="Quitar ítem">
+          ✕
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+(function () {
+  const container = document.getElementById('items-container');
+  const vacio = document.getElementById('items-vacio');
+  const template = document.getElementById('fila-item-template').innerHTML;
+  let index = 0;
+
+  function actualizarVacio() {
+    vacio.style.display = container.children.length === 0 ? '' : 'none';
+  }
+
+  function agregarFila() {
+    const html = template.replaceAll('__INDEX__', index++);
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html.trim();
+    const fila = wrapper.firstElementChild;
+
+    const select = fila.querySelector('select');
+    const ayuda = fila.querySelector('.ayuda-unidad');
+    select.addEventListener('change', () => {
+      const opt = select.selectedOptions[0];
+      ayuda.textContent = opt && opt.dataset.unidad
+        ? `Unidad de medida: ${opt.dataset.unidad}`
+        : '';
+    });
+
+    fila.querySelector('.btn-eliminar-item').addEventListener('click', () => {
+      fila.remove();
+      actualizarVacio();
+    });
+
+    container.appendChild(fila);
+    actualizarVacio();
+    select.focus();
+  }
+
+  document.getElementById('btn-agregar-item').addEventListener('click', agregarFila);
+
+  // Arranca con una fila si no hay valores previos (alta limpia).
+  const hayValores = {{ 'true' if valores.get('descripcion') or valores.get('items') else 'false' }};
+  if (!hayValores) {
+    agregarFila();
+  } else {
+    // Rehidratar filas desde `valores` en caso de error de validación.
+    // Los inputs se llaman items[0][item_id], items[1][item_id], etc.
+    let i = 0;
+    while (true) {
+      const selName = `items[${i}][item_id]`;
+      const sel = document.querySelector(`[name="${selName}"]`);
+      // Si el navegador conserva los inputs del POST anterior, ya están;
+      // si no, los recreamos leyendo `valores`.
+      if (!sel && !('{{ valores.get("items[" ~ i ~ "][item_id]", "") }}')) {
+        break;
+      }
+      i++;
+    }
+    actualizarVacio();
+  }
+})();
+</script>
+{% endblock %}
