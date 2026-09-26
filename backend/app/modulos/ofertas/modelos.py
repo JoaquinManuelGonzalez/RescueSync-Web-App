@@ -37,8 +37,8 @@ if TYPE_CHECKING:
 class EstadoOferta(enum.Enum):
     """Estado de la oferta en su ciclo de vida."""
 
+    pendiente = "pendiente"
     presentada = "presentada"
-    modificada = "modificada"
     retirada = "retirada"
     adjudicada = "adjudicada"
     rechazada = "rechazada"
@@ -141,8 +141,12 @@ class Oferta(db.Model):
         return self.organizacion_lider
 
     def puede_modificarse(self) -> bool:
-        """Una oferta solo puede modificarse si la convocatoria está vigente y no fue retirada."""
-        return self.convocatoria.esta_vigente() and self.estado != EstadoOferta.retirada
+        """Una oferta solo puede modificarse si la convocatoria está vigente y activa."""
+        return self.convocatoria.esta_vigente() and self.estado not in (
+            EstadoOferta.retirada,
+            EstadoOferta.rechazada,
+            EstadoOferta.adjudicada,
+        )
 
     def __repr__(self) -> str:
         return f"<Oferta id={self.id} version={self.version} estado={self.estado.value}>"
@@ -169,6 +173,12 @@ class OfertaOrganizacion(db.Model):
         default="miembro",
         nullable=False,
         comment="Rol en el consorcio: 'lider', 'aportante', 'logistica', 'coordinador', etc.",
+    )
+    estado_participacion: Mapped[str] = mapped_column(
+        String(20),
+        default="pendiente",
+        nullable=False,
+        comment="Estado de la invitación: 'pendiente' o 'aceptada'.",
     )
 
     # --- relaciones -----------------------------------------------------------
@@ -201,6 +211,13 @@ class OfertaLinea(db.Model):
         nullable=False,
         index=True,
     )
+    organizacion_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("organizacion.id"),
+        nullable=False,
+        index=True,
+        comment="ONG responsable de esta línea dentro de la oferta conjunta.",
+    )
 
     cantidad_ofrecida: Mapped[float] = mapped_column(
         Numeric(12, 2),
@@ -212,6 +229,7 @@ class OfertaLinea(db.Model):
     # --- relaciones -----------------------------------------------------------
     oferta: Mapped[Oferta] = relationship("Oferta", back_populates="items")
     lote_item: Mapped[LoteItem] = relationship("LoteItem", lazy="select")
+    organizacion: Mapped[Organizacion] = relationship("Organizacion", lazy="select")
 
     def __repr__(self) -> str:
         return (

@@ -7,7 +7,7 @@
 
 {% block content %}
 {%- set obligatorio = current_user.debe_cambiar_contrasena %}
-<div class="pagina-angosta">
+<div class="pagina">
   {{ encabezado_pagina("Cambiar contraseña", "Elegí una contraseña que no uses en otros sistemas.") }}
 
   {%- if obligatorio %}

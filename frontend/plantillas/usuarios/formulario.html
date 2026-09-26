@@ -16,9 +16,12 @@
 {% block title %}{{ titulo }}{% endblock %}
 
 {% block content %}
-<div class="pagina-angosta">
+<div class="pagina">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-primario" href="{{ destino_cancelar }}">
+    {{ icono("volver", "size-4") }} Volver
+  </a>
+
   {% call encabezado_pagina(titulo, "La persona deberá cambiar la contraseña inicial en su primer ingreso." if es_alta else usuario.email) %}
-    <a class="btn btn-secundario" href="{{ destino_cancelar }}">{{ icono("volver") }} Volver</a>
   {% endcall %}
 
   <div class="tarjeta">
@@ -41,7 +44,7 @@
           {%- endif %}
         </div>
         <div class="formulario-acciones">
-          <a class="btn btn-secundario" href="{{ destino_cancelar }}">Cancelar</a>
+          <a class="btn btn-cancelar" href="{{ destino_cancelar }}">Cancelar</a>
           {{ boton_envio("Crear cuenta" if es_alta else "Guardar cambios", "Guardando...") }}
         </div>
       </form>
