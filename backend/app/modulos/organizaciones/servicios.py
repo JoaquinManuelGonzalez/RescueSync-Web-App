@@ -249,6 +249,7 @@ def obtener_tipo_de_organizacion(organizacion_id: int) -> str | None:
     ).scalar_one_or_none()
     return None if tipo is None else tipo.value
 
+
 def obtener_inventario(organizacion_id: int) -> Inventario | None:
     """Devuelve el inventario de la organizacion."""
     return db.session.execute(
@@ -302,8 +303,10 @@ def listar_items() -> list[Item]:
 
 def listar_items_disponibles(organizacion_id: int) -> list[Item]:
     """Devuelve los items que aun no fueron cargados en el inventario indicado."""
-    items_cargados = select(InventarioItem.item_id).join(Inventario).where(
-        Inventario.organizacion_id == organizacion_id
+    items_cargados = (
+        select(InventarioItem.item_id)
+        .join(Inventario)
+        .where(Inventario.organizacion_id == organizacion_id)
     )
     consulta = select(Item).where(~Item.id.in_(items_cargados)).order_by(Item.nombre)
     return list(db.session.scalars(consulta))

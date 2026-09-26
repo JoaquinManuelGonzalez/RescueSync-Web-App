@@ -30,26 +30,10 @@ from app.modulos.organizaciones.modelos import (
 
 ORGANIZACIONES_DE_DEMOSTRACION: tuple[tuple[str, TipoOrganizacion, str], ...] = (
     # --- Municipios ---
-    (
-        "Municipio de Chascomús",
-        TipoOrganizacion.municipio,
-        "30-71234567-9"
-    ),
-    (
-        "Municipalidad de Bahía Blanca",
-        TipoOrganizacion.municipio,
-        "30-99999999-1"
-    ),
-    (
-        "Municipalidad de La Plata",
-        TipoOrganizacion.municipio,
-        "30-99999999-2"
-    ),
-    (
-        "Municipalidad de Pergamino",
-        TipoOrganizacion.municipio,
-        "30-99999999-3"
-    ),
+    ("Municipio de Chascomús", TipoOrganizacion.municipio, "30-71234567-9"),
+    ("Municipalidad de Bahía Blanca", TipoOrganizacion.municipio, "30-99999999-1"),
+    ("Municipalidad de La Plata", TipoOrganizacion.municipio, "30-99999999-2"),
+    ("Municipalidad de Pergamino", TipoOrganizacion.municipio, "30-99999999-3"),
     # --- Centro coordinador regional ---
     (
         "Centro Coordinador Regional Buenos Aires",
@@ -57,16 +41,8 @@ ORGANIZACIONES_DE_DEMOSTRACION: tuple[tuple[str, TipoOrganizacion, str], ...] = 
         "30-70987654-3",
     ),
     # --- ONGs ---
-    (
-        "Cruz Solidaria",
-        TipoOrganizacion.ong,
-        "30-65432198-7"
-    ),
-    (
-        "Manos Unidas",
-        TipoOrganizacion.ong,
-        "30-65432199-5"
-    ),
+    ("Cruz Solidaria", TipoOrganizacion.ong, "30-65432198-7"),
+    ("Manos Unidas", TipoOrganizacion.ong, "30-65432199-5"),
     (
         "Cruz Roja Argentina - Filial Bahía Blanca",
         TipoOrganizacion.ong,
@@ -77,11 +53,7 @@ ORGANIZACIONES_DE_DEMOSTRACION: tuple[tuple[str, TipoOrganizacion, str], ...] = 
         TipoOrganizacion.ong,
         "30-99999999-5",
     ),
-    (
-        "Grupo Scouts de Pergamino",
-        TipoOrganizacion.ong,
-        "30-99999999-6"
-    ),
+    ("Grupo Scouts de Pergamino", TipoOrganizacion.ong, "30-99999999-6"),
 )
 
 
