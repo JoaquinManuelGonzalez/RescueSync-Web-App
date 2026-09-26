@@ -16,12 +16,11 @@
     {%- endif %}
   {% endcall %}
 
-  <form method="get" action="{{ url_for('usuarios.listar') }}" class="barra-filtros">
+  <form method="get" action="{{ url_for('usuarios.listar') }}" class="barra-filtros" data-busqueda-automatica>
     {{ filtro_texto("texto", "Buscar", filtros.get("texto"), "Nombre o email") }}
     {{ filtro_select("rol", "Perfil", opciones_de_rol, filtros.get("rol")) }}
     {{ filtro_select("organizacion_id", "Organización", opciones_de_organizacion, filtros.get("organizacion_id"), "Todas") }}
     {{ filtro_select("activo", "Estado", opciones_de_estado, filtros.get("activo")) }}
-    <button type="submit" class="btn btn-secundario">{{ icono("buscar") }} Filtrar</button>
   </form>
 
   {%- if usuarios %}

@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-
-import json
 
 from app.core.errores import (
     ConflictoDeEstado,
@@ -29,12 +28,14 @@ from app.modulos.emergencias.modelos import (
 )
 from app.modulos.ofertas.modelos import EstadoOferta
 from app.modulos.ofertas.servicios import (
+    aceptar_invitacion,
     crear_oferta,
     listar_ofertas_por_convocatoria,
     modificar_oferta,
     obtener_historial_de_oferta,
     obtener_oferta_por_id,
     obtener_ofertas_consolidadas_para_bonita,
+    rechazar_invitacion,
     retirar_oferta,
 )
 from app.modulos.organizaciones.modelos import (
@@ -209,6 +210,234 @@ def test_crear_oferta_individual_exitosa(app, datos_base):
         assert oferta.items[0].cantidad_ofrecida == Decimal("1000")
 
 
+def test_una_organizacion_no_puede_tener_dos_ofertas_en_la_convocatoria(app, datos_base):
+    with app.app_context():
+        crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+
+        with pytest.raises(ReglaDeNegocioIncumplida) as exc_info:
+            crear_oferta(
+                convocatoria_id=datos_base["convocatoria_abierta_id"],
+                usuario_id=datos_base["usuario_id"],
+                organizacion_id=datos_base["ong1_id"],
+                items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 50}],
+            )
+
+        assert exc_info.value.codigo == "ORGANIZACION_YA_TIENE_OFERTA"
+
+
+def test_invitacion_pendiente_tambien_reserva_la_organizacion(app, datos_base):
+    with app.app_context():
+        crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            organizaciones_ids=[datos_base["ong2_id"]],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+
+        with pytest.raises(ReglaDeNegocioIncumplida) as exc_info:
+            crear_oferta(
+                convocatoria_id=datos_base["convocatoria_abierta_id"],
+                usuario_id=datos_base["usuario_id"],
+                organizacion_id=datos_base["ong2_id"],
+                items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 50}],
+            )
+
+        assert exc_info.value.codigo == "ORGANIZACION_YA_TIENE_OFERTA"
+
+
+def test_oferta_retirada_no_reserva_la_organizacion(app, datos_base):
+    with app.app_context():
+        oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+        retirar_oferta(oferta.id, organizacion_id=datos_base["ong1_id"])
+
+        segunda_oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 50}],
+        )
+
+        assert segunda_oferta.organizacion_lider.id == datos_base["ong1_id"]
+
+
+def test_oferta_conjunta_queda_pendiente_hasta_aceptacion(app, datos_base):
+    with app.app_context():
+        oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            organizaciones_ids=[datos_base["ong2_id"]],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+
+        assert oferta.estado == EstadoOferta.pendiente
+        invitacion = next(
+            miembro
+            for miembro in oferta.organizaciones_consorcio
+            if miembro.organizacion_id == datos_base["ong2_id"]
+        )
+        assert invitacion.estado_participacion == "pendiente"
+
+        aceptada = aceptar_invitacion(
+            oferta.id,
+            organizacion_id=datos_base["ong2_id"],
+            usuario_id=datos_base["usuario_id"],
+            items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 50}],
+        )
+
+        assert aceptada.estado == EstadoOferta.presentada
+        assert len(aceptada.items) == 2
+        assert {
+            linea.organizacion_id for linea in aceptada.items
+        } == {datos_base["ong1_id"], datos_base["ong2_id"]}
+
+
+def test_oferta_conjunta_no_supera_necesidad_acumulada(app, datos_base):
+    with app.app_context():
+        lote_item = db.session.get(LoteItem, datos_base["lote_item1_id"])
+        inventario = db.session.execute(
+            db.select(Inventario).where(Inventario.organizacion_id == datos_base["ong2_id"])
+        ).scalar_one()
+        db.session.add(
+            InventarioItem(
+                inventario_id=inventario.id,
+                item_id=lote_item.item_id,
+                cantidad_disponible=Decimal("2000"),
+            )
+        )
+        db.session.commit()
+
+        oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            organizaciones_ids=[datos_base["ong2_id"]],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 4000}],
+        )
+
+        with pytest.raises(ReglaDeNegocioIncumplida) as exc_info:
+            aceptar_invitacion(
+                oferta.id,
+                organizacion_id=datos_base["ong2_id"],
+                usuario_id=datos_base["usuario_id"],
+                items=[
+                    {"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1001}
+                ],
+            )
+
+        assert exc_info.value.codigo == "OFERTA_CONJUNTA_SUPERA_NECESIDAD"
+
+
+def test_organizacion_puede_rechazar_invitacion(app, datos_base):
+    with app.app_context():
+        oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            organizaciones_ids=[datos_base["ong2_id"]],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+
+        rechazada = rechazar_invitacion(
+            oferta.id,
+            organizacion_id=datos_base["ong2_id"],
+            usuario_id=datos_base["usuario_id"],
+        )
+
+        assert rechazada.estado == EstadoOferta.rechazada
+        miembro = next(
+            miembro
+            for miembro in rechazada.organizaciones_consorcio
+            if miembro.organizacion_id == datos_base["ong2_id"]
+        )
+        assert miembro.estado_participacion == "rechazada"
+        with pytest.raises(ConflictoDeEstado):
+            aceptar_invitacion(
+                oferta.id,
+                organizacion_id=datos_base["ong2_id"],
+                usuario_id=datos_base["usuario_id"],
+                items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 50}],
+            )
+
+        nueva_oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong2_id"],
+            items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 50}],
+        )
+        assert nueva_oferta.organizacion_lider.id == datos_base["ong2_id"]
+
+
+def test_no_se_puede_responder_invitacion_de_oferta_retirada(app, datos_base):
+    with app.app_context():
+        oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            organizaciones_ids=[datos_base["ong2_id"]],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+        retirar_oferta(oferta.id, organizacion_id=datos_base["ong1_id"])
+
+        with pytest.raises(ConflictoDeEstado):
+            aceptar_invitacion(
+                oferta.id,
+                organizacion_id=datos_base["ong2_id"],
+                usuario_id=datos_base["usuario_id"],
+                items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 50}],
+            )
+        with pytest.raises(ConflictoDeEstado):
+            rechazar_invitacion(
+                oferta.id,
+                organizacion_id=datos_base["ong2_id"],
+                usuario_id=datos_base["usuario_id"],
+            )
+
+
+def test_miembro_solo_modifica_sus_lineas_y_puede_retirar(app, datos_base):
+    with app.app_context():
+        oferta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            organizaciones_ids=[datos_base["ong2_id"]],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+        )
+        aceptar_invitacion(
+            oferta.id,
+            organizacion_id=datos_base["ong2_id"],
+            usuario_id=datos_base["usuario_id"],
+            items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 50}],
+        )
+
+        modificar_oferta(
+            oferta.id,
+            organizacion_id=datos_base["ong2_id"],
+            items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 75}],
+        )
+        db.session.expire_all()
+        oferta_actualizada = obtener_oferta_por_id(oferta.id)
+        cantidades = {
+            linea.organizacion_id: linea.cantidad_ofrecida for linea in oferta_actualizada.items
+        }
+        assert cantidades[datos_base["ong1_id"]] == Decimal("1000")
+        assert cantidades[datos_base["ong2_id"]] == Decimal("75")
+
+        retirada = retirar_oferta(oferta.id, organizacion_id=datos_base["ong2_id"])
+        assert retirada.estado == EstadoOferta.retirada
+
+
 def test_crear_oferta_falla_sin_organizacion(app, datos_base):
     with app.app_context():
         with pytest.raises(SolicitudInvalida) as exc_info:
@@ -304,7 +533,7 @@ def test_modificar_oferta_incrementa_version(app, datos_base):
         )
 
         assert modificada.version == 2
-        assert modificada.estado == EstadoOferta.modificada
+        assert modificada.estado == EstadoOferta.presentada
         assert modificada.observaciones == "Ampliamos a 1500 litros"
         assert modificada.items[0].cantidad_ofrecida == Decimal("1500")
 
@@ -505,7 +734,7 @@ def test_historial_de_versiones_trazabilidad(app, datos_base):
         assert len(historial_v3) == 2
         assert historial_v3[0].version == 1
         assert historial_v3[1].version == 2
-        assert historial_v3[1].estado_anterior == "modificada"
+        assert historial_v3[1].estado_anterior == "presentada"
         assert historial_v3[1].observaciones_anteriores == "Versión 2: subimos a 800L"
         items_snap2 = json.loads(historial_v3[1].items_snapshot)
         assert items_snap2[0]["cantidad_ofrecida"] == 800.0

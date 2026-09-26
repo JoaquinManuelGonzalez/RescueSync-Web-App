@@ -6,7 +6,7 @@
 {% block title %}Mi perfil{% endblock %}
 
 {% block content %}
-<div class="pagina-angosta space-y-6">
+<div class="pagina space-y-6">
   {% call encabezado_pagina(sesion.nombre_completo, sesion.email) %}
     <a class="btn btn-secundario" href="{{ url_for('sesion.formulario_de_contrasena') }}">{{ icono("llave") }} Cambiar contraseña</a>
   {% endcall %}

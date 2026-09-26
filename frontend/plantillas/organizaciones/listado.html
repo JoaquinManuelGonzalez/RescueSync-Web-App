@@ -17,7 +17,7 @@
     {%- endif %}
   {% endcall %}
 
-  <form method="get" action="{{ url_for('organizaciones.listar') }}" class="barra-filtros" onchange="this.submit()">
+  <form method="get" action="{{ url_for('organizaciones.listar') }}" class="barra-filtros" data-busqueda-automatica>
     <div class="filtros-en-grilla">
       {{ filtro_texto("texto", "Buscar", filtros.get("texto"), "Nombre, CUIT, email o localidad") }}
       {{ filtro_select("tipo", "Tipo", opciones_de_tipo, filtros.get("tipo")) }}

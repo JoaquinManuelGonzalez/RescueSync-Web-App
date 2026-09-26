@@ -52,7 +52,7 @@ def sembrar_ofertas() -> list[ResultadoSemilla]:
     _, organizacion_creada = obtener_o_crear(
         OfertaOrganizacion,
         claves={"oferta_id": oferta.id, "organizacion_id": organizacion.id},
-        valores={"rol_consorcio": "lider"},
+        valores={"rol_consorcio": "lider", "estado_participacion": "aceptada"},
     )
     resultado_asociacion = ResultadoSemilla("oferta_organizaciones")
     resultado_asociacion.contar(organizacion_creada)
@@ -76,7 +76,7 @@ def sembrar_ofertas() -> list[ResultadoSemilla]:
         _, linea_creada = obtener_o_crear(
             OfertaLinea,
             claves={"oferta_id": oferta.id, "lote_item_id": lote_item.id},
-            valores={"cantidad_ofrecida": cantidad},
+            valores={"cantidad_ofrecida": cantidad, "organizacion_id": organizacion.id},
         )
         resultado_lineas.contar(linea_creada)
 
