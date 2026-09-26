@@ -1,0 +1,53 @@
+/* Pantalla publica de bienvenida con el ingreso (login.html).
+ *
+ * En mobile la presentacion queda compacta arriba del formulario; desde `lg` van lado a lado.
+ */
+
+@layer components {
+    .bienvenida {
+        @apply mx-auto grid w-full max-w-6xl gap-6 px-4 py-6 sm:px-6 sm:py-10
+            lg:min-h-[calc(100vh-2rem)] lg:grid-cols-2 lg:items-center lg:gap-12;
+    }
+
+    .bienvenida-presentacion {
+        @apply flex flex-col gap-6 lg:gap-8 lg:py-14;
+    }
+
+    .bienvenida-marca {
+        @apply flex items-center gap-3;
+    }
+
+    .bienvenida-logo {
+        @apply size-12 rounded-xl bg-white p-1.5 shadow-md sm:size-14;
+    }
+
+    .bienvenida-rasgos {
+        @apply hidden gap-5 sm:grid;
+    }
+
+    .bienvenida-cifras {
+        @apply hidden grid-cols-3 gap-3 lg:grid;
+    }
+
+    .bienvenida-acceso {
+        @apply mx-auto w-full max-w-sm lg:max-w-md;
+    }
+
+    .bienvenida-acceso-titulo {
+        @apply text-2xl font-bold tracking-tight text-gray-900;
+    }
+
+    .bienvenida-acceso-texto {
+        @apply mt-1 mb-6 text-sm text-gray-500;
+    }
+
+    /* Leyenda informativa debajo del formulario. */
+    .bienvenida-nota {
+        @apply mt-6 flex items-start gap-3 rounded-lg bg-acento/40 p-3 text-sm/6 text-gray-700
+            ring-1 ring-acento;
+    }
+
+    .bienvenida-nota svg {
+        @apply mt-0.5 size-5 shrink-0 text-primario;
+    }
+}

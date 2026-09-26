@@ -1,0 +1,90 @@
+/* Piezas de impacto visual: banda destacada, rasgos, cifras y entrada en cascada.
+ *
+ * Las usan la bienvenida (login.html) y el panel de inicio (hub.html). Los macros que las arman
+ * estan en plantillas/componentes/destacados.html.
+ */
+
+@layer components {
+    /* Banda con el degrade de la marca. Los dos circulos translucidos son decorativos. */
+    .hero {
+        @apply relative isolate overflow-hidden rounded-2xl bg-linear-to-br from-primario to-primario-dark
+            px-6 py-8 text-white shadow-lg sm:px-10 sm:py-10;
+    }
+
+    .hero::before,
+    .hero::after {
+        @apply pointer-events-none absolute -z-10 rounded-full bg-white/10;
+        content: "";
+    }
+
+    .hero::before {
+        @apply -top-16 -right-16 size-56;
+    }
+
+    .hero::after {
+        @apply -bottom-24 -left-10 size-64 bg-secundario/15;
+    }
+
+    .hero-titulo {
+        @apply text-2xl font-bold tracking-tight sm:text-3xl;
+    }
+
+    .hero-texto {
+        @apply mt-2 max-w-2xl text-sm/6 text-white/85 sm:text-base/7;
+    }
+
+    .hero-etiquetas {
+        @apply mt-4 flex flex-wrap gap-2;
+    }
+
+    .hero-etiqueta {
+        @apply inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium
+            text-white ring-1 ring-white/25 backdrop-blur-sm;
+    }
+
+    /* Item "icono + titulo + texto" para presentar caracteristicas. */
+    .rasgo {
+        @apply flex items-start gap-4;
+    }
+
+    .rasgo-icono {
+        @apply inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-secundario
+            ring-1 ring-white/20;
+    }
+
+    .rasgo-titulo {
+        @apply text-sm font-semibold text-white;
+    }
+
+    .rasgo-texto {
+        @apply mt-0.5 text-sm/6 text-white/75;
+    }
+
+    /* Dato numerico destacado. */
+    .cifra {
+        @apply rounded-xl bg-white/10 px-4 py-3 ring-1 ring-white/15;
+    }
+
+    .cifra-valor {
+        @apply text-2xl font-bold text-secundario;
+    }
+
+    .cifra-texto {
+        @apply text-xs text-white/75;
+    }
+
+    /* Los hijos entran con fade-up uno detras de otro. */
+    @media (prefers-reduced-motion: no-preference) {
+        .animar-escalonado > * {
+            animation: fade-up 0.6s ease-out both;
+        }
+
+        .animar-escalonado > :nth-child(2) { animation-delay: 80ms; }
+        .animar-escalonado > :nth-child(3) { animation-delay: 160ms; }
+        .animar-escalonado > :nth-child(4) { animation-delay: 240ms; }
+        .animar-escalonado > :nth-child(5) { animation-delay: 320ms; }
+        .animar-escalonado > :nth-child(6) { animation-delay: 400ms; }
+        .animar-escalonado > :nth-child(7) { animation-delay: 480ms; }
+        .animar-escalonado > :nth-child(n + 8) { animation-delay: 560ms; }
+    }
+}

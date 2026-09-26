@@ -1,0 +1,61 @@
+/* Tarjetas de acceso a las secciones del sistema (panel de inicio).
+ *
+ * Las arma el macro `tarjeta_acceso()` de plantillas/componentes/destacados.html.
+ */
+
+@layer components {
+    .accesos-grilla {
+        @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-3;
+    }
+
+    .acceso {
+        @apply relative flex items-start gap-4 overflow-hidden rounded-xl bg-superficie p-5 shadow-sm
+            ring-1 ring-gray-200 transition-all duration-200
+            hover:-translate-y-1 hover:shadow-lg hover:ring-primario/30
+            active:translate-y-0 active:shadow-sm
+            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario;
+    }
+
+    /* Filete de la marca que aparece arriba de la tarjeta al pasar el mouse. */
+    .acceso::before {
+        @apply absolute inset-x-0 top-0 h-1 origin-left scale-x-0 bg-linear-to-r from-primario to-primario-light
+            transition-transform duration-300;
+        content: "";
+    }
+
+    .acceso:hover::before,
+    .acceso:focus-visible::before {
+        @apply scale-x-100;
+    }
+
+    .acceso-icono {
+        @apply inline-flex size-12 shrink-0 items-center justify-center rounded-xl bg-acento text-primario
+            transition-colors duration-200;
+    }
+
+    .acceso:hover .acceso-icono,
+    .acceso:focus-visible .acceso-icono {
+        @apply bg-primario text-white;
+    }
+
+    .acceso-cuerpo {
+        @apply min-w-0 flex-1;
+    }
+
+    .acceso-titulo {
+        @apply text-base font-semibold text-gray-900;
+    }
+
+    .acceso-texto {
+        @apply mt-1 text-sm/6 text-gray-500;
+    }
+
+    .acceso-flecha {
+        @apply mt-1 shrink-0 self-center text-gray-300 transition-all duration-200;
+    }
+
+    .acceso:hover .acceso-flecha,
+    .acceso:focus-visible .acceso-flecha {
+        @apply translate-x-1 text-primario;
+    }
+}

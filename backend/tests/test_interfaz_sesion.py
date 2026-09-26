@@ -33,6 +33,14 @@ def test_la_pantalla_de_ingreso_tiene_email_contrasena_y_csrf(navegar) -> None:
     assert 'action="/sesion/ingreso"' in cuerpo
 
 
+def test_la_pantalla_de_ingreso_manda_a_un_administrador_para_recuperar_la_clave(navegar) -> None:
+    """No hay recuperacion de contraseña por la aplicacion: la restablece un administrador."""
+    cuerpo = _texto(navegar("/sesion/ingreso"))
+
+    assert "¿Olvidaste tu contraseña?" not in cuerpo
+    assert "Contactá a un administrador de RescueSync" in cuerpo
+
+
 def test_con_sesion_abierta_la_pantalla_de_ingreso_lleva_al_panel(
     navegar, ingresar_por_formulario
 ) -> None:
