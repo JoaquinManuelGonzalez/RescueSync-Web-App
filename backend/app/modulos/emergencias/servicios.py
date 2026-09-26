@@ -10,7 +10,8 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import case, select
+
 
 from app.core.errores import (
     RecursoNoEncontrado,
@@ -139,15 +140,32 @@ def obtener_emergencia_por_id(emergencia_id: int) -> Emergencia:
         raise RecursoNoEncontrado(f"Emergencia con id {emergencia_id} no encontrada.")
     return emergencia
 
+# Nivel de gravedad vuelto número para poder usar order_by(). A más alto el número, más urgente.
+_NILVEL_GRAVEDAD = {
+    NivelGravedad.baja: 1,
+    NivelGravedad.media: 2,
+    NivelGravedad.alta: 3,
+    NivelGravedad.critica: 4,
+}
 
 def listar_emergencias(
     *,
     municipio_id: int | None = None,
-    estado: EstadoEmergencia | None = None,
 ) -> list[Emergencia]:
-    consulta = select(Emergencia).order_by(Emergencia.creado_en.desc())
+    """Lista emergencias ordenadas por gravedad, desempata por fecha."""
+    expresion_gravedad = case(
+        _NILVEL_GRAVEDAD,
+        value=Emergencia.nivel_gravedad,
+        else_=0,
+    )
+
+    consulta = (
+        select(Emergencia)
+        .where(Emergencia.estado != EstadoEmergencia.finalizada, Emergencia.estado != EstadoEmergencia.cancelada )
+        .order_by(expresion_gravedad.desc(), Emergencia.creado_en.desc())
+    )
+
     if municipio_id is not None:
         consulta = consulta.where(Emergencia.municipio_id == municipio_id)
-    if estado is not None:
-        consulta = consulta.where(Emergencia.estado == estado)
+
     return list(db.session.execute(consulta).scalars().all())

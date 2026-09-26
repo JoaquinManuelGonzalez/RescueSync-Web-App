@@ -90,30 +90,16 @@ def _serializar_emergencia(emergencia: Emergencia) -> dict[str, Any]:
 @blueprint_emergencias.get("")
 @requiere_permiso(EMERGENCIAS_LISTAR)
 def listar():
-    """Pantalla de emergencias, opcionalmente filtrada por estado."""
-    estado_raw = request.args.get("estado")
-    estado = None
-    if estado_raw:
-        try:
-            estado = EstadoEmergencia(estado_raw)
-        except ValueError as error:
-            raise SolicitudInvalida(f"Estado inválido: {estado_raw}.") from error
-
+    """
+    Pantalla de listado de emergencias.
+    No se listan emergencias canceladas o finalizadas.
+    """
     if _es_operador_municipal():
         # El listado que ve el Municipio, sólo cuenta con las emergencias propias.
         municipio_id = current_user.organizacion_id
-        emergencias = servicios.listar_emergencias(municipio_id=municipio_id, estado=estado)
+        emergencias = servicios.listar_emergencias(municipio_id=municipio_id)
     else:
-        # (Nota para mí, pienso en voz alta)
-        # Si en cambio es centro coordinador regional deberia verlas todas
-        # El listado que ve el Centro Coordinador Regional incluye a todas las emergencias pendientes.
-        # ordenado por gravedad (descendente), y por fecha de alta (descendente).
-        # Duda: el estado "registrada" implica que la emergencia está pendiente de revisión
-        # Si alguien se la pone a "revisar" se debería poner en modo en_evaluacion
-        # Entonces tocar el botón de generar lotes (en ver detalle de emergencia, no en el listado) debería cambiarle el estado
-        # Y salir del formulario de alta de lotes sin guardar nada debería volver a dejarla en estado "registrada"
-        # Pendiente para el controller de Lotes de Necesidades
-        emergencias = servicios.listar_emergencias(estado=EstadoEmergencia.registrada)
+        emergencias = servicios.listar_emergencias()
 
     if pide_json():
         return jsonify({"emergencias": [_serializar_emergencia(e) for e in emergencias]})
@@ -172,21 +158,3 @@ def obtener(emergencia_id: int):
 
     return jsonify(_serializar_emergencia(emergencia))
 
-#
-#@blueprint_emergencias.post("")
-#@requiere_permiso(EMERGENCIAS_CREAR)
-#def crear():
-#    """Alta vía API JSON."""
-#    datos = request.get_json(silent=True)
-#    if not isinstance(datos, dict):
-#        raise SolicitudInvalida("El cuerpo de la solicitud debe ser un JSON válido.")
-#
-#    emergencia = servicios.crear_emergencia(
-#        titulo=datos.get("titulo", ""),
-#        descripcion=datos.get("descripcion", ""),
-#        nivel_gravedad=datos.get("nivel_gravedad", ""),
-#        zona_afectada=datos.get("zona_afectada", ""),
-#        municipio_id=current_user.organizacion_id,
-#        usuario_id=current_user.id,
-#    )
-#    return jsonify(_serializar_emergencia(emergencia)), 201
