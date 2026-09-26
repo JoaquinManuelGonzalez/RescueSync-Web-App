@@ -35,46 +35,74 @@
     </div>
   </section>
 
-  <section class="tarjeta">
-    <div class="tarjeta-cuerpo">
-      {% call encabezado_pagina("Lotes de necesidad") %}
-        {% if puede("lotes:crear") %}
-          <a class="btn btn-primario"
-            href="{{ url_for('lotes.formulario_de_alta', emergencia_id=emergencia.id) }}">
-            {{ icono("mas") }} Crear nuevo lote
-          </a>
-        {% endif %}
-      {% endcall %}
-      <p class="mt-1 text-sm text-gray-500">Lotes generados por el Centro Coordinador Regional para esta emergencia.</p>         
-      {% if emergencia.lotes %}
-      <div class="mt-4 space-y-3">
-        {% for lote in emergencia.lotes %}
-        <div class="rounded-lg border border-gray-100 px-4 py-3">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <p class="font-medium text-gray-900">{{ lote.descripcion or ("Lote #" ~ lote.id) }}</p>
-            {{ insignia(lote.estado.value|replace("_", " ")|capitalize, "neutra") }}
-          </div>
-          {% if lote.lote_items %}
-          <ul class="mt-2 space-y-1 text-sm text-gray-600">
-            {% for li in lote.lote_items %}
-            <li class="flex items-center justify-between gap-3">
-              <span>
-                {{ li.item.nombre }}
-                {% if li.observaciones %}<span class="text-gray-400">— {{ li.observaciones }}</span>{% endif %}
-              </span>
-              <span class="font-medium text-gray-800">{{ li.cantidad_solicitada|int }} {{ li.item.unidad_medida }}</span>
-            </li>
-            {% endfor %}
-          </ul>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="mt-2 text-sm text-gray-500">Esta emergencia todavía no tiene lotes asociados.</p>
+<section class="tarjeta">
+  <div class="tarjeta-cuerpo">
+    {% call encabezado_pagina("Lotes de necesidad") %}
+      {% if puede("lotes:crear") %}
+        <a class="btn btn-primario"
+           href="{{ url_for('lotes.formulario_de_alta', emergencia_id=emergencia.id) }}">
+          {{ icono("mas") }} Crear nuevo lote
+        </a>
       {% endif %}
+    {% endcall %}
+
+    <p class="mt-1 text-sm text-gray-500">
+      Lotes generados por el Centro Coordinador Regional para esta emergencia.
+    </p>
+
+    {% if emergencia.lotes %}
+    <div class="mt-4 space-y-3">
+      {% for lote in emergencia.lotes %}
+      <div class="rounded-lg border border-gray-100 px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <p class="font-medium text-gray-900">
+            {{ lote.descripcion or ("Lote #" ~ lote.id) }}
+          </p>
+          {{ insignia(lote.estado.value|replace("_", " ")|capitalize, "neutra") }}
+        </div>
+
+        {% if lote.lote_items %}
+        <ul class="mt-2 space-y-1 text-sm text-gray-600">
+          {% for li in lote.lote_items[:3] %}
+          <li class="flex items-center justify-between gap-3">
+            <span>
+              {{ li.item.nombre }}
+              {% if li.observaciones %}
+                <span class="text-gray-400">— {{ li.observaciones }}</span>
+              {% endif %}
+            </span>
+            <span class="font-medium text-gray-800">
+              {{ li.cantidad_solicitada|int }} {{ li.item.unidad_medida }}
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+
+        {% if lote.lote_items|length > 3 %}
+        <p class="mt-2 text-xs text-gray-500">
+          y {{ lote.lote_items|length - 3 }}
+          ítem{{ "s" if (lote.lote_items|length - 3) != 1 else "" }} más…
+        </p>
+        {% endif %}
+        {% endif %}
+      </div>
+      {% endfor %}
     </div>
-  </section>
+
+    <div class="mt-4 flex justify-end">
+      <a class="btn btn-secundario"
+         href="{{ url_for('lotes.listar_por_emergencia', emergencia_id=emergencia.id) }}">
+        {{ icono("ver") }} Ver listado completo
+      </a>
+    </div>
+
+    {% else %}
+    <p class="mt-2 text-sm text-gray-500">
+      Esta emergencia todavía no tiene lotes asociados.
+    </p>
+    {% endif %}
+  </div>
+</section>
 
   <section class="tarjeta">
     <div class="tarjeta-cuerpo">
