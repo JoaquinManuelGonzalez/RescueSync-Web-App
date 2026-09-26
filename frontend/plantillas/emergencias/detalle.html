@@ -37,11 +37,15 @@
 
   <section class="tarjeta">
     <div class="tarjeta-cuerpo">
-      <h2 class="tarjeta-titulo">Lotes de necesidad</h2>
-      <p class="mt-1 text-sm text-gray-500">Lotes generados por el Centro Coordinador Regional para esta emergencia.</p>
-
-        <!-- BOTÓN PARA GENERAR LOTES DE NECESIDADES -->
-         
+      {% call encabezado_pagina("Lotes de necesidad") %}
+        {% if puede("lotes:crear") %}
+          <a class="btn btn-primario"
+            href="{{ url_for('lotes.formulario_de_alta', emergencia_id=emergencia.id) }}">
+            {{ icono("mas") }} Crear nuevo lote
+          </a>
+        {% endif %}
+      {% endcall %}
+      <p class="mt-1 text-sm text-gray-500">Lotes generados por el Centro Coordinador Regional para esta emergencia.</p>         
       {% if emergencia.lotes %}
       <div class="mt-4 space-y-3">
         {% for lote in emergencia.lotes %}
