@@ -11,8 +11,8 @@ Existen tres tipos principales según el enunciado:
 
 Cada organizacion declara su zona de cobertura (`ZonaDeCobertura`), o marca que opera en todo el
 pais (`cobertura_nacional`, que reemplaza a las zonas). Tambien lleva el estado de su verificacion
-contra el Sistema Nacional (`EstadoVerificacion`), que hoy nadie cambia: es el punto de extension
-que completa la Entrega 3 (ver `app/core/integraciones/api_nacional.py`).
+contra el Sistema Nacional (`EstadoVerificacion`): toda organizacion que se carga en RescueSync ya
+fue verificada por el Sistema Nacional, asi que nace `verificada`.
 """
 
 from __future__ import annotations
@@ -54,8 +54,9 @@ class TipoOrganizacion(enum.Enum):
 class EstadoVerificacion(enum.Enum):
     """Resultado de validar la organizacion contra el Sistema Nacional.
 
-    Nace `sin_verificar`. Solo lo cambia la integracion con la API Nacional (Entrega 3), nunca
-    un formulario: que una persona pudiera marcarse "verificada" le quitaria todo el sentido.
+    Nace `verificada`: las organizaciones se cargan en RescueSync despues de que el Sistema
+    Nacional las verifico. Ningun formulario lo cambia; solo la integracion con la API Nacional
+    podria registrar otro resultado (ver `servicios.registrar_resultado_de_verificacion()`).
     """
 
     sin_verificar = "sin_verificar"
@@ -107,10 +108,10 @@ class Organizacion(db.Model):
     )
     estado_verificacion: Mapped[EstadoVerificacion] = mapped_column(
         Enum(EstadoVerificacion, name="estado_verificacion_enum"),
-        default=EstadoVerificacion.sin_verificar,
-        server_default=EstadoVerificacion.sin_verificar.value,
+        default=EstadoVerificacion.verificada,
+        server_default=EstadoVerificacion.verificada.value,
         nullable=False,
-        comment="Resultado de la validación contra el Sistema Nacional (Entrega 3).",
+        comment="Resultado de la validación contra el Sistema Nacional.",
     )
     creado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

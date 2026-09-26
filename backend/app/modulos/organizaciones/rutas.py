@@ -110,7 +110,6 @@ ETIQUETA_POR_ESTADO_DE_VERIFICACION = {
     "verificada": "Verificada",
     "rechazada": "Rechazada",
 }
-OPCIONES_DE_VERIFICACION = list(ETIQUETA_POR_ESTADO_DE_VERIFICACION.items())
 
 
 @blueprint_organizaciones.app_template_filter("etiqueta_verificacion")
@@ -191,8 +190,8 @@ def _contexto_de_mi_organizacion() -> dict[str, Any]:
 def listar():
     """Listado paginado de organizaciones.
 
-    Filtra por tipo, estado, provincia de cobertura y estado de verificacion; el texto busca en
-    el nombre, el identificador, el email de contacto y las localidades de cobertura.
+    Filtra por tipo, estado y provincia de cobertura; el texto busca en el nombre, el
+    identificador, el email de contacto y las localidades de cobertura.
     """
     pagina, por_pagina = parametros_de_paginacion()
     resultado = servicios.paginar_listado(
@@ -202,7 +201,6 @@ def listar():
         activo=parametro_booleano("activo"),
         texto=request.args.get("texto") or None,
         provincia=request.args.get("provincia") or None,
-        estado_verificacion=request.args.get("estado_verificacion") or None,
     ).mapear(servicios.a_diccionario)
     if pide_json():
         return jsonify(
@@ -216,7 +214,6 @@ def listar():
         opciones_de_tipo=OPCIONES_DE_TIPO,
         opciones_de_estado=OPCIONES_DE_ESTADO,
         opciones_de_provincia=OPCIONES_DE_PROVINCIA,
-        opciones_de_verificacion=OPCIONES_DE_VERIFICACION,
     )
 
 

@@ -1,6 +1,5 @@
 {#- Contexto: `organizaciones` (diccionarios de `servicios.a_diccionario()`), `pagina`, `filtros`,
-    `opciones_de_tipo`, `opciones_de_estado`, `opciones_de_provincia` y
-    `opciones_de_verificacion`. -#}
+    `opciones_de_tipo`, `opciones_de_estado` y `opciones_de_provincia`. -#}
 {% extends "layout.html" %}
 {% from "componentes/iconos.html" import icono %}
 {% from "componentes/diseno.html" import encabezado_pagina, estado_vacio, insignia, insignia_estado %}
@@ -19,14 +18,11 @@
   {% endcall %}
 
   <form method="get" action="{{ url_for('organizaciones.listar') }}" class="barra-filtros" onchange="this.submit()">
-    <div class="filtros-en-dos-filas">
+    <div class="filtros-en-grilla">
       {{ filtro_texto("texto", "Buscar", filtros.get("texto"), "Nombre, CUIT, email o localidad") }}
-      <div class="filtros-en-dos-filas-selects">
-        {{ filtro_select("tipo", "Tipo", opciones_de_tipo, filtros.get("tipo")) }}
-        {{ filtro_select("activo", "Estado", opciones_de_estado, filtros.get("activo"), "Todas") }}
-        {{ filtro_select("provincia", "Cobertura", opciones_de_provincia, filtros.get("provincia"), "Todas") }}
-        {{ filtro_select("estado_verificacion", "Verificación", opciones_de_verificacion, filtros.get("estado_verificacion")) }}
-      </div>
+      {{ filtro_select("tipo", "Tipo", opciones_de_tipo, filtros.get("tipo")) }}
+      {{ filtro_select("activo", "Estado", opciones_de_estado, filtros.get("activo"), "Todas") }}
+      {{ filtro_select("provincia", "Cobertura", opciones_de_provincia, filtros.get("provincia"), "Todas") }}
     </div>
   </form>
 

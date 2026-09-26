@@ -24,9 +24,9 @@ jurisdicciones); para municipios y centros coordinadores es opcional.
 
 Verificacion contra el Sistema Nacional
 ---------------------------------------
-Toda ONG nueva (o cuyo identificador cambia) queda `sin_verificar` y se le pide la verificacion a
-`app.core.integraciones.api_nacional`, que hoy no hace nada. La Entrega 3 implementa esa llamada
-y guarda el resultado con `registrar_resultado_de_verificacion()`.
+Las organizaciones se cargan en RescueSync despues de que el Sistema Nacional las verifico, asi
+que toda alta nace `verificada` y editarla no cambia ese estado. Si la integracion con la API
+Nacional llegara a informar otro resultado, lo guarda con `registrar_resultado_de_verificacion()`.
 """
 
 from __future__ import annotations
@@ -38,7 +38,6 @@ from typing import Any
 from sqlalchemy import Select, func, or_, select
 
 from app.core.errores import ConflictoDeEstado, RecursoNoEncontrado, SolicitudInvalida
-from app.core.integraciones import api_nacional
 from app.core.interfaz.paginacion import Pagina, paginar
 from app.core.logging import id_correlacion_actual, registrar_evento
 from app.extensiones import db
@@ -419,7 +418,6 @@ def listar(
     activo: bool | None = None,
     texto: str | None = None,
     provincia: str | None = None,
-    estado_verificacion: str | None = None,
 ) -> list[Organizacion]:
     """Listado completo, sin paginar (por ejemplo, para un select). Filtros con AND."""
     consulta = _consulta(
@@ -427,7 +425,6 @@ def listar(
         activo=activo,
         texto=texto,
         provincia=provincia,
-        estado_verificacion=estado_verificacion,
     )
     return list(db.session.execute(consulta).scalars())
 
@@ -440,7 +437,6 @@ def paginar_listado(
     activo: bool | None = None,
     texto: str | None = None,
     provincia: str | None = None,
-    estado_verificacion: str | None = None,
 ) -> Pagina[Organizacion]:
     """Una pagina del listado de organizaciones, con los mismos filtros que `listar`."""
     consulta = _consulta(
@@ -448,7 +444,6 @@ def paginar_listado(
         activo=activo,
         texto=texto,
         provincia=provincia,
-        estado_verificacion=estado_verificacion,
     )
     return paginar(consulta, pagina, por_pagina)
 
@@ -459,7 +454,6 @@ def _consulta(
     activo: bool | None,
     texto: str | None,
     provincia: str | None = None,
-    estado_verificacion: str | None = None,
 ) -> Select:
     # El id desempata para que el orden sea total y la paginacion, estable.
     consulta = select(Organizacion).order_by(Organizacion.nombre, Organizacion.id)
@@ -468,10 +462,6 @@ def _consulta(
         consulta = consulta.where(Organizacion.tipo == convertir_tipo(tipo))
     if activo is not None:
         consulta = consulta.where(Organizacion.activo.is_(activo))
-    if estado_verificacion is not None:
-        consulta = consulta.where(
-            Organizacion.estado_verificacion == convertir_estado_verificacion(estado_verificacion)
-        )
     if provincia:
         # Quien opera en todo el pais cubre cualquier provincia.
         consulta = consulta.where(
@@ -568,23 +558,6 @@ def _asegurar_inventario(organizacion: Organizacion) -> None:
     )
 
 
-def _solicitar_verificacion(organizacion: Organizacion) -> None:
-    """Engancha el punto de extension del Sistema Nacional. Nunca hace fallar la operacion."""
-    try:
-        api_nacional.solicitar_verificacion_de_organizacion(
-            organizacion_id=organizacion.id,
-            identificador_nacional=organizacion.identificador_nacional,
-            tipo=organizacion.tipo.value,
-        )
-    except Exception:  # noqa: BLE001 - el alta no depende de que el servicio externo responda
-        registrar_evento(
-            logging.WARNING,
-            "verificacion_nacional_no_solicitada",
-            id_organizacion=str(organizacion.id),
-            id_correlacion=id_correlacion_actual(),
-        )
-
-
 def crear(
     *,
     nombre: str,
@@ -596,9 +569,10 @@ def crear(
     zonas: Iterable[Mapping[str, Any]] | None = None,
     cobertura_nacional: bool = False,
 ) -> Organizacion:
-    """Da de alta una organizacion. La deja activa y sin verificar.
+    """Da de alta una organizacion. La deja activa y verificada.
 
-    Si es una ONG, ademas le crea su inventario vacio y pide su verificacion al Sistema Nacional.
+    La verificacion ya la hizo el Sistema Nacional antes de la carga. Si es una ONG, ademas le
+    crea su inventario vacio.
     Con `cobertura_nacional=True` las zonas se ignoran: opera en todo el pais.
     """
     nombre_limpio = nombre.strip()
@@ -620,7 +594,7 @@ def crear(
         direccion=_normalizar_texto(direccion),
         activo=True,
         cobertura_nacional=cobertura_nacional,
-        estado_verificacion=EstadoVerificacion.sin_verificar,
+        estado_verificacion=EstadoVerificacion.verificada,
     )
     _reemplazar_zonas(organizacion, zonas_normalizadas)
     db.session.add(organizacion)
@@ -635,8 +609,6 @@ def crear(
         tipo=organizacion.tipo.value,
         id_correlacion=id_correlacion_actual(),
     )
-    if organizacion.tipo is TipoOrganizacion.ong:
-        _solicitar_verificacion(organizacion)
     return organizacion
 
 
@@ -659,8 +631,7 @@ def editar(
     manda el formulario.
 
     El tipo no se puede cambiar mientras haya cuentas vinculadas: sus roles exigen el tipo actual
-    (ver `permisos.TIPO_DE_ORGANIZACION_POR_ROL`). Si cambia el identificador de una ONG, la
-    verificacion anterior deja de valer y se vuelve a pedir.
+    (ver `permisos.TIPO_DE_ORGANIZACION_POR_ROL`). El estado de verificacion no se toca.
     """
     organizacion = obtener(organizacion_id)
 
@@ -685,10 +656,6 @@ def editar(
     if cambia_tipo and organizacion.usuarios:
         mensaje = MENSAJE_TIPO_CON_MIEMBROS.format(cantidad=len(organizacion.usuarios))
         raise ConflictoDeEstado(mensaje, detalle={"tipo": [mensaje]})
-    cambia_identificador = identificador != organizacion.identificador_nacional
-    pedir_verificacion = tipo_nuevo is TipoOrganizacion.ong and (
-        cambia_tipo or cambia_identificador
-    )
 
     organizacion.nombre = nombre_limpio
     organizacion.tipo = tipo_nuevo
@@ -698,8 +665,6 @@ def editar(
     organizacion.direccion = _normalizar_texto(direccion)
     organizacion.cobertura_nacional = nacional
     _reemplazar_zonas(organizacion, zonas_normalizadas)
-    if pedir_verificacion:
-        organizacion.estado_verificacion = EstadoVerificacion.sin_verificar
     _asegurar_inventario(organizacion)
 
     db.session.commit()
@@ -710,8 +675,6 @@ def editar(
         id_organizacion=str(organizacion.id),
         id_correlacion=id_correlacion_actual(),
     )
-    if pedir_verificacion:
-        _solicitar_verificacion(organizacion)
     return organizacion
 
 
@@ -780,8 +743,8 @@ def registrar_resultado_de_verificacion(
 ) -> Organizacion:
     """Guarda el resultado de la validacion contra el Sistema Nacional.
 
-    Es la otra mitad del punto de extension: la llama la integracion de la Entrega 3 cuando el
-    Sistema Nacional responde. Ninguna pantalla la expone.
+    Punto de extension para la integracion con la API Nacional, por si informa un resultado
+    distinto del que la organizacion trajo al cargarse. Ninguna pantalla la expone.
     """
     organizacion = obtener(organizacion_id)
     organizacion.estado_verificacion = convertir_estado_verificacion(estado)

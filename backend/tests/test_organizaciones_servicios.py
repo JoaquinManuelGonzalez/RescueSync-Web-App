@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from app.core.errores import ConflictoDeEstado, RecursoNoEncontrado, SolicitudInvalida
-from app.core.integraciones import api_nacional
 from app.modulos.organizaciones import servicios
 
 
@@ -114,16 +113,7 @@ def test_sin_cuentas_el_tipo_se_puede_cambiar(app, base_de_datos: None) -> None:
 # --- Inventario y verificacion ------------------------------------------------------
 
 
-def test_la_ong_nueva_nace_con_inventario_vacio_y_sin_verificar(
-    app, base_de_datos: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    pedidos: list[dict] = []
-    monkeypatch.setattr(
-        api_nacional,
-        "solicitar_verificacion_de_organizacion",
-        lambda **datos: pedidos.append(datos),
-    )
-
+def test_la_ong_nueva_nace_con_inventario_vacio_y_verificada(app, base_de_datos: None) -> None:
     with app.app_context():
         ong = servicios.crear(
             nombre="Rescatistas del Delta",
@@ -135,65 +125,25 @@ def test_la_ong_nueva_nace_con_inventario_vacio_y_sin_verificar(
         inventario = servicios.obtener_inventario(ong.id)
         assert inventario is not None
         assert inventario.items == []
-        assert ong.estado_verificacion.value == "sin_verificar"
-        assert pedidos == [
-            {
-                "organizacion_id": ong.id,
-                "identificador_nacional": "30-11111111-1",
-                "tipo": "ong",
-            }
-        ]
+        assert ong.estado_verificacion.value == "verificada"
 
 
-def test_un_municipio_no_pide_verificacion_ni_tiene_inventario(
-    app, base_de_datos: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    pedidos: list[dict] = []
-    monkeypatch.setattr(
-        api_nacional,
-        "solicitar_verificacion_de_organizacion",
-        lambda **datos: pedidos.append(datos),
-    )
-
+def test_un_municipio_nace_verificado_y_sin_inventario(app, base_de_datos: None) -> None:
     with app.app_context():
         municipio = servicios.crear(nombre="Municipio de Lezama", tipo="municipio")
 
         assert servicios.obtener_inventario(municipio.id) is None
-    assert pedidos == []
+        assert municipio.estado_verificacion.value == "verificada"
 
 
-def test_si_la_verificacion_falla_el_alta_igual_se_completa(
-    app, base_de_datos: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def _falla(**_datos):
-        raise RuntimeError("API Nacional caída")
-
-    monkeypatch.setattr(api_nacional, "solicitar_verificacion_de_organizacion", _falla)
-
-    with app.app_context():
-        ong = servicios.crear(nombre="ONG resiliente", tipo="ong", zonas=[{"provincia": "Chaco"}])
-
-        assert servicios.obtener(ong.id).activo is True
-
-
-def test_cambiar_el_identificador_de_una_ong_vuelve_a_pedir_verificacion(
-    app, base_de_datos: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    pedidos: list[dict] = []
-    monkeypatch.setattr(
-        api_nacional,
-        "solicitar_verificacion_de_organizacion",
-        lambda **datos: pedidos.append(datos),
-    )
-
+def test_editar_el_identificador_no_cambia_la_verificacion(app, base_de_datos: None) -> None:
     with app.app_context():
         ong = _organizacion("Manos Unidas")
-        servicios.registrar_resultado_de_verificacion(ong.id, "verificada")
+        servicios.registrar_resultado_de_verificacion(ong.id, "rechazada")
 
         servicios.editar(ong.id, nombre=ong.nombre, tipo="ong", identificador_nacional="30-1-9")
 
-        assert servicios.obtener(ong.id).estado_verificacion.value == "sin_verificar"
-    assert [pedido["identificador_nacional"] for pedido in pedidos] == ["30-1-9"]
+        assert servicios.obtener(ong.id).estado_verificacion.value == "rechazada"
 
 
 def test_un_estado_de_verificacion_inexistente_se_rechaza(app, base_de_datos: None) -> None:

@@ -104,19 +104,20 @@
         @apply mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end;
     }
 
-    /* Barra con muchos filtros: la busqueda ocupa toda la primera fila y los select se reparten
-     * en columnas iguales en la segunda. Va dentro de .barra-filtros. `min-w-0` evita que un
-     * select con opciones largas (una provincia, por ejemplo) ensanche su columna. */
-    .filtros-en-dos-filas {
-        @apply grid w-full gap-3;
+    /* Barra con busqueda y tres select: en escritorio van todos en una fila y la busqueda ocupa
+     * el doble; en tablet la busqueda baja a su propia fila y los select se reparten debajo; en
+     * celular se apilan. Va dentro de .barra-filtros. `min-w-0` evita que un select con opciones
+     * largas (una provincia, por ejemplo) ensanche su columna. */
+    .filtros-en-grilla {
+        @apply grid w-full gap-3 sm:grid-cols-3 lg:grid-cols-5;
     }
 
-    .filtros-en-dos-filas-selects {
-        @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-4;
-    }
-
-    .filtros-en-dos-filas-selects > * {
+    .filtros-en-grilla > * {
         @apply min-w-0;
+    }
+
+    .filtros-en-grilla > :first-child {
+        @apply sm:col-span-3 lg:col-span-2;
     }
 
     /* Un select de filtro: ancho suficiente para leer la opcion elegida. */

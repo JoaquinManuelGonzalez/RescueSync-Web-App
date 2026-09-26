@@ -60,7 +60,7 @@ def test_alta_de_una_ong_con_su_cobertura(cliente_sembrado, cabecera_csrf, ingre
         {"provincia": "Mendoza", "localidad": "Malargüe"},
         {"provincia": "San Juan", "localidad": None},
     ]
-    assert cuerpo["estado_verificacion"] == "sin_verificar"
+    assert cuerpo["estado_verificacion"] == "verificada"
 
 
 def test_una_ong_sin_zonas_vuelve_con_el_error_en_zonas(
@@ -113,16 +113,6 @@ def test_el_listado_filtra_por_provincia_y_busca_por_localidad(cliente_sembrado,
 
     assert [una["nombre"] for una in por_provincia] == ["Cruz Solidaria"]
     assert [una["nombre"] for una in por_localidad] == ["Bomberos Voluntarios de La Plata"]
-
-
-def test_el_listado_filtra_por_estado_de_verificacion(cliente_sembrado, ingresar) -> None:
-    ingresar(EMAIL_ADMINISTRADOR)
-
-    verificadas = cliente_sembrado.get("/organizaciones?estado_verificacion=verificada")
-    invalido = cliente_sembrado.get("/organizaciones?estado_verificacion=quizas")
-
-    assert verificadas.get_json()["organizaciones"] == []
-    assert invalido.status_code == 400
 
 
 # --- Mi organizacion ---------------------------------------------------------------
