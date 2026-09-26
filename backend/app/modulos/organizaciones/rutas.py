@@ -4,6 +4,10 @@ Todas las rutas estan protegidas por permiso, no por rol: hoy el unico perfil qu
 permisos `organizaciones:*` es el administrador, pero el dia que eso cambie no hay que tocar
 este archivo, solo la matriz de `app/core/acceso/permisos.py`.
 
+"Mi organizacion" (`/organizaciones/mia`) es la vista de los miembros: cada cuenta ve y
+actualiza solo la organizacion a la que pertenece (permisos `organizacion_propia:*`). El id sale
+de la sesion y nunca de la URL, asi que no hay forma de pedir la de otro.
+
 Formato de la respuesta
 -----------------------
 La misma ruta sirve a la interfaz y a los clientes JSON (ver `app.core.interfaz.vistas`): los GET
@@ -23,11 +27,14 @@ from app.core.acceso.autorizacion import requiere_permiso
 from app.core.acceso.permisos import (
     INVENTARIO_EDITAR,
     INVENTARIO_VER,
+    ORGANIZACION_PROPIA_EDITAR,
+    ORGANIZACION_PROPIA_VER,
     ORGANIZACIONES_CAMBIAR_ESTADO,
     ORGANIZACIONES_CREAR,
     ORGANIZACIONES_EDITAR,
     ORGANIZACIONES_LISTAR,
 )
+from app.core.errores import SolicitudInvalida
 from app.core.interfaz.formularios import (
     construir_formulario,
     parametro_booleano,
@@ -40,10 +47,12 @@ from app.modulos.emergencias.modelos import TipoNecesidad
 from app.modulos.organizaciones import servicios
 from app.modulos.organizaciones.formularios import (
     OPCIONES_DE_TIPO,
+    FormularioDatosPropios,
     FormularioEstado,
     FormularioInventarioItem,
     FormularioOrganizacion,
 )
+from app.modulos.organizaciones.geografia import OPCIONES_DE_PROVINCIA
 
 blueprint_organizaciones = Blueprint("organizaciones", __name__)
 
@@ -54,6 +63,19 @@ ENTRADA_DE_MENU = EntradaDeMenu(
     descripcion="Municipios, ONGs y centro coordinador",
     icono="organizaciones",
     orden=20,
+    # El blueprint tambien aloja "Mi organizacion" e inventario: cada seccion declara sus
+    # pantallas para que el navbar marque solo la actual (ver core/interfaz/navegacion.py).
+    endpoints=frozenset(
+        {
+            "organizaciones.listar",
+            "organizaciones.ver",
+            "organizaciones.formulario_de_alta",
+            "organizaciones.crear",
+            "organizaciones.formulario_de_edicion",
+            "organizaciones.editar",
+            "organizaciones.cambiar_estado",
+        }
+    ),
 )
 
 ENTRADA_DE_MENU_INVENTARIO = EntradaDeMenu(
@@ -65,7 +87,86 @@ ENTRADA_DE_MENU_INVENTARIO = EntradaDeMenu(
     orden=30,
 )
 
+ENTRADA_DE_MENU_MI_ORGANIZACION = EntradaDeMenu(
+    endpoint="organizaciones.mi_organizacion",
+    titulo="Mi organización",
+    permiso=ORGANIZACION_PROPIA_VER,
+    descripcion="Datos, cobertura y miembros de tu organización",
+    icono="organizaciones",
+    orden=25,
+    endpoints=frozenset(
+        {
+            "organizaciones.mi_organizacion",
+            "organizaciones.formulario_de_mi_organizacion",
+            "organizaciones.editar_mi_organizacion",
+        }
+    ),
+)
+
 OPCIONES_DE_ESTADO = [("true", "Activas"), ("false", "Inactivas")]
+
+ETIQUETA_POR_ESTADO_DE_VERIFICACION = {
+    "sin_verificar": "Sin verificar",
+    "verificada": "Verificada",
+    "rechazada": "Rechazada",
+}
+
+
+@blueprint_organizaciones.app_template_filter("etiqueta_verificacion")
+def etiqueta_verificacion(valor: str | None) -> str:
+    """{{ organizacion.estado_verificacion|etiqueta_verificacion }} -> Sin verificar"""
+    return ETIQUETA_POR_ESTADO_DE_VERIFICACION.get(valor or "", valor or "")
+
+
+def _zonas_enviadas(formulario: FormularioDatosPropios) -> list[dict[str, Any]] | None:
+    """Las zonas enviadas, o None si un cliente JSON no mando la clave `zonas`.
+
+    El formulario HTML siempre manda sus filas (`zonas-0-provincia`, ...) y las lee el
+    `FieldList`. Un cliente JSON manda `"zonas": [{"provincia": ..., "localidad": ...}]`, que
+    Flask-WTF no sabe desanidar (arma el formdata con las claves de primer nivel), asi que se
+    toma del cuerpo tal cual. Si el cliente JSON edita sin mencionar la cobertura, se deja como
+    esta en vez de borrarla sin querer.
+    """
+    if not request.is_json:
+        return formulario.zonas.data
+    cuerpo = request.get_json(silent=True)
+    if not isinstance(cuerpo, dict) or "zonas" not in cuerpo:
+        return None
+    zonas = cuerpo["zonas"]
+    if not isinstance(zonas, list) or not all(isinstance(zona, dict) for zona in zonas):
+        raise SolicitudInvalida(
+            detalle={"zonas": ["Debe ser una lista de objetos con `provincia` y `localidad`."]}
+        )
+    return zonas
+
+
+def _cobertura_nacional_enviada(formulario: FormularioDatosPropios) -> bool | None:
+    """La casilla "Opera en todo el país", o None si un cliente JSON no la mando.
+
+    En el formulario HTML una casilla sin marcar no viaja, asi que ausente es False. En JSON,
+    ausente significa "no la cambio", igual que con las zonas.
+    """
+    if not request.is_json:
+        return bool(formulario.cobertura_nacional.data)
+    cuerpo = request.get_json(silent=True)
+    if not isinstance(cuerpo, dict) or "cobertura_nacional" not in cuerpo:
+        return None
+    valor = cuerpo["cobertura_nacional"]
+    if not isinstance(valor, bool):
+        raise SolicitudInvalida(detalle={"cobertura_nacional": ["Debe ser true o false."]})
+    return valor
+
+
+def _datos_para_el_formulario(organizacion: dict[str, Any]) -> dict[str, Any]:
+    """El diccionario de la organizacion con las zonas bajo el nombre del campo del formulario.
+
+    Una fila por provincia, con sus localidades juntas y separadas por comas: es la misma forma
+    en que se cargan, asi que editar muestra lo que la persona escribio.
+    """
+    zonas = servicios.zonas_agrupadas_por_provincia(
+        (zona["provincia"], zona["localidad"]) for zona in organizacion["zonas_de_cobertura"]
+    )
+    return {**organizacion, "zonas": zonas or [{}]}
 
 
 def _contexto_del_formulario(organizacion_id: int | None = None) -> dict[str, Any]:
@@ -79,10 +180,19 @@ def _contexto_del_formulario(organizacion_id: int | None = None) -> dict[str, An
     }
 
 
+def _contexto_de_mi_organizacion() -> dict[str, Any]:
+    organizacion = servicios.obtener_propia(current_user.organizacion_id)
+    return {"organizacion": servicios.a_diccionario(organizacion)}
+
+
 @blueprint_organizaciones.get("")
 @requiere_permiso(ORGANIZACIONES_LISTAR)
 def listar():
-    """Listado paginado de organizaciones, filtrable por tipo, estado y texto del nombre."""
+    """Listado paginado de organizaciones.
+
+    Filtra por tipo, estado y provincia de cobertura; el texto busca en el nombre, el
+    identificador, el email de contacto y las localidades de cobertura.
+    """
     pagina, por_pagina = parametros_de_paginacion()
     resultado = servicios.paginar_listado(
         pagina=pagina,
@@ -90,6 +200,7 @@ def listar():
         tipo=request.args.get("tipo") or None,
         activo=parametro_booleano("activo"),
         texto=request.args.get("texto") or None,
+        provincia=request.args.get("provincia") or None,
     ).mapear(servicios.a_diccionario)
     if pide_json():
         return jsonify(
@@ -102,6 +213,7 @@ def listar():
         filtros=request.args,
         opciones_de_tipo=OPCIONES_DE_TIPO,
         opciones_de_estado=OPCIONES_DE_ESTADO,
+        opciones_de_provincia=OPCIONES_DE_PROVINCIA,
     )
 
 
@@ -119,11 +231,12 @@ def formulario_de_alta():
 @blueprint_organizaciones.get("/<int:organizacion_id>")
 @requiere_permiso(ORGANIZACIONES_LISTAR)
 def ver(organizacion_id: int):
-    """Detalle de una organizacion."""
+    """Detalle de una organizacion, con sus zonas de cobertura y las cuentas vinculadas."""
     datos = servicios.a_diccionario(servicios.obtener(organizacion_id))
+    miembros = servicios.miembros(organizacion_id)
     if pide_json():
-        return jsonify(datos)
-    return render_template("organizaciones/detalle.html", organizacion=datos)
+        return jsonify({**datos, "miembros": miembros})
+    return render_template("organizaciones/detalle.html", organizacion=datos, miembros=miembros)
 
 
 @blueprint_organizaciones.post("")
@@ -141,6 +254,8 @@ def crear():
         contacto_email=formulario.contacto_email.data,
         contacto_telefono=formulario.contacto_telefono.data,
         direccion=formulario.direccion.data,
+        zonas=_zonas_enviadas(formulario),
+        cobertura_nacional=bool(_cobertura_nacional_enviada(formulario)),
     )
     return redirigir(
         "organizaciones.ver",
@@ -158,7 +273,7 @@ def formulario_de_edicion(organizacion_id: int):
     contexto = _contexto_del_formulario(organizacion_id)
     return render_template(
         "organizaciones/formulario.html",
-        formulario=FormularioOrganizacion(data=contexto["organizacion"]),
+        formulario=FormularioOrganizacion(data=_datos_para_el_formulario(contexto["organizacion"])),
         **contexto,
     )
 
@@ -179,6 +294,8 @@ def editar(organizacion_id: int):
         contacto_email=formulario.contacto_email.data,
         contacto_telefono=formulario.contacto_telefono.data,
         direccion=formulario.direccion.data,
+        zonas=_zonas_enviadas(formulario),
+        cobertura_nacional=_cobertura_nacional_enviada(formulario),
     )
     return redirigir(
         "organizaciones.ver",
@@ -205,6 +322,66 @@ def cambiar_estado(organizacion_id: int):
         datos_json=servicios.a_diccionario(organizacion),
         preferir_origen=True,
     )
+
+
+# --- Mi organizacion (miembros) -------------------------------------------------
+
+
+@blueprint_organizaciones.get("/mia")
+@requiere_permiso(ORGANIZACION_PROPIA_VER)
+def mi_organizacion():
+    """La organizacion de la cuenta en sesion: datos, cobertura y compañeros."""
+    contexto = _contexto_de_mi_organizacion()
+    miembros = servicios.miembros(contexto["organizacion"]["id"])
+    if pide_json():
+        return jsonify({**contexto["organizacion"], "miembros": miembros})
+    return render_template("organizaciones/mi_organizacion.html", miembros=miembros, **contexto)
+
+
+@blueprint_organizaciones.get("/mia/edicion")
+@requiere_permiso(ORGANIZACION_PROPIA_EDITAR)
+def formulario_de_mi_organizacion():
+    """Pantalla de edicion del contacto y la cobertura de la propia organizacion."""
+    contexto = _contexto_de_mi_organizacion()
+    return render_template(
+        "organizaciones/mi_organizacion_formulario.html",
+        formulario=FormularioDatosPropios(data=_datos_para_el_formulario(contexto["organizacion"])),
+        **contexto,
+    )
+
+
+@blueprint_organizaciones.post("/mia/edicion")
+@requiere_permiso(ORGANIZACION_PROPIA_EDITAR)
+@plantilla_ante_error(
+    "organizaciones/mi_organizacion_formulario.html", contexto=_contexto_de_mi_organizacion
+)
+def editar_mi_organizacion():
+    """Actualizacion del contacto y la cobertura por un miembro de la organizacion.
+
+    Nombre, tipo, identificador y estado no viajan en este formulario: aunque un cliente los
+    mande, `servicios.editar_datos_propios()` no los recibe.
+    """
+    formulario = construir_formulario(FormularioDatosPropios)
+    validar_o_fallar(formulario)
+
+    organizacion = servicios.obtener_propia(current_user.organizacion_id)
+    zonas = _zonas_enviadas(formulario)
+    if zonas is None:
+        zonas = [servicios.zona_a_diccionario(zona) for zona in organizacion.zonas_de_cobertura]
+    organizacion = servicios.editar_datos_propios(
+        organizacion.id,
+        contacto_email=formulario.contacto_email.data,
+        contacto_telefono=formulario.contacto_telefono.data,
+        direccion=formulario.direccion.data,
+        zonas=zonas,
+        cobertura_nacional=_cobertura_nacional_enviada(formulario),
+    )
+    return redirigir(
+        "organizaciones.mi_organizacion",
+        "Datos de tu organización actualizados.",
+        datos_json=servicios.a_diccionario(organizacion),
+    )
+
 
 @blueprint_organizaciones.get("/inventario")
 @requiere_permiso(INVENTARIO_VER)

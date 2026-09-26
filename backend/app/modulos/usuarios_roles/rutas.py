@@ -216,12 +216,34 @@ def listar():
 @blueprint_usuarios.get("/nuevo")
 @requiere_permiso(USUARIOS_CREAR)
 def formulario_de_alta():
-    """Pantalla de alta de una cuenta."""
+    """Pantalla de alta de una cuenta.
+
+    Con `?organizacion_id=` (el boton "Vincular cuenta" del detalle de una organizacion) llega
+    con esa organizacion y el rol que su tipo exige ya elegidos.
+    """
     return render_template(
         "usuarios/formulario.html",
-        formulario=FormularioAltaDeUsuario(),
+        formulario=FormularioAltaDeUsuario(
+            data=_datos_de_vinculo(parametro_entero("organizacion_id"))
+        ),
         **_contexto_del_formulario(),
     )
+
+
+def _datos_de_vinculo(organizacion_id: int | None) -> dict[str, Any]:
+    """Organizacion y rol para precargar el alta, o nada si la organizacion no existe."""
+    if organizacion_id is None:
+        return {}
+    tipo = servicios_de_organizaciones.obtener_tipo_de_organizacion(organizacion_id)
+    if tipo is None:
+        return {}
+    rol = next(
+        (rol for rol, exigido in TIPO_DE_ORGANIZACION_POR_ROL.items() if exigido == tipo),
+        None,
+    )
+    if rol is None:
+        return {}
+    return {"organizacion_id": organizacion_id, "rol": rol.value}
 
 
 @blueprint_usuarios.get("/<int:usuario_id>")

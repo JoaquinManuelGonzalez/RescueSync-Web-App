@@ -11,8 +11,6 @@ Es idempotente: identifica cada fila por su nombre, que es la clave natural, y n
 
 from __future__ import annotations
 
-from sqlalchemy import select
-
 from app.core.semillas import ResultadoSemilla, obtener_o_crear, registrar
 from app.modulos.emergencias.modelos import Item
 from app.modulos.organizaciones.modelos import (
@@ -20,6 +18,7 @@ from app.modulos.organizaciones.modelos import (
     InventarioItem,
     Organizacion,
     TipoOrganizacion,
+    ZonaDeCobertura,
 )
 
 # # # # # # # # # # # # Organizaciones # # # # # # # # # # # #
@@ -31,26 +30,10 @@ from app.modulos.organizaciones.modelos import (
 
 ORGANIZACIONES_DE_DEMOSTRACION: tuple[tuple[str, TipoOrganizacion, str], ...] = (
     # --- Municipios ---
-    (
-        "Municipio de Chascomús",
-        TipoOrganizacion.municipio,
-        "30-71234567-9"
-    ),
-    (
-        "Municipalidad de Bahía Blanca",
-        TipoOrganizacion.municipio,
-        "30-99999999-1"
-    ),
-    (
-        "Municipalidad de La Plata",
-        TipoOrganizacion.municipio,
-        "30-99999999-2"
-    ),
-    (
-        "Municipalidad de Pergamino",
-        TipoOrganizacion.municipio,
-        "30-99999999-3"
-    ),
+    ("Municipio de Chascomús", TipoOrganizacion.municipio, "30-71234567-9"),
+    ("Municipalidad de Bahía Blanca", TipoOrganizacion.municipio, "30-99999999-1"),
+    ("Municipalidad de La Plata", TipoOrganizacion.municipio, "30-99999999-2"),
+    ("Municipalidad de Pergamino", TipoOrganizacion.municipio, "30-99999999-3"),
     # --- Centro coordinador regional ---
     (
         "Centro Coordinador Regional Buenos Aires",
@@ -58,16 +41,8 @@ ORGANIZACIONES_DE_DEMOSTRACION: tuple[tuple[str, TipoOrganizacion, str], ...] = 
         "30-70987654-3",
     ),
     # --- ONGs ---
-    (
-        "Cruz Solidaria",
-        TipoOrganizacion.ong,
-        "30-65432198-7"
-    ),
-    (
-        "Manos Unidas",
-        TipoOrganizacion.ong,
-        "30-65432199-5"
-    ),
+    ("Cruz Solidaria", TipoOrganizacion.ong, "30-65432198-7"),
+    ("Manos Unidas", TipoOrganizacion.ong, "30-65432199-5"),
     (
         "Cruz Roja Argentina - Filial Bahía Blanca",
         TipoOrganizacion.ong,
@@ -78,11 +53,7 @@ ORGANIZACIONES_DE_DEMOSTRACION: tuple[tuple[str, TipoOrganizacion, str], ...] = 
         TipoOrganizacion.ong,
         "30-99999999-5",
     ),
-    (
-        "Grupo Scouts de Pergamino",
-        TipoOrganizacion.ong,
-        "30-99999999-6"
-    ),
+    ("Grupo Scouts de Pergamino", TipoOrganizacion.ong, "30-99999999-6"),
 )
 
 
@@ -102,6 +73,63 @@ def sembrar_organizaciones() -> list[ResultadoSemilla]:
             },
         )
         resultado.contar(fue_creada)
+
+    return [resultado]
+
+
+# # # # # # # # # # # # Zonas de cobertura # # # # # # # # # # # #
+# Formato: nombre de la organizacion -> [(provincia, localidad)]. Localidad None = toda la
+# provincia. Toda ONG declara al menos una zona, como exige `servicios.crear()`.
+
+ZONAS_DE_COBERTURA: dict[str, list[tuple[str, str | None]]] = {
+    "Municipio de Chascomús": [("Buenos Aires", "Chascomús")],
+    "Municipalidad de Bahía Blanca": [("Buenos Aires", "Bahía Blanca")],
+    "Municipalidad de La Plata": [("Buenos Aires", "La Plata")],
+    "Municipalidad de Pergamino": [("Buenos Aires", "Pergamino")],
+    "Centro Coordinador Regional Buenos Aires": [("Buenos Aires", None)],
+    "Cruz Solidaria": [
+        ("Buenos Aires", "Chascomús"),
+        ("Buenos Aires", "La Plata"),
+        ("Ciudad Autónoma de Buenos Aires", None),
+    ],
+    "Manos Unidas": [("Buenos Aires", "Chascomús")],
+    "Cruz Roja Argentina - Filial Bahía Blanca": [
+        ("Buenos Aires", "Bahía Blanca"),
+        ("Buenos Aires", "Coronel Rosales"),
+        ("Buenos Aires", "Villarino"),
+    ],
+    "Bomberos Voluntarios de La Plata": [
+        ("Buenos Aires", "Berisso"),
+        ("Buenos Aires", "Ensenada"),
+        ("Buenos Aires", "La Plata"),
+    ],
+    "Grupo Scouts de Pergamino": [("Buenos Aires", "Pergamino")],
+}
+
+
+@registrar("zonas_de_cobertura")
+def sembrar_zonas_de_cobertura() -> list[ResultadoSemilla]:
+    """Declara la zona de cobertura de cada organización de demostración."""
+    resultado = ResultadoSemilla("zonas_de_cobertura")
+
+    for nombre_org, zonas in ZONAS_DE_COBERTURA.items():
+        organizacion = Organizacion.query.filter_by(nombre=nombre_org).first()
+        if organizacion is None:
+            raise ValueError(
+                f"Organización no encontrada para zona de cobertura: {nombre_org!r}. "
+                f"Revisar si está declarada en: "
+                f"organizaciones/semillas.py::ORGANIZACIONES_DE_DEMOSTRACION"
+            )
+        for provincia, localidad in zonas:
+            _, fue_creada = obtener_o_crear(
+                ZonaDeCobertura,
+                claves={
+                    "organizacion_id": organizacion.id,
+                    "provincia": provincia,
+                    "localidad": localidad,
+                },
+            )
+            resultado.contar(fue_creada)
 
     return [resultado]
 

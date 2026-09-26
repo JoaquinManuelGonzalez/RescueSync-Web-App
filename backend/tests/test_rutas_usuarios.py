@@ -152,7 +152,7 @@ def test_el_listado_se_filtra_por_rol_y_por_organizacion(cliente_sembrado, ingre
     ingresar(EMAIL_ADMINISTRADOR)
 
     representantes = cliente_sembrado.get("/usuarios?rol=representante_ong").get_json()["usuarios"]
-    assert len(representantes) == 3
+    assert len(representantes) == 4
     assert all(uno["roles"] == ["representante_ong"] for uno in representantes)
 
     municipio = _id_de_organizacion(cliente_sembrado, "Municipio de Chascomús")
@@ -190,7 +190,12 @@ def test_el_administrador_da_de_alta_y_edita_una_organizacion(
 
     alta = cliente_sembrado.post(
         "/organizaciones",
-        json={"nombre": "ONG del Sur", "tipo": "ong", "contacto_email": "hola@ongdelsur.test"},
+        json={
+            "nombre": "ONG del Sur",
+            "tipo": "ong",
+            "contacto_email": "hola@ongdelsur.test",
+            "zonas": [{"provincia": "Río Negro", "localidad": "Bariloche"}],
+        },
         headers=cabecera_csrf(),
     )
     assert alta.status_code == 201

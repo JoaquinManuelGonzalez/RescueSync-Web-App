@@ -1,0 +1,42 @@
+{#- Actualizacion del contacto y la cobertura de la organizacion propia, por uno de sus miembros.
+
+    Contexto: `formulario` (FormularioDatosPropios) y `organizacion` (diccionario de
+    `servicios.a_diccionario()`). -#}
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina %}
+{% from "componentes/formularios.html" import csrf, campo, boton_envio %}
+{% from "organizaciones/componentes.html" import campos_de_zonas %}
+
+{%- set destino_cancelar = url_for("organizaciones.mi_organizacion") %}
+
+{% block title %}Actualizar datos de {{ organizacion.nombre }}{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-primario" href="{{ destino_cancelar }}">
+    {{ icono("volver", "size-4") }} Volver
+  </a>
+
+  {% call encabezado_pagina("Actualizar datos", organizacion.nombre) %}
+  {% endcall %}
+
+  <div class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <form class="formulario" method="post" action="{{ url_for('organizaciones.editar_mi_organizacion') }}" data-envio-con-carga novalidate>
+        {{ csrf() }}
+        <div class="formulario-grilla">
+          {{ campo(formulario.contacto_email, atributos={"type": "email"}) }}
+          {{ campo(formulario.contacto_telefono, atributos={"type": "tel"}) }}
+          {{ campo(formulario.direccion) }}
+          {{ campos_de_zonas(formulario, obligatoria=organizacion.tipo == "ong") }}
+        </div>
+        <div class="formulario-acciones">
+          <a class="btn btn-cancelar" href="{{ destino_cancelar }}">Cancelar</a>
+          {{ boton_envio("Guardar cambios", "Guardando...") }}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -53,6 +53,7 @@ El catálogo cubre todo el proceso BPMN y no solo la épica de identidad, para q
 |---|---|---|---|---|---|
 | `usuarios:*` | | | | | ✔ |
 | `organizaciones:*` | | | | | ✔ |
+| `organizacion_propia:ver` / `:editar` | ✔ | ✔ | ✔ | | |
 | `emergencias:crear` | ✔ | | | | |
 | `emergencias:editar` | ✔ | | | | |
 | `emergencias:listar` / `:ver` | ✔ | ✔ | | ✔ | |
@@ -277,6 +278,15 @@ verifican escribiendo la URL a mano y enviando un formulario armado sin permiso
 | Cambio de contraseña | `GET /sesion/contrasena` | Cualquier sesión |
 | Cuentas: listado, alta, detalle, edición | `/usuarios`, `/usuarios/nuevo`, `/usuarios/<id>`, `/usuarios/<id>/edicion` | `usuarios:*` |
 | Organizaciones: listado, alta, detalle, edición | `/organizaciones`, `/organizaciones/nueva`, `/organizaciones/<id>`, `/organizaciones/<id>/edicion` | `organizaciones:*` |
+| Mi organización: datos, cobertura y miembros; edición de contacto y cobertura | `/organizaciones/mia`, `/organizaciones/mia/edicion` | `organizacion_propia:*` |
+
+`organizacion_propia:*` es un recurso aparte de `organizaciones:*` a propósito: cada miembro ve y
+actualiza solo la organización a la que pertenece (el id sale de la sesión, nunca de la URL) y
+no puede listar las demás. Nombre, tipo, identificador y estado siguen siendo del administrador.
+
+Dar de baja una organización corta el acceso de todas sus cuentas mientras dure la baja, sin
+modificarlas: no pueden ingresar y una sesión ya abierta deja de valer en la siguiente solicitud
+(`usuarios_roles.servicios.puede_operar`). Al reactivarla, vuelven a entrar.
 
 Cómo se construye una pantalla (plantillas, componentes y estilos) está en
 [`interfaz.md`](./interfaz.md).

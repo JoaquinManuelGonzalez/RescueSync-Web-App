@@ -14,8 +14,8 @@ tal cual**: una integración con el backend conecta esos templates, no los redis
 |---|---|---|
 | `layout.html` | Layout de todas las pantallas: navbar con sesión, mensajes flash arriba, bloques `title` y `content` | `<meta name="csrf-token">` y `interfaz.js` en el `<head>`; en cada mensaje flash, la cruz para cerrarlo y `data-alerta-descartable` para que se vaya solo; `data-minutos-sesion` en el `<body>` |
 | `navbar.html` | Logo, campana de notificaciones, menú de perfil, menú mobile | Enlaces de sección ("Inicio" más una por cada `entradas_de_menu()`, en desktop y en el menú mobile, marcando la actual); enlaces reales (logo → inicio, "Mi perfil"); "Cerrar sesión" pasó de `<a>` a un formulario POST con CSRF, con las mismas clases, porque el servidor no acepta cerrar sesión por GET |
-| `login.html` | Pantalla de ingreso | `action`, token CSRF, campo `email` (el backend autentica por email), `next`, y el botón para mostrar u ocultar la contraseña |
-| `hub.html` | Panel de inicio con tarjetas | Las tarjetas salen de `entradas_de_menu()` (sección 4) con el mismo diseño y los mismos íconos; un perfil sin pantallas todavía ve un mensaje |
+| `login.html` | Bienvenida con el ingreso: presentación de la app a un lado y formulario al otro (apilados en mobile) | `action`, token CSRF, campo `email` (el backend autentica por email), `next`, y el botón para mostrar u ocultar la contraseña. Se arma con los macros `campo()` / `boton_envio()` y `data-envio-con-carga`; no hay recuperación de contraseña: una leyenda indica pedírsela a un administrador |
+| `hub.html` | Panel de inicio: saludo con rol y organización, y una tarjeta por sección | Las tarjetas salen de `entradas_de_menu()` (sección 4) con su título y descripción; un perfil sin pantallas todavía ve un estado vacío |
 | `cargar_oferta.html`, `inventario.html`, `notificaciones.html`, `inicio.html` | Maquetas de épicas siguientes | Nada |
 
 Las categorías de los mensajes flash son las que dibuja `layout.html`: `success`, `error`,
@@ -52,6 +52,9 @@ Tomadas de las clases que ya usaban los templates del equipo (`bg-primario`,
 | Insignias | `.insignia` + `.insignia-primaria`, `-exito`, `-neutra`, `-advertencia`, `-error`, `-info` |
 | Avisos fijos | `.alerta` + `.alerta-exito`, `-error`, `-advertencia`, `-info` (mismo estilo que los flash) |
 | Modal | `.modal`, `.modal-panel`, `.modal-encabezado`, `.modal-icono`, `.modal-titulo`, `.modal-texto`, `.modal-acciones` |
+| Destacados | `.hero`, `.hero-titulo`, `.hero-texto`, `.hero-etiquetas`, `.hero-etiqueta`; `.rasgo` (+ `-icono`, `-titulo`, `-texto`); `.cifra` (+ `-valor`, `-texto`); `.animar-escalonado` (los hijos entran en cascada) |
+| Accesos | `.accesos-grilla`, `.acceso`, `.acceso-icono`, `.acceso-cuerpo`, `.acceso-titulo`, `.acceso-texto`, `.acceso-flecha` |
+| Bienvenida | `.bienvenida`, `.bienvenida-presentacion`, `.bienvenida-marca`, `.bienvenida-logo`, `.bienvenida-rasgos`, `.bienvenida-cifras`, `.bienvenida-acceso`, `.bienvenida-acceso-titulo`, `.bienvenida-acceso-texto`, `.bienvenida-nota` |
 
 **Las tablas no tienen scroll horizontal.** En pantallas anchas el texto largo se parte dentro
 de su celda; por debajo de `md` cada fila se apila como una tarjeta y cada dato muestra su
@@ -66,6 +69,7 @@ título (el `data-etiqueta` que pone el macro `celda()`). Todo listado va pagina
 | `tablas.html` | `tabla(columnas)` y `celda(etiqueta)` (con `{% call %}`), `paginacion(pagina)` |
 | `alertas.html` | `alerta(categoria, mensaje, titulo)` — aviso fijo dentro de una pantalla |
 | `diseno.html` | `encabezado_pagina(...)`, `estado_vacio(...)`, `insignia(...)`, `insignia_estado(...)`, `insignia_estado_cuenta(...)`, `dato(...)` |
+| `destacados.html` | `icono_destacado(nombre, clase)` (como `icono()`, con algunos trazos extra), `rasgo(...)`, `cifra(...)`, `tarjeta_acceso(entrada, icono_nombre)` — los usan la bienvenida y el panel de inicio |
 
 `campo()` resuelve etiqueta, control, ayuda, errores de validación y accesibilidad. Un
 `PasswordField` sale con el botón para mostrar u ocultar la contraseña; con `requisitos=true`
@@ -132,10 +136,9 @@ ENTRADA_DE_MENU = EntradaDeMenu(
 ```
 
 `hub.html` y `navbar.html` recorren `entradas_de_menu()` (ya filtrada por permisos): el hub dibuja una tarjeta por
-entrada. El ícono se elige por nombre en el diccionario del propio `hub.html`, que tiene los
-íconos originales del template (`carpeta`, `calculadora`, `banco`, `carrito`, `grupo`);
-`usuarios` usa `grupo` y `organizaciones` usa `banco`. Un ícono nuevo se agrega a ese
-diccionario.
+entrada con `tarjeta_acceso()`. El ícono de cada tarjeta se elige por endpoint en el diccionario
+`icono_por_endpoint` del propio `hub.html` (así cada sección tiene uno distinto); una entrada que
+no figure ahí usa el `icono` que declaró, resuelto con `icono_destacado()` (carpeta si no existe).
 
 ## 5. Cómo responde una ruta (`backend/app/core/interfaz/vistas.py`)
 

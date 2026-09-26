@@ -17,6 +17,7 @@
 
       <!-- SECCIONES: las que habilitan los permisos del perfil (app/core/interfaz/navegacion.py) -->
       {%- set secciones = entradas_de_menu() %}
+      {%- set activa = seccion_activa() %}
       <div class="hidden lg:flex items-center gap-1">
         <a
             href="{{ url_for('inicio.panel') }}"
@@ -27,7 +28,7 @@
         {%- for seccion in secciones %}
         <a
             href="{{ url_for(seccion.endpoint) }}"
-            class="rounded-lg px-3 py-2 text-sm font-semibold transition-colors {{ 'bg-acento/60 text-primario' if request.blueprint == seccion.blueprint else 'text-gray-700 hover:bg-acento/40 hover:text-primario' }}"
+            class="rounded-lg px-3 py-2 text-sm font-semibold transition-colors {{ 'bg-acento/60 text-primario' if seccion == activa else 'text-gray-700 hover:bg-acento/40 hover:text-primario' }}"
         >
             {{ seccion.titulo }}
         </a>
@@ -206,7 +207,7 @@
         {%- for seccion in secciones %}
         <a
             href="{{ url_for(seccion.endpoint) }}"
-            class="block rounded-lg px-3 py-3 text-sm font-semibold transition-colors {{ 'bg-acento/60 text-primario' if request.blueprint == seccion.blueprint else 'text-gray-700 hover:bg-acento/40' }}"
+            class="block rounded-lg px-3 py-3 text-sm font-semibold transition-colors {{ 'bg-acento/60 text-primario' if seccion == activa else 'text-gray-700 hover:bg-acento/40' }}"
         >
             {{ seccion.titulo }}
         </a>

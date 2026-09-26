@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from flask import Flask, current_app
+from flask import Flask, current_app, request
 
 from app.core.acceso.autorizacion import puede
 
@@ -36,6 +36,11 @@ class EntradaDeMenu:
 
     `icono` es un nombre del diccionario de iconos de `frontend/plantillas/hub.html`.
     `orden` define la posicion: menor va primero.
+
+    `endpoints` son las pantallas que marcan esta seccion como activa en el navbar. Vacio
+    significa "todo mi blueprint", que alcanza mientras el blueprint tenga una sola seccion.
+    Cuando un blueprint aloja varias (organizaciones: el listado, "Mi organizacion" e
+    inventario), cada una declara las suyas para que no se marquen todas a la vez.
     """
 
     endpoint: str
@@ -44,6 +49,7 @@ class EntradaDeMenu:
     descripcion: str = ""
     icono: str = "carpeta"
     orden: int = 100
+    endpoints: frozenset[str] = frozenset()
 
     @property
     def blueprint(self) -> str:
@@ -67,6 +73,39 @@ def entradas_de_menu() -> list[EntradaDeMenu]:
     return sorted(visibles, key=lambda entrada: (entrada.orden, entrada.titulo))
 
 
+def seccion_activa(endpoint: str | None = None) -> EntradaDeMenu | None:
+    """La unica seccion del menu que corresponde a la pantalla actual, o None.
+
+    Primero gana la entrada que declara el endpoint en `endpoints`. Si ninguna lo declara, vale
+    la entrada sin `endpoints` del mismo blueprint, salvo que el endpoint lo haya reclamado otra
+    entrada (aunque este usuario no la vea): asi una seccion sin declaracion no se marca en las
+    pantallas de sus vecinas de blueprint.
+    """
+    if endpoint is None:
+        endpoint = request.endpoint
+    if not endpoint:
+        return None
+
+    registradas: list[EntradaDeMenu] = current_app.extensions.get(CLAVE_DE_EXTENSION, [])
+    visibles = entradas_de_menu()
+    for entrada in visibles:
+        if endpoint in entrada.endpoints:
+            return entrada
+    if any(endpoint in entrada.endpoints for entrada in registradas):
+        return None
+
+    blueprint = endpoint.partition(".")[0]
+    return next(
+        (
+            entrada
+            for entrada in visibles
+            if not entrada.endpoints and entrada.blueprint == blueprint
+        ),
+        None,
+    )
+
+
 def registrar_navegacion(app: Flask) -> None:
-    """Deja `entradas_de_menu()` disponible en cualquier plantilla Jinja."""
+    """Deja `entradas_de_menu()` y `seccion_activa()` disponibles en cualquier plantilla Jinja."""
     app.jinja_env.globals["entradas_de_menu"] = entradas_de_menu
+    app.jinja_env.globals["seccion_activa"] = seccion_activa

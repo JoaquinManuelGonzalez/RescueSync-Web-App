@@ -1,0 +1,103 @@
+{#- Piezas compartidas por las pantallas de organizaciones.
+
+    {% from "organizaciones/componentes.html" import campos_de_zonas, lista_de_zonas, tabla_de_miembros %}
+
+    - campos_de_zonas(formulario)  filas repetibles de provincia + localidad. Las maneja
+                                   estaticos/js/zonas_de_cobertura.js, que se incluye aca mismo.
+    - lista_de_zonas(zonas, nacional)  la cobertura agrupada por provincia, o "Todo el país".
+    - tabla_de_miembros(miembros)  cuentas vinculadas; `enlazar` agrega el link a su detalle. -#}
+
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import insignia, insignia_estado %}
+{% from "componentes/formularios.html" import campo, casilla %}
+{% from "componentes/tablas.html" import tabla, celda %}
+
+{% macro _fila_de_zona(fila) -%}
+<div class="grid items-end gap-3 sm:grid-cols-12" data-zona-fila>
+  <div class="sm:col-span-5">{{ campo(fila.provincia) }}</div>
+  <div class="sm:col-span-5">{{ campo(fila.localidad, atributos={"placeholder": "Ej.: La Plata, Berisso. Vacío = toda la provincia", "maxlength": 1000}) }}</div>
+  <div class="sm:col-span-2 pb-1">
+    <button type="button" class="btn btn-fantasma btn-icono" data-zona-quitar title="Quitar zona">
+      {{ icono("eliminar") }}<span class="sr-only">Quitar zona</span>
+    </button>
+  </div>
+</div>
+{%- endmacro %}
+
+{#- Los errores de cobertura llegan todos juntos en `formulario.zonas.errors` (los arma
+    `servicios.normalizar_zonas()`); las filas en si no llevan validadores.
+
+    Con "Opera en todo el país" marcado, las filas se ocultan (y el servicio las ignora): la
+    cobertura nacional reemplaza a las zonas. Sin JavaScript las filas quedan visibles, y aun asi
+    vale lo que diga la casilla. -#}
+{% macro campos_de_zonas(formulario, obligatoria=false) -%}
+<fieldset class="space-y-3 sm:col-span-2" data-zonas-de-cobertura>
+  <legend class="campo-etiqueta">{{ formulario.zonas.label.text }}</legend>
+  {{ casilla(formulario.cobertura_nacional,
+             ayuda="Cubre las 24 jurisdicciones. No hace falta cargar provincias ni localidades.",
+             atributos={"data-cobertura-nacional": true}) }}
+  <div class="space-y-3" data-zonas-detalle{% if formulario.cobertura_nacional.data %} hidden{% endif %}>
+    <p class="campo-ayuda">
+      Provincias y localidades donde la organización puede operar. Para varias localidades de la misma provincia, separalas con comas. Dejá la localidad vacía para cubrir toda la provincia.
+      {%- if obligatoria %} Una ONG tiene que declarar al menos una zona, o marcar que opera en todo el país.{% endif %}
+    </p>
+    <div class="space-y-3" data-zonas-filas>
+      {%- for entrada in formulario.zonas %}
+      {{ _fila_de_zona(entrada.form) }}
+      {%- endfor %}
+    </div>
+    <template data-zonas-plantilla>{{ _fila_de_zona(formulario.fila_de_zona_vacia()) }}</template>
+    <button type="button" class="btn btn-secundario" data-zona-agregar>{{ icono("mas") }} Agregar zona</button>
+  </div>
+  {%- for error in formulario.zonas.errors if error is string %}
+  <p class="campo-error">{{ error }}</p>
+  {%- endfor %}
+</fieldset>
+<script src="{{ url_for('static', filename='js/zonas_de_cobertura.js') }}" defer></script>
+{%- endmacro %}
+
+{% macro lista_de_zonas(zonas, nacional=false) -%}
+{%- if nacional %}
+<p class="text-sm font-medium text-gray-900">Todo el país</p>
+{%- elif zonas %}
+<ul class="space-y-2 text-sm text-gray-900">
+  {%- for grupo in zonas|groupby("provincia") %}
+  <li>
+    <span class="font-medium">{{ grupo.grouper }}</span>
+    {%- set localidades = grupo.list|map(attribute="localidad")|select|list %}
+    <span class="text-gray-600">— {{ localidades|join(", ") if localidades else "Toda la provincia" }}</span>
+  </li>
+  {%- endfor %}
+</ul>
+{%- else %}
+<p class="text-sm text-gray-500">Sin zona de cobertura declarada.</p>
+{%- endif %}
+{%- endmacro %}
+
+{% macro insignia_verificacion(estado) -%}
+{%- set variante = {"verificada": "exito", "rechazada": "error"}.get(estado, "advertencia") -%}
+{{ insignia(estado|etiqueta_verificacion, variante) }}
+{%- endmacro %}
+
+{% macro tabla_de_miembros(miembros, enlazar=false) -%}
+{%- if miembros %}
+{% call tabla(["Nombre", "Perfil", "Estado"]) %}
+  {%- for miembro in miembros %}
+  <tr class="tabla-fila">
+    {% call celda("Nombre") %}
+      {%- if enlazar %}
+      <a class="font-medium text-gray-900 hover:text-primario" href="{{ url_for('usuarios.ver', usuario_id=miembro.id) }}">{{ miembro.nombre_completo }}</a>
+      {%- else %}
+      <p class="font-medium text-gray-900">{{ miembro.nombre_completo }}</p>
+      {%- endif %}
+      <p class="text-xs text-gray-500">{{ miembro.email }}</p>
+    {% endcall %}
+    {% call celda("Perfil") %}{% for rol in miembro.roles %}{{ insignia(rol|etiqueta_rol, "primaria") }}{% endfor %}{% endcall %}
+    {% call celda("Estado") %}{{ insignia_estado(miembro.activo) }}{% endcall %}
+  </tr>
+  {%- endfor %}
+{% endcall %}
+{%- else %}
+<p class="text-sm text-gray-500">No hay cuentas vinculadas a esta organización.</p>
+{%- endif %}
+{%- endmacro %}

@@ -17,6 +17,11 @@
 @import "./componentes/alertas.css";
 @import "./componentes/modal.css";
 
+/* Bienvenida (login.html) y panel de inicio (hub.html). */
+@import "./componentes/destacados.css";
+@import "./componentes/accesos.css";
+@import "./componentes/bienvenida.css";
+
 /* Que archivos escanea Tailwind para decidir que clases incluir. Las rutas son relativas
  * a este archivo.
  *

@@ -1,0 +1,52 @@
+{#- La organizacion propia, vista por uno de sus miembros.
+
+    Contexto: `organizacion` (diccionario de `servicios.a_diccionario()`) y `miembros` (el de
+    `servicios.miembros()`). -#}
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina, insignia, insignia_estado, dato %}
+{% from "organizaciones/componentes.html" import lista_de_zonas, insignia_verificacion, tabla_de_miembros %}
+
+{% block title %}{{ organizacion.nombre }}{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta space-y-6">
+  {% call encabezado_pagina(organizacion.nombre, organizacion.tipo|etiqueta_tipo_organizacion) %}
+    {%- if puede("organizacion_propia:editar") %}
+    <a class="btn btn-primario" href="{{ url_for('organizaciones.formulario_de_mi_organizacion') }}">{{ icono("editar") }} Actualizar datos</a>
+    {%- endif %}
+  {% endcall %}
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Datos de la organización</h2>
+      <dl class="lista-datos">
+        {% call dato("Tipo") %}{{ insignia(organizacion.tipo|etiqueta_tipo_organizacion, "info") }}{% endcall %}
+        {% call dato("Estado") %}{{ insignia_estado(organizacion.activo) }}{% endcall %}
+        {{ dato("Identificador nacional", organizacion.identificador_nacional) }}
+        {% call dato("Verificación nacional") %}{{ insignia_verificacion(organizacion.estado_verificacion) }}{% endcall %}
+        {{ dato("Email de contacto", organizacion.contacto_email) }}
+        {{ dato("Teléfono de contacto", organizacion.contacto_telefono) }}
+        {{ dato("Dirección", organizacion.direccion) }}
+        {{ dato("Última actualización", organizacion.actualizado_en|fecha) }}
+      </dl>
+      <p class="campo-ayuda mt-4">El nombre, el tipo y el identificador nacional los administra RescueSync. Si hay que corregirlos, pedíselo a un administrador.</p>
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Zona de cobertura</h2>
+      {{ lista_de_zonas(organizacion.zonas_de_cobertura, organizacion.cobertura_nacional) }}
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Miembros</h2>
+      <p class="campo-ayuda mb-4">Personas que operan en nombre de la organización. Todas ven y gestionan lo mismo.</p>
+      {{ tabla_de_miembros(miembros) }}
+    </div>
+  </section>
+</div>
+{% endblock %}
