@@ -20,11 +20,19 @@ from app.core.errores import (
 )
 from app.core.logging import registrar_evento
 from app.extensiones import db
+from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
 from app.modulos.emergencias.modelos import (
-    Emergencia, EstadoEmergencia, EstadoLote, Item, LoteItem, LoteNecesidad,
+    Emergencia,
+    EstadoEmergencia,
+    EstadoLote,
+    Item,
+    LoteItem,
+    LoteNecesidad,
 )
 
+
 def obtener_emergencia(emergencia_id: int) -> Emergencia:
+    cerrar_convocatorias_vencidas(emergencia_id=emergencia_id)
     emergencia = db.session.get(Emergencia, emergencia_id)
     if not emergencia:
         raise RecursoNoEncontrado(
@@ -34,12 +42,10 @@ def obtener_emergencia(emergencia_id: int) -> Emergencia:
 
 
 def _validar_emergencia_para_lotes(emergencia: Emergencia) -> None:
-    """Solo se pueden generar lotes sobre emergencias registradas o en evaluación."""
-    estados_validos = {EstadoEmergencia.registrada, EstadoEmergencia.en_evaluacion}
-    if emergencia.estado not in estados_validos:
+    """Solo se pueden generar lotes mientras la emergencia está registrada."""
+    if emergencia.estado != EstadoEmergencia.registrada:
         raise ReglaDeNegocioIncumplida(
-            f"No se pueden generar lotes para una emergencia en estado "
-            f"'{emergencia.estado.value}'.",
+            "Solo se pueden generar lotes mientras la emergencia está registrada.",
             detalle={"emergencia_id": emergencia.id, "estado": emergencia.estado.value},
         )
 
@@ -143,14 +149,7 @@ def crear_lotes(
     )
     db.session.add(lote)
 
-    #
-    #
-    # Al generar el primer lote, la emergencia pasa a estar en_evaluación (sale de "registrada")
-    if emergencia.estado == EstadoEmergencia.registrada:
-        emergencia.estado = EstadoEmergencia.en_evaluacion
-    #
-    #
-    # 
+    emergencia.estado = EstadoEmergencia.en_evaluacion
 
     db.session.commit()
 

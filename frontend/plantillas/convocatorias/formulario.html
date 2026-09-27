@@ -1,0 +1,113 @@
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina %}
+{% from "componentes/formularios.html" import csrf, boton_envio %}
+
+{% block title %}Abrir convocatoria{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta space-y-6">
+  {% call encabezado_pagina("Abrir convocatoria", "Publicá la ventana para que las ONG presenten ofertas de ayuda") %}
+    <a class="btn btn-secundario" href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">{{ icono("volver") }} Volver</a>
+  {% endcall %}
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Emergencia seleccionada</h2>
+      <p class="mt-2 text-lg font-semibold text-gray-900">{{ emergencia.titulo }}</p>
+      <p class="mt-1 text-sm text-gray-600">{{ emergencia.zona_afectada }} · {{ emergencia.nivel_gravedad.value|capitalize }}</p>
+      <p class="mt-3 whitespace-pre-line text-gray-700">{{ emergencia.descripcion }}</p>
+    </div>
+  </section>
+
+  {% if error_mensaje %}
+  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+    <p class="font-semibold">No se pudo publicar la convocatoria</p>
+    <p class="mt-1">{{ error_mensaje }}</p>
+  </div>
+  {% endif %}
+
+  {% if hay_convocatoria_abierta %}
+  <div class="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900" role="alert">
+    Ya hay una convocatoria abierta para esta emergencia. Cerrá o adjudicá la actual antes de publicar otra.
+  </div>
+  {% elif not hay_lotes %}
+  <div class="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900" role="alert">
+    Esta emergencia todavía no tiene lotes asociados. Primero generá al menos un lote para poder abrir una convocatoria.
+  </div>
+  {% elif not emergencia_en_evaluacion %}
+  <div class="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900" role="alert">
+    La emergencia debe estar en revisión para poder abrir una convocatoria.
+  </div>
+  {% else %}
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Lotes de la emergencia</h2>
+      <div class="mt-3 space-y-3">
+        {% for lote in lotes %}
+        <div class="rounded-lg border border-gray-100 px-4 py-3">
+          <div class="flex items-center justify-between gap-3">
+            <p class="font-medium text-gray-900">{{ lote.descripcion or ('Lote de necesidad ' ~ loop.index) }}</p>
+            <span class="text-xs text-gray-500">Estado: {{ lote.estado.value|replace('_', ' ')|capitalize }}</span>
+          </div>
+          {% if lote.lote_items %}
+          <ul class="mt-2 space-y-1 text-sm text-gray-600">
+            {% for li in lote.lote_items %}
+            <li class="flex items-center justify-between gap-3">
+              <span>{{ li.item.nombre }}</span>
+              <span class="font-medium text-gray-800">{{ li.cantidad_solicitada }} {{ li.item.unidad_medida }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <form method="post" action="{{ url_for('convocatorias.crear_desde_formulario', emergencia_id=emergencia.id) }}" class="space-y-6">
+    {{ csrf() }}
+
+    <section class="tarjeta">
+      <div class="tarjeta-cuerpo space-y-5">
+        <div>
+          <label for="resumen_situacion" class="campo-etiqueta">Resumen de la situación</label>
+          <textarea id="resumen_situacion" name="resumen_situacion" rows="4" class="campo-control" required>{{ valores.get('resumen_situacion', '') }}</textarea>
+          {% if errores_por_campo.get('resumen_situacion') %}
+            <p class="mt-1 text-xs text-red-600">{{ errores_por_campo['resumen_situacion'] }}</p>
+          {% endif %}
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="fecha_cierre" class="campo-etiqueta">Fecha límite (día/mes/año)</label>
+            <input id="fecha_cierre" name="fecha_cierre" type="date" lang="es-AR" class="campo-control" required value="{{ valores.get('fecha_cierre', '') }}">
+          </div>
+          <div>
+            <label for="hora_cierre" class="campo-etiqueta">Hora límite</label>
+            <input id="hora_cierre" name="hora_cierre" type="time" class="campo-control" required value="{{ valores.get('hora_cierre', '') }}">
+          </div>
+          {% if errores_por_campo.get('fecha_cierre') %}
+            <p class="mt-1 text-xs text-red-600">{{ errores_por_campo['fecha_cierre'] }}</p>
+          {% endif %}
+          {% if errores_por_campo.get('hora_cierre') %}
+            <p class="mt-1 text-xs text-red-600">{{ errores_por_campo['hora_cierre'] }}</p>
+          {% endif %}
+        </div>
+
+        <div>
+          <label for="observaciones" class="campo-etiqueta">Observaciones</label>
+          <textarea id="observaciones" name="observaciones" rows="3" class="campo-control" placeholder="Instrucciones adicionales, puntos de entrega o requisitos.">{{ valores.get('observaciones', '') }}</textarea>
+        </div>
+      </div>
+    </section>
+
+    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <a class="btn btn-secundario" href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">Cancelar</a>
+      {{ boton_envio("Abrir convocatoria", texto_cargando="Publicando...", icono_nombre="guardar") }}
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

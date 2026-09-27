@@ -20,6 +20,7 @@ from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 from app.modulos.emergencias.modelos import (
     Emergencia,
     EstadoEmergencia,
+    EstadoLote,
     Item,
     LoteItem,
     LoteNecesidad,
@@ -160,6 +161,7 @@ def datos_base(app):
             coordinador_id=usuario.id,
             fecha_inicio=ahora - timedelta(hours=1),
             fecha_cierre=ahora + timedelta(days=2),
+            resumen_situacion="Crecida de río con familias evacuadas.",
             estado=EstadoConvocatoria.abierta,
         )
 
@@ -169,9 +171,12 @@ def datos_base(app):
             coordinador_id=usuario.id,
             fecha_inicio=ahora - timedelta(days=5),
             fecha_cierre=ahora - timedelta(days=1),
+            resumen_situacion="Crecida de río con familias evacuadas.",
             estado=EstadoConvocatoria.cerrada,
         )
         db.session.add_all([convocatoria_abierta, convocatoria_cerrada])
+        lote.convocatoria = convocatoria_abierta
+        lote.estado = EstadoLote.en_convocatoria
         db.session.commit()
 
         yield {

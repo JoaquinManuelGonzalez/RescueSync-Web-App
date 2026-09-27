@@ -50,7 +50,7 @@
             <header class="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p class="font-medium text-gray-900">
-                  {{ lote.descripcion or ("Lote #" ~ lote.id) }}
+                  {{ lote.descripcion or ("Lote de necesidad " ~ loop.index) }}
                 </p>
                 <p class="text-xs text-gray-500">
                   Generado {{ lote.creado_en|fecha }}

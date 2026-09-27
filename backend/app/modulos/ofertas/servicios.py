@@ -27,6 +27,7 @@ from app.core.errores import (
 from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import Convocatoria
+from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
 from app.modulos.emergencias.modelos import LoteItem
 from app.modulos.ofertas.modelos import (
     EstadoOferta,
@@ -56,6 +57,7 @@ def _formatear_fecha_iso(fecha: datetime | None) -> str | None:
 
 def _validar_ventana_convocatoria(convocatoria: Convocatoria) -> None:
     """Verifica que la convocatoria esté abierta y dentro de la ventana de recepción."""
+    cerrar_convocatorias_vencidas(emergencia_id=convocatoria.emergencia_id)
     if not convocatoria.esta_vigente():
         fecha_cierre_str = _formatear_fecha_iso(convocatoria.fecha_cierre)
         registrar_evento(
@@ -132,10 +134,10 @@ def _validar_y_procesar_items(
             raise RecursoNoEncontrado(f"El ítem de lote con id {li_id} no existe.")
 
         li = lote_item_dict[li_id]
-        if li.lote.emergencia_id != convocatoria.emergencia_id:
+        if li.lote.convocatoria_id != convocatoria.id:
             raise ReglaDeNegocioIncumplida(
-                f"El ítem {li_id} no pertenece a la emergencia atendida por esta convocatoria.",
-                detalle={"lote_item_id": li_id, "emergencia_id": convocatoria.emergencia_id},
+                f"El ítem {li_id} no pertenece a esta convocatoria.",
+                detalle={"lote_item_id": li_id, "convocatoria_id": convocatoria.id},
             )
 
         cantidad = item_dato.get("cantidad_ofrecida")

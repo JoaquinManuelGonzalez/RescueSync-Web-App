@@ -8,6 +8,7 @@ from app.core.semillas import ResultadoSemilla, obtener_o_crear, registrar
 from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 from app.modulos.emergencias.modelos import (
     Emergencia,
+    EstadoEmergencia,
     EstadoLote,
     Item,
     LoteItem,
@@ -64,10 +65,13 @@ def sembrar_convocatorias() -> list[ResultadoSemilla]:
             "coordinador_id": coordinador.id,
             "fecha_inicio": datetime.now(UTC) - timedelta(days=1),
             "fecha_cierre": datetime.now(UTC) + timedelta(days=30),
+            "resumen_situacion": emergencia.descripcion,
             "estado": EstadoConvocatoria.abierta,
         },
     )
     resultado_convocatoria = ResultadoSemilla("convocatorias")
     resultado_convocatoria.contar(convocatoria_creada)
+    lote.convocatoria = convocatoria
+    emergencia.estado = EstadoEmergencia.activa
 
     return [resultado_lote, resultado_items, resultado_convocatoria]

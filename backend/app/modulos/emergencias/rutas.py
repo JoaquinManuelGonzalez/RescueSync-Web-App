@@ -18,11 +18,12 @@ from app.core.acceso.permisos import (
     EMERGENCIAS_CREAR,
     EMERGENCIAS_LISTAR,
 )
-from app.core.errores import ErrorDeAplicacion, RecursoNoEncontrado, SolicitudInvalida
+from app.core.errores import ErrorDeAplicacion, RecursoNoEncontrado
 from app.core.interfaz.navegacion import EntradaDeMenu
 from app.core.interfaz.vistas import pide_json, redirigir
+from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
 from app.modulos.emergencias import servicios
-from app.modulos.emergencias.modelos import Emergencia, EstadoEmergencia, NivelGravedad
+from app.modulos.emergencias.modelos import Emergencia, NivelGravedad
 
 blueprint_emergencias = Blueprint("emergencias", __name__)
 
@@ -150,6 +151,7 @@ def crear_desde_formulario():
 @requiere_permiso(EMERGENCIAS_LISTAR)
 def obtener(emergencia_id: int):
     """Detalle de una emergencia."""
+    cerrar_convocatorias_vencidas(emergencia_id=emergencia_id)
     emergencia = servicios.obtener_emergencia_por_id(emergencia_id)
     _filtrar_emergencia_para_municipio(emergencia)
 

@@ -15,7 +15,7 @@
       <dl class="lista-datos">
         {% call dato("Estado") %}
           {% set es_activa = emergencia.estado.value == "activa" %}
-          {{ insignia(emergencia.estado.value|replace("_", " ")|capitalize, "exito" if es_activa else "neutra") }}
+          {{ insignia("En revisión" if emergencia.estado.value == "en_evaluacion" else emergencia.estado.value|replace("_", " ")|capitalize, "exito" if es_activa else "neutra") }}
         {% endcall %}
         {{ dato("Nivel de gravedad", emergencia.nivel_gravedad.value|capitalize) }}
         {{ dato("Zona afectada", emergencia.zona_afectada) }}
@@ -38,7 +38,7 @@
 <section class="tarjeta">
   <div class="tarjeta-cuerpo">
     {% call encabezado_pagina("Lotes de necesidad") %}
-      {% if puede("lotes:crear") %}
+      {% if puede("lotes:crear") and emergencia.estado.value == "registrada" %}
         <a class="btn btn-primario"
            href="{{ url_for('lotes.formulario_de_alta', emergencia_id=emergencia.id) }}">
           {{ icono("mas") }} Crear nuevo lote
@@ -47,7 +47,7 @@
     {% endcall %}
 
     <p class="mt-1 text-sm text-gray-500">
-      Lotes generados por el Centro Coordinador Regional para esta emergencia.
+      Lotes generados por el Centro Coordinador Regional para esta emergencia. Los lotes publicados quedan congelados durante cada convocatoria.
     </p>
 
     {% if emergencia.lotes %}
@@ -56,9 +56,9 @@
       <div class="rounded-lg border border-gray-100 px-4 py-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <p class="font-medium text-gray-900">
-            {{ lote.descripcion or ("Lote #" ~ lote.id) }}
+            {{ lote.descripcion or "Lote de necesidad" }}
           </p>
-          {{ insignia(lote.estado.value|replace("_", " ")|capitalize, "neutra") }}
+          {{ insignia("Ronda cerrada" if lote.convocatoria and lote.convocatoria.estado.value == "cerrada" else lote.estado.value|replace("_", " ")|capitalize, "neutra") }}
         </div>
 
         {% if lote.lote_items %}
@@ -106,17 +106,42 @@
 
   <section class="tarjeta">
     <div class="tarjeta-cuerpo">
-      <h2 class="tarjeta-titulo">Convocatorias</h2>
-      <p class="mt-1 text-sm text-gray-500">Convocatorias abiertas para recibir ofertas de ONG sobre esta emergencia.</p>
+      {% set ns = namespace(convocatoria_abierta=false) %}
+      {% for convocatoria in emergencia.convocatorias %}
+        {% if convocatoria.estado.value == 'abierta' %}
+          {% set ns.convocatoria_abierta = true %}
+        {% endif %}
+      {% endfor %}
+
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="tarjeta-titulo">Convocatorias</h2>
+        {% if puede("convocatorias:crear") and emergencia.lotes and not ns.convocatoria_abierta and emergencia.estado.value == "en_evaluacion" %}
+          <a class="btn btn-primario" href="{{ url_for('convocatorias.formulario_de_alta', emergencia_id=emergencia.id) }}">
+            {{ icono("mas") }} Abrir convocatoria
+          </a>
+        {% elif ns.convocatoria_abierta %}
+          <button class="btn btn-secundario" disabled title="Ya existe una convocatoria abierta para esta emergencia">{{ icono("clock") }} Convocatoria abierta</button>
+        {% endif %}
+      </div>
+      <p class="mt-1 text-sm text-gray-500">
+        {% if not emergencia.lotes and emergencia.estado.value == "registrada" %}
+          Generá un lote de necesidad; al hacerlo, la emergencia pasará a revisión y vas a poder abrir la convocatoria.
+        {% else %}
+          Convocatorias abiertas para recibir ofertas de ONG sobre esta emergencia.
+        {% endif %}
+      </p>
 
       {% if emergencia.convocatorias %}
       <div class="mt-4 space-y-3">
         {% for convocatoria in emergencia.convocatorias %}
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3 last:border-0 last:pb-0">
           <div>
-            <p class="font-medium text-gray-900">Convocatoria #{{ convocatoria.id }}</p>
+            <p class="font-medium text-gray-900">Convocatoria publicada</p>
             <p class="text-sm text-gray-500">Cierra {{ convocatoria.fecha_cierre|fecha }}</p>
           </div>
+          <a class="btn btn-fantasma btn-icono" href="{{ url_for('convocatorias.obtener', convocatoria_id=convocatoria.id) }}" title="Ver convocatoria">
+            {{ icono("ver") }}<span class="sr-only">Ver convocatoria</span>
+          </a>
           {{ insignia("Vigente" if convocatoria.esta_vigente() else "Cerrada", "exito" if convocatoria.esta_vigente() else "neutra") }}
         </div>
         {% endfor %}
