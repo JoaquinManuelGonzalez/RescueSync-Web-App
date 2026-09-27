@@ -38,6 +38,8 @@ def registrar_modulos(app: Flask) -> None:
 
     from app.core.interfaz.navegacion import registrar_entrada
     from app.modulos.ofertas import rutas as rutas_de_ofertas
+    from app.modulos.emergencias import rutas as rutas_de_emergencias
+    from app.modulos.emergencias.lotes import rutas as rutas_de_lotes
     from app.modulos.organizaciones import rutas as rutas_de_organizaciones
     from app.modulos.usuarios_roles import rutas as rutas_de_usuarios_roles
     from app.modulos.usuarios_roles.servicios import instalar_cargador_de_sesion
@@ -51,6 +53,9 @@ def registrar_modulos(app: Flask) -> None:
         rutas_de_organizaciones.blueprint_organizaciones, url_prefix="/organizaciones"
     )
     app.register_blueprint(rutas_de_ofertas.blueprint_ofertas, url_prefix="/ofertas")
+    app.register_blueprint(rutas_de_emergencias.blueprint_emergencias, url_prefix="/emergencias")
+    app.register_blueprint(rutas_de_lotes.blueprint_lotes, url_prefix="/lotes")
+
 
     # Cada pantalla con acceso propio en el menu declara su entrada junto a sus rutas; aca solo
     # se registra. Quien la ve lo decide su permiso (ver app/core/interfaz/navegacion.py).
@@ -59,3 +64,4 @@ def registrar_modulos(app: Flask) -> None:
     registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU_MI_ORGANIZACION)
     registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU_INVENTARIO)
     registrar_entrada(app, rutas_de_ofertas.ENTRADA_DE_MENU)
+    registrar_entrada(app, rutas_de_emergencias.ENTRADA_DE_MENU)

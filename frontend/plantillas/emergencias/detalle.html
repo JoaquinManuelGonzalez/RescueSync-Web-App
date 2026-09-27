@@ -1,0 +1,130 @@
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina, insignia, dato %}
+
+{% block title %}{{ emergencia.titulo }}{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta space-y-6">
+  {% call encabezado_pagina(emergencia.titulo, emergencia.zona_afectada) %}
+    <a class="btn btn-secundario" href="{{ url_for('emergencias.listar') }}">{{ icono("volver") }} Volver</a>
+  {% endcall %}
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <dl class="lista-datos">
+        {% call dato("Estado") %}
+          {% set es_activa = emergencia.estado.value == "activa" %}
+          {{ insignia(emergencia.estado.value|replace("_", " ")|capitalize, "exito" if es_activa else "neutra") }}
+        {% endcall %}
+        {{ dato("Nivel de gravedad", emergencia.nivel_gravedad.value|capitalize) }}
+        {{ dato("Zona afectada", emergencia.zona_afectada) }}
+        {{ dato("Registrada", emergencia.creado_en|fecha) }}
+        {{ dato("Última actualización", emergencia.actualizado_en|fecha) }}
+        {% if emergencia.municipio %}
+        {{ dato("Municipio", emergencia.municipio.nombre) }}
+        {% endif %}
+      </dl>
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Descripción</h2>
+      <p class="mt-3 whitespace-pre-line text-gray-700">{{ emergencia.descripcion }}</p>
+    </div>
+  </section>
+
+<section class="tarjeta">
+  <div class="tarjeta-cuerpo">
+    {% call encabezado_pagina("Lotes de necesidad") %}
+      {% if puede("lotes:crear") %}
+        <a class="btn btn-primario"
+           href="{{ url_for('lotes.formulario_de_alta', emergencia_id=emergencia.id) }}">
+          {{ icono("mas") }} Crear nuevo lote
+        </a>
+      {% endif %}
+    {% endcall %}
+
+    <p class="mt-1 text-sm text-gray-500">
+      Lotes generados por el Centro Coordinador Regional para esta emergencia.
+    </p>
+
+    {% if emergencia.lotes %}
+    <div class="mt-4 space-y-3">
+      {% for lote in emergencia.lotes %}
+      <div class="rounded-lg border border-gray-100 px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <p class="font-medium text-gray-900">
+            {{ lote.descripcion or ("Lote #" ~ lote.id) }}
+          </p>
+          {{ insignia(lote.estado.value|replace("_", " ")|capitalize, "neutra") }}
+        </div>
+
+        {% if lote.lote_items %}
+        <ul class="mt-2 space-y-1 text-sm text-gray-600">
+          {% for li in lote.lote_items[:3] %}
+          <li class="flex items-center justify-between gap-3">
+            <span>
+              {{ li.item.nombre }}
+              {% if li.observaciones %}
+                <span class="text-gray-400">— {{ li.observaciones }}</span>
+              {% endif %}
+            </span>
+            <span class="font-medium text-gray-800">
+              {{ li.cantidad_solicitada|int }} {{ li.item.unidad_medida }}
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+
+        {% if lote.lote_items|length > 3 %}
+        <p class="mt-2 text-xs text-gray-500">
+          y {{ lote.lote_items|length - 3 }}
+          ítem{{ "s" if (lote.lote_items|length - 3) != 1 else "" }} más…
+        </p>
+        {% endif %}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="mt-4 flex justify-end">
+      <a class="btn btn-secundario"
+         href="{{ url_for('lotes.listar_por_emergencia', emergencia_id=emergencia.id) }}">
+        {{ icono("ver") }} Ver listado completo
+      </a>
+    </div>
+
+    {% else %}
+    <p class="mt-2 text-sm text-gray-500">
+      Esta emergencia todavía no tiene lotes asociados.
+    </p>
+    {% endif %}
+  </div>
+</section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <h2 class="tarjeta-titulo">Convocatorias</h2>
+      <p class="mt-1 text-sm text-gray-500">Convocatorias abiertas para recibir ofertas de ONG sobre esta emergencia.</p>
+
+      {% if emergencia.convocatorias %}
+      <div class="mt-4 space-y-3">
+        {% for convocatoria in emergencia.convocatorias %}
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+          <div>
+            <p class="font-medium text-gray-900">Convocatoria #{{ convocatoria.id }}</p>
+            <p class="text-sm text-gray-500">Cierra {{ convocatoria.fecha_cierre|fecha }}</p>
+          </div>
+          {{ insignia("Vigente" if convocatoria.esta_vigente() else "Cerrada", "exito" if convocatoria.esta_vigente() else "neutra") }}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="mt-2 text-sm text-gray-500">Esta emergencia todavía no tiene convocatorias.</p>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}
