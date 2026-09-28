@@ -1,0 +1,128 @@
+@layer components {
+    .landing {
+        @apply min-h-screen overflow-hidden bg-fondo;
+    }
+
+    .landing-acceso {
+        @apply px-3 py-2 text-xs sm:px-4 sm:text-sm;
+    }
+
+    .landing-hero {
+        @apply relative mx-auto grid max-w-7xl items-center gap-10 px-5 pb-16 pt-10 sm:px-8 sm:pb-24 lg:grid-cols-[1.05fr_0.95fr] lg:px-12 lg:pt-20;
+    }
+
+    .landing-hero-copia {
+        @apply relative z-10 max-w-2xl;
+    }
+
+    .landing-hero-copia h1 {
+        @apply mt-5 max-w-xl text-4xl font-bold leading-[1.05] tracking-tight text-gray-950 sm:text-6xl;
+    }
+
+    .landing-hero-copia p {
+        @apply mt-6 max-w-xl text-base leading-7 text-gray-600 sm:text-lg;
+    }
+
+    .landing-acciones {
+        @apply mt-8 flex flex-wrap items-center gap-5;
+    }
+
+    .landing-enlace {
+        @apply text-sm font-semibold text-primario transition-colors hover:text-primario-dark;
+    }
+
+    .landing-enlace span {
+        @apply ml-1 text-lg;
+    }
+
+    .landing-visual {
+        @apply relative mx-auto flex aspect-square w-full max-w-md items-center justify-center;
+    }
+
+    .landing-visual::before {
+        @apply absolute inset-8 rounded-full bg-acento/60;
+        content: "";
+    }
+
+    .landing-visual-circulo {
+        @apply absolute size-[72%] rounded-full border-[18px] border-secundario/80 border-t-primario/80 shadow-2xl shadow-primario/15;
+        transform: rotate(-28deg);
+    }
+
+    .landing-visual-panel {
+        @apply relative z-10 flex w-[72%] flex-col gap-2 rounded-2xl bg-primario px-6 py-7 text-white shadow-2xl shadow-primario/30;
+    }
+
+    .landing-visual-punto {
+        @apply size-3 rounded-full bg-secundario shadow-[0_0_0_5px] shadow-secundario/20;
+    }
+
+    .landing-visual-panel span:not(.landing-visual-punto) {
+        @apply mt-2 text-xs font-semibold uppercase tracking-widest text-white/65;
+    }
+
+    .landing-visual-panel strong {
+        @apply text-xl sm:text-2xl;
+    }
+
+    .landing-visual-linea {
+        @apply mt-5 flex items-end gap-2;
+    }
+
+    .landing-visual-linea span {
+        @apply block h-2 flex-1 rounded-full bg-white/25;
+    }
+
+    .landing-visual-linea span:first-child { @apply bg-secundario; }
+    .landing-visual-linea span:nth-child(2) { @apply h-4 bg-secundario/80; }
+
+    .landing-visual-alerta {
+        @apply absolute bottom-[12%] right-0 z-20 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-gray-600 shadow-xl ring-1 ring-gray-100;
+    }
+
+    .landing-visual-alerta strong {
+        @apply ml-2 text-exito;
+    }
+
+    .landing-red {
+        @apply mx-auto grid max-w-7xl gap-8 px-5 pb-16 sm:px-8 sm:pb-24 lg:grid-cols-[0.8fr_1.2fr] lg:px-12;
+    }
+
+    .landing-seccion-cabecera h2 {
+        @apply mt-2 max-w-sm text-2xl font-bold tracking-tight text-gray-950 sm:text-3xl;
+    }
+
+    .landing-kicker {
+        @apply text-xs font-bold uppercase tracking-[0.18em] text-primario;
+    }
+
+    .landing-rasgos {
+        @apply grid gap-6 sm:grid-cols-3 lg:gap-5;
+    }
+
+    .landing-rasgos .rasgo {
+        @apply rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100;
+    }
+
+    .landing-rasgos .rasgo-titulo,
+    .landing-rasgos .rasgo-texto {
+        @apply text-gray-800;
+    }
+
+    .landing-rasgos .rasgo-texto { @apply text-gray-500; }
+
+    .landing-rasgos .rasgo-icono {
+        @apply bg-acento text-primario ring-0;
+    }
+
+    .landing-cifras {
+        @apply col-span-full grid grid-cols-3 gap-3 border-t border-gray-200 pt-6;
+    }
+
+    .landing-cifras .cifra {
+        @apply bg-transparent px-0 py-0 ring-0;
+    }
+
+    .landing-cifras .cifra-valor { @apply text-2xl text-primario; }
+    .landing-cifras .cifra-texto { @apply text-gray-500; }
+}

@@ -7,14 +7,13 @@
 
 {% block content %}
 <div class="pagina-angosta space-y-6">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primario" href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">
+    {{ icono("volver", "size-4") }} Volver a la emergencia
+  </a>
   {% call encabezado_pagina(
       "Nuevo lote de necesidades",
       "Desglosá la emergencia en ítems cuantificados para la convocatoria"
   ) %}
-    <a class="btn btn-secundario"
-       href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">
-      {{ icono("volver") }} Volver
-    </a>
   {% endcall %}
 
   {# --- Contexto de la emergencia --- #}
@@ -97,11 +96,11 @@
     </section>
 
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-      <a class="btn btn-secundario"
+      <a class="btn btn-cancelar"
          href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">
         Cancelar
       </a>
-      {{ boton_envio("Generar lote", texto_cargando="Guardando...", icono_nombre="guardar") }}
+      {{ boton_envio("Generar lote", texto_cargando="Guardando...") }}
     </div>
   </form>
 </div>
@@ -150,10 +149,10 @@
 
       <div class="flex items-end justify-end sm:col-span-1">
         <button type="button"
-                class="btn-eliminar-item text-red-500 hover:text-red-700"
+                class="btn btn-fantasma-peligro btn-icono btn-eliminar-item transition-transform hover:rotate-6"
                 title="Quitar ítem"
                 aria-label="Quitar ítem">
-          ✕
+          {{ icono("eliminar", "size-5") }}
         </button>
       </div>
     </div>

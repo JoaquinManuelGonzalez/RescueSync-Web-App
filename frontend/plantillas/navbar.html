@@ -1,4 +1,7 @@
+{% from "componentes/iconos.html" import icono %}
+
 <header class="bg-white">
+    {% if current_user.is_authenticated %}
     <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 lg:px-8" aria-label="Global">
       <div class="flex lg:flex-1">
         <a href="{{ url_for('inicio.panel') }}" class="-m-1.5 p-1.5">
@@ -249,7 +252,19 @@
         }
       });
     });
-  </script>
+    </script>
+    {% else %}
+        <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 lg:px-8" aria-label="Navegación principal">
+            <a href="{{ url_for('inicio.raiz') }}" class="-m-1.5 p-1.5" aria-label="RescueSync, inicio">
+                <span class="sr-only">RescueSync</span>
+                <img class="h-10 w-auto" src="{{ url_for('static', filename='img/RescueSync.png') }}" alt="">
+            </a>
+            <a class="btn btn-secundario landing-acceso" href="{{ url_for('sesion.formulario_de_ingreso') }}"{% if request.endpoint == 'sesion.formulario_de_ingreso' %} aria-current="page"{% endif %}>
+                {{ icono("perfil", "size-4 text-primario") }} Iniciar sesión
+            </a>
+        </nav>
+    {% endif %}
+</header>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
 

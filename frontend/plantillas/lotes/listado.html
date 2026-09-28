@@ -6,15 +6,14 @@
 
 {% block content %}
 <div class="pagina-angosta space-y-6">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primario" href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">
+    {{ icono("volver", "size-4") }} Volver a la emergencia
+  </a>
 
   {% call encabezado_pagina(
       "Lotes de necesidad",
       emergencia.titulo
   ) %}
-    <a class="btn btn-secundario"
-       href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">
-      {{ icono("volver") }} Volver a la emergencia
-    </a>
   {% endcall %}
 
   {# --- Contexto de la emergencia --- #}

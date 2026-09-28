@@ -17,24 +17,8 @@
     "organizaciones.ver_inventario": "inventario",
     "ofertas.listar": "ofertas",
 } %}
-{%- set nombre = (current_user.nombre_completo or "").split(" ")[0] %}
 {%- set entradas = entradas_de_menu() %}
 <div class="pagina space-y-8">
-
-  <section class="hero animate-fade-down" aria-labelledby="saludo">
-    <h1 id="saludo" class="hero-titulo">Hola{{ ", " ~ nombre if nombre }}</h1>
-    <p class="hero-texto">
-      Este es tu panel de RescueSync. Desde acá accedés a todo lo que tu perfil te permite gestionar.
-    </p>
-    <div class="hero-etiquetas">
-      {%- if current_user.rol_principal %}
-      <span class="hero-etiqueta">{{ icono("perfil", "size-4") }}{{ current_user.rol_principal|etiqueta_rol }}</span>
-      {%- endif %}
-      {%- if current_user.organizacion %}
-      <span class="hero-etiqueta">{{ icono("organizaciones", "size-4") }}{{ current_user.organizacion.nombre }}</span>
-      {%- endif %}
-    </div>
-  </section>
 
   <section class="space-y-4" aria-labelledby="accesos-titulo">
     <div>
@@ -52,6 +36,51 @@
     {{ estado_vacio("Todavía no hay funcionalidades habilitadas para tu perfil.", "Cuando un administrador te asigne permisos, vas a ver acá las secciones disponibles.") }}
     {%- endif %}
   </section>
+
+  {%- if dashboard %}
+  <section class="dashboard animate-fade-up" aria-labelledby="dashboard-titulo">
+    <div class="dashboard-cabecera">
+      <div>
+        <p class="dashboard-kicker">Resumen operativo</p>
+        <h1 id="dashboard-titulo" class="pagina-titulo">{{ dashboard.titulo }}</h1>
+        <p class="pagina-subtitulo">{{ dashboard.descripcion }}</p>
+      </div>
+      {%- if dashboard.tipo == "ofertas" %}
+      <span class="dashboard-cabecera-icono">{{ icono("lista", "size-6") }}</span>
+      {%- else %}
+      <span class="dashboard-cabecera-icono">{{ icono("advertencia", "size-6") }}</span>
+      {%- endif %}
+    </div>
+
+    {%- if dashboard.registros %}
+    <div class="dashboard-lista">
+      {%- for item in dashboard.registros %}
+      {%- if dashboard.tipo == "ofertas" %}
+      <a class="dashboard-item" href="{{ url_for('ofertas.obtener', oferta_id=item.id) }}">
+        <span class="dashboard-item-icono">{{ icono("lista", "size-5") }}</span>
+        <span class="dashboard-item-cuerpo">
+          <strong>Oferta #{{ item.id }}</strong>
+          <span>{{ item.convocatoria.emergencia.titulo }}</span>
+        </span>
+        <span class="dashboard-estado dashboard-estado-{{ item.estado.value }}">{{ item.estado.value|replace("_", " ")|capitalize }}</span>
+      </a>
+      {%- else %}
+      <a class="dashboard-item" href="{{ url_for('emergencias.obtener', emergencia_id=item.id) }}">
+        <span class="dashboard-item-icono">{{ icono("advertencia", "size-5") }}</span>
+        <span class="dashboard-item-cuerpo">
+          <strong>{{ item.titulo }}</strong>
+          <span>{{ item.zona_afectada }} · {{ item.creado_en|fecha }}</span>
+        </span>
+        <span class="dashboard-estado dashboard-estado-{{ item.estado.value }}">{{ item.estado.value|replace("_", " ")|capitalize }}</span>
+      </a>
+      {%- endif %}
+      {%- endfor %}
+    </div>
+    {%- else %}
+    <p class="dashboard-vacio">Todavía no hay registros para mostrar.</p>
+    {%- endif %}
+  </section>
+  {%- endif %}
 
 </div>
 {% endblock %}
