@@ -81,3 +81,85 @@ def instanciar_proceso(
         )
 
     return str(datos["caseId"])
+
+def buscar_tarea_humana(
+    case_id: str,
+    nombre_tarea: str,
+) -> str:
+    cliente = obtener_cliente()
+
+    respuesta = ejecutar_solicitud(
+        cliente,
+        componente=COMPONENTE_BONITA,
+        metodo="GET",
+        endpoint_normalizado="/API/bpm/humanTask",
+        url=f"{BONITA_BASE_URL}/API/bpm/humanTask",
+        idempotente=True,
+        params=[
+            ("p", "0"),
+            ("c", "10"),
+            ("f", f"caseId={case_id}"),
+            ("f", f"name={nombre_tarea}"),
+            ("f", "state=ready"),
+        ],
+    )
+
+    tareas = respuesta.json()
+
+    if not tareas:
+        raise RuntimeError(
+            f"No se encontró la tarea '{nombre_tarea}' "
+            f"en estado ready para el caso {case_id}."
+        )
+
+    return str(tareas[0]["id"])
+
+def ejecutar_tarea(
+    task_id: str,
+    variables_contrato: dict[str, object],
+) -> None:
+    cliente = obtener_cliente()
+
+    ejecutar_solicitud(
+        cliente,
+        componente=COMPONENTE_BONITA,
+        metodo="POST",
+        endpoint_normalizado="/API/bpm/userTask/{id}/execution",
+        url=f"{BONITA_BASE_URL}/API/bpm/userTask/{task_id}/execution",
+        idempotente=False,
+        json=variables_contrato,
+    )
+
+def obtener_usuario_actual_id() -> str:
+    cliente = obtener_cliente()
+
+    respuesta = ejecutar_solicitud(
+        cliente,
+        componente=COMPONENTE_BONITA,
+        metodo="GET",
+        endpoint_normalizado="/API/system/session/1",
+        url=f"{BONITA_BASE_URL}/API/system/session/1",
+        idempotente=True,
+    )
+
+    datos = respuesta.json()
+
+    return str(datos["user_id"])
+
+def asignar_tarea(
+    task_id: str,
+    usuario_id: str,
+) -> None:
+    cliente = obtener_cliente()
+
+    ejecutar_solicitud(
+        cliente,
+        componente=COMPONENTE_BONITA,
+        metodo="PUT",
+        endpoint_normalizado="/API/bpm/humanTask/{id}",
+        url=f"{BONITA_BASE_URL}/API/bpm/humanTask/{task_id}",
+        idempotente=True,
+        json={
+            "assigned_id": usuario_id,
+        },
+    )
