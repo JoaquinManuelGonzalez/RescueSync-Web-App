@@ -28,6 +28,11 @@ Reglas que la implementacion tiene que respetar
 """
 
 from __future__ import annotations
+import time
+import random
+import httpx
+from app.core.logging import registrar_llamada_saliente, id_correlacion_actual
+from app.core.errores import SistemaExternoRechazo, ServicioExternoNoDisponible
 
 TIMEOUT_CONEXION_S = 3
 TIMEOUT_LECTURA_S = 10
@@ -57,3 +62,107 @@ def espera_ms(intento: int) -> int:
     if intento <= 1:
         return 0
     return BACKOFF_BASE_MS * (BACKOFF_FACTOR ** (intento - 2))
+
+def ejecutar_solicitud(
+    cliente: httpx.Client,
+    *,
+    componente: str,
+    metodo: str,
+    endpoint_normalizado: str,
+    url: str,
+    idempotente: bool,
+    headers: dict[str, str] | None = None,
+    **kwargs,
+) -> httpx.Response:
+    id_correlacion = id_correlacion_actual()
+
+    cabeceras = dict(headers or {})
+    cabeceras[CABECERA_CORRELACION] = id_correlacion
+
+    cantidad_intentos = INTENTOS_TOTALES if idempotente else 1
+
+    for intento in range(1, cantidad_intentos + 1):
+        espera = espera_ms(intento)
+
+        if espera > 0:
+            variacion = espera * JITTER
+            espera_con_jitter = random.uniform(
+                espera - variacion,
+                espera + variacion,
+            )
+            time.sleep(espera_con_jitter / 1000)
+
+        inicio = time.perf_counter()
+
+        try:
+            respuesta = cliente.request(
+                method=metodo,
+                url=url,
+                headers=cabeceras,
+                timeout=httpx.Timeout(
+                    connect=TIMEOUT_CONEXION_S,
+                    read=TIMEOUT_LECTURA_S,
+                    write=TIMEOUT_LECTURA_S,
+                    pool=TIMEOUT_CONEXION_S,
+                ),
+                **kwargs,
+            )
+
+        except httpx.RequestError:
+            duracion_ms = int((time.perf_counter() - inicio) * 1000)
+
+            registrar_llamada_saliente(
+                componente_destino=componente,
+                metodo=metodo,
+                endpoint=endpoint_normalizado,
+                codigo_estado=None,
+                duracion_ms=duracion_ms,
+                intento=intento,
+                resultado="error",
+                id_correlacion=id_correlacion,
+            )
+
+            if intento == cantidad_intentos:
+                raise ServicioExternoNoDisponible(
+                    detalle={"componente": componente}
+                )
+
+            continue
+
+        duracion_ms = int((time.perf_counter() - inicio) * 1000)
+
+        registrar_llamada_saliente(
+            componente_destino=componente,
+            metodo=metodo,
+            endpoint=endpoint_normalizado,
+            codigo_estado=respuesta.status_code,
+            duracion_ms=duracion_ms,
+            intento=intento,
+            resultado="exito" if respuesta.is_success else "error",
+            id_correlacion=id_correlacion,
+        )
+
+        if 400 <= respuesta.status_code < 500:
+            raise SistemaExternoRechazo(
+                detalle={
+                    "componente": componente,
+                    "codigo_estado": respuesta.status_code,
+                }
+            )
+
+        if respuesta.status_code >= 500:
+            if intento == cantidad_intentos:
+                raise ServicioExternoNoDisponible(
+                    detalle={
+                        "componente": componente,
+                        "codigo_estado": respuesta.status_code,
+                    }
+                )
+
+            continue
+
+        return respuesta
+
+    raise ServicioExternoNoDisponible(
+        detalle={"componente": componente}
+    )
