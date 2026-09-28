@@ -11,7 +11,7 @@ import enum
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Text, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.extensiones import db
@@ -83,6 +83,12 @@ class Convocatoria(db.Model):
         Text,
         nullable=True,
         comment="Instrucciones adicionales o requisitos de entrega.",
+    )
+
+    bonita_case_id: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="ID del caso (caseId) en Bonita BPM para esta convocatoria.",
     )
 
     creado_en: Mapped[datetime] = mapped_column(

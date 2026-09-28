@@ -37,6 +37,8 @@ services:
       - .env
     ports:
       - "${APP_PORT:-5000}:${APP_PORT:-5000}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backend:/app
       # Solo lectura: la aplicacion lee las plantillas y el CSS, el que escribe es tailwind.

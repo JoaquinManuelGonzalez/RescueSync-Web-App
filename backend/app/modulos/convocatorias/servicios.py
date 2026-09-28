@@ -242,4 +242,64 @@ def crear_convocatoria(
         coordinador_id=coordinador.id,
         lotes=len(lotes),
     )
+
+    # --- Integración con Bonita: enviar el timer de la ventana temporal -------
+    _notificar_bonita_timer(convocatoria)
+
     return convocatoria
+
+
+def _notificar_bonita_timer(convocatoria: Convocatoria) -> None:
+    """Inicia el proceso en Bonita (si aún no existe) y envía la fecha de cierre.
+
+    1. Si la convocatoria no tiene ``bonita_case_id``, llama a
+       ``iniciar_gestion()`` para instanciar el proceso y persiste el
+       ``case_id`` en la convocatoria.
+    2. Ejecuta la tarea humana de publicación pasando el ``timerInput``
+       con la fecha de cierre de la convocatoria.
+
+    Si Bonita no está disponible se registra un warning y la convocatoria
+    se crea igual — no se interrumpe el flujo principal.
+    """
+    try:
+        from app.core.integraciones.bonita.proceso import (
+            iniciar_gestion as _bonita_iniciar,
+        )
+        from app.core.integraciones.bonita.proceso import (
+            publicar_convocatoria as _bonita_publicar,
+        )
+
+        case_id = convocatoria.bonita_case_id
+
+        if not case_id:
+            case_id = _bonita_iniciar(convocatoria.emergencia_id)
+            convocatoria.bonita_case_id = case_id
+            db.session.commit()
+            registrar_evento(
+                logging.INFO,
+                "bonita_proceso_iniciado",
+                convocatoria_id=convocatoria.id,
+                emergencia_id=convocatoria.emergencia_id,
+                bonita_case_id=case_id,
+            )
+
+        _bonita_publicar(
+            case_id=case_id,
+            fecha_cierre=convocatoria.fecha_cierre,
+        )
+        registrar_evento(
+            logging.INFO,
+            "bonita_timer_enviado",
+            convocatoria_id=convocatoria.id,
+            emergencia_id=convocatoria.emergencia_id,
+            bonita_case_id=case_id,
+            fecha_cierre=convocatoria.fecha_cierre.isoformat(),
+        )
+    except Exception:
+        registrar_evento(
+            logging.WARNING,
+            "bonita_timer_error",
+            convocatoria_id=convocatoria.id,
+            emergencia_id=convocatoria.emergencia_id,
+            motivo="No se pudo comunicar con Bonita; la convocatoria se creó igual.",
+        )

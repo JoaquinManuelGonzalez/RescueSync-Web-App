@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import os
+import threading
 
 import httpx
-
-import threading
 
 from app.core.integraciones.cliente_http import (
     COMPONENTE_BONITA,

@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import os
+import time
 
-from app.core.integraciones.cliente_http import (
-    COMPONENTE_BONITA,
-    ejecutar_solicitud,
-)
 from app.core.integraciones.bonita.sesion import (
     BONITA_BASE_URL,
     obtener_cliente,
+)
+from app.core.integraciones.cliente_http import (
+    COMPONENTE_BONITA,
+    ejecutar_solicitud,
 )
 
 BONITA_PROCESO_NOMBRE = os.environ["BONITA_PROCESO_NOMBRE"]
@@ -16,10 +17,10 @@ BONITA_PROCESO_VERSION = os.environ["BONITA_PROCESO_VERSION"]
 
 _process_definition_id: str | None = None
 
-def obtener_process_definition_id() -> str:
+def obtener_process_definition_id(*, forzar_recarga: bool = False) -> str:
     global _process_definition_id
 
-    if _process_definition_id is not None:
+    if _process_definition_id is not None and not forzar_recarga:
         return _process_definition_id
 
     cliente = obtener_cliente()
@@ -60,18 +61,33 @@ def instanciar_proceso(
     cliente = obtener_cliente()
     process_definition_id = obtener_process_definition_id()
 
-    respuesta = ejecutar_solicitud(
-        cliente,
-        componente=COMPONENTE_BONITA,
-        metodo="POST",
-        endpoint_normalizado="/API/bpm/process/{id}/instantiation",
-        url=(
-            f"{BONITA_BASE_URL}/API/bpm/process/"
-            f"{process_definition_id}/instantiation"
-        ),
-        idempotente=False,
-        json=variables_contrato,
-    )
+    try:
+        respuesta = ejecutar_solicitud(
+            cliente,
+            componente=COMPONENTE_BONITA,
+            metodo="POST",
+            endpoint_normalizado="/API/bpm/process/{id}/instantiation",
+            url=(
+                f"{BONITA_BASE_URL}/API/bpm/process/"
+                f"{process_definition_id}/instantiation"
+            ),
+            idempotente=False,
+            json=variables_contrato,
+        )
+    except Exception:
+        process_definition_id = obtener_process_definition_id(forzar_recarga=True)
+        respuesta = ejecutar_solicitud(
+            cliente,
+            componente=COMPONENTE_BONITA,
+            metodo="POST",
+            endpoint_normalizado="/API/bpm/process/{id}/instantiation",
+            url=(
+                f"{BONITA_BASE_URL}/API/bpm/process/"
+                f"{process_definition_id}/instantiation"
+            ),
+            idempotente=False,
+            json=variables_contrato,
+        )
 
     datos = respuesta.json()
 
@@ -85,34 +101,39 @@ def instanciar_proceso(
 def buscar_tarea_humana(
     case_id: str,
     nombre_tarea: str,
+    *,
+    reintentos: int = 5,
+    espera_segundos: float = 0.5,
 ) -> str:
     cliente = obtener_cliente()
 
-    respuesta = ejecutar_solicitud(
-        cliente,
-        componente=COMPONENTE_BONITA,
-        metodo="GET",
-        endpoint_normalizado="/API/bpm/humanTask",
-        url=f"{BONITA_BASE_URL}/API/bpm/humanTask",
-        idempotente=True,
-        params=[
-            ("p", "0"),
-            ("c", "10"),
-            ("f", f"caseId={case_id}"),
-            ("f", f"name={nombre_tarea}"),
-            ("f", "state=ready"),
-        ],
-    )
-
-    tareas = respuesta.json()
-
-    if not tareas:
-        raise RuntimeError(
-            f"No se encontró la tarea '{nombre_tarea}' "
-            f"en estado ready para el caso {case_id}."
+    for _ in range(reintentos):
+        respuesta = ejecutar_solicitud(
+            cliente,
+            componente=COMPONENTE_BONITA,
+            metodo="GET",
+            endpoint_normalizado="/API/bpm/humanTask",
+            url=f"{BONITA_BASE_URL}/API/bpm/humanTask",
+            idempotente=True,
+            params=[
+                ("p", "0"),
+                ("c", "10"),
+                ("f", f"caseId={case_id}"),
+                ("f", f"name={nombre_tarea}"),
+                ("f", "state=ready"),
+            ],
         )
 
-    return str(tareas[0]["id"])
+        tareas = respuesta.json()
+        if tareas:
+            return str(tareas[0]["id"])
+
+        time.sleep(espera_segundos)
+
+    raise RuntimeError(
+        f"No se encontró la tarea '{nombre_tarea}' "
+        f"en estado ready para el caso {case_id}."
+    )
 
 def ejecutar_tarea(
     task_id: str,
