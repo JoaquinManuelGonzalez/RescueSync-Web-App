@@ -65,7 +65,7 @@ def sembrar_ofertas() -> list[ResultadoSemilla]:
         lote_item = next(
             (
                 linea
-                for lote in convocatoria.emergencia.lotes
+                for lote in convocatoria.lotes
                 for linea in lote.lote_items
                 if linea.item_id == item.id
             ),

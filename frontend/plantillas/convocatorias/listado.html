@@ -1,0 +1,77 @@
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina, insignia %}
+
+{% block title %}Convocatorias{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta space-y-6">
+  {% call encabezado_pagina(
+    "Convocatorias",
+    "Elegí una emergencia vigente para presentar una oferta." if es_representante_ong else "Listado de publicaciones vigentes y cerradas"
+  ) %}
+    <a class="btn btn-secundario" href="{{ url_for('inicio.panel') }}">{{ icono("volver") }} Volver</a>
+  {% endcall %}
+
+  {% if convocatorias %}
+    <div class="space-y-3">
+      {% for convocatoria in convocatorias %}
+      <div class="tarjeta">
+        <div class="tarjeta-cuerpo space-y-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 class="tarjeta-titulo">{{ convocatoria.emergencia.titulo }}</h2>
+              <p class="mt-1 text-sm text-gray-600">{{ convocatoria.emergencia.zona_afectada }}</p>
+            </div>
+            {{ insignia("Recibiendo ofertas" if convocatoria.esta_vigente() else convocatoria.estado.value|replace('_', ' ')|capitalize, 'exito' if convocatoria.esta_vigente() else 'neutra') }}
+          </div>
+
+          <div>
+            <p class="text-sm leading-6 text-gray-700">{{ convocatoria.resumen_situacion }}</p>
+            <p class="mt-2 text-sm text-gray-600">Fecha límite: {{ convocatoria.fecha_cierre|fecha }}</p>
+          </div>
+
+          {% if convocatoria.observaciones %}
+          <p class="text-sm text-gray-600">{{ convocatoria.observaciones }}</p>
+          {% endif %}
+
+          <div class="border-t border-gray-100 pt-4">
+            <h3 class="text-sm font-semibold text-gray-900">Necesidades</h3>
+            <ul class="mt-2 space-y-2">
+              {% for lote in convocatoria.lotes %}
+                {% for lote_item in lote.lote_items %}
+                <li class="flex flex-wrap justify-between gap-2 text-sm">
+                  <span class="text-gray-700">{{ lote_item.item.nombre }}</span>
+                  <span class="font-medium text-gray-900">{{ lote_item.cantidad_solicitada|int }} {{ lote_item.item.unidad_medida }}</span>
+                </li>
+                {% endfor %}
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="flex justify-end border-t border-gray-100 pt-4">
+            {% if es_representante_ong and convocatoria.esta_vigente() %}
+            <a class="btn btn-primario" href="{{ url_for('ofertas.formulario_de_alta', convocatoria_id=convocatoria.id) }}">
+              {{ icono("mas") }} Presentar oferta
+            </a>
+            {% else %}
+            <a class="btn btn-secundario" href="{{ url_for('convocatorias.obtener', convocatoria_id=convocatoria.id) }}">
+              {{ icono("ver") }} Ver publicación
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="tarjeta">
+      <div class="tarjeta-cuerpo">
+        <p class="text-sm text-gray-600">
+          {{ "No hay convocatorias vigentes para recibir ofertas." if es_representante_ong else "Todavía no hay convocatorias publicadas." }}
+        </p>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina, insignia %}
+{% from "componentes/formularios.html" import formulario_accion %}
+
+{% block title %}Convocatoria publicada{% endblock %}
+
+{% block content %}
+<div class="pagina-angosta space-y-6">
+  {% call encabezado_pagina('Convocatoria publicada', 'Publicación de oferta de ayuda') %}
+    <a class="btn btn-secundario" href="{{ url_for('convocatorias.listar') }}">{{ icono("volver") }} Volver</a>
+  {% endcall %}
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="tarjeta-titulo">Estado</h2>
+        {{ insignia(convocatoria.estado.value|replace('_', ' ')|capitalize, 'exito' if convocatoria.estado.value == 'abierta' else 'neutra') }}
+      </div>
+
+      <p><strong>Emergencia:</strong> {{ convocatoria.emergencia.titulo if convocatoria.emergencia else 'Emergencia asociada' }}</p>
+      <p><strong>Inicio:</strong> {{ convocatoria.fecha_inicio|fecha }}</p>
+      <p><strong>Cierre:</strong> {{ convocatoria.fecha_cierre|fecha }}</p>
+      <p><strong>Resumen:</strong> {{ convocatoria.resumen_situacion }}</p>
+      {% if convocatoria.observaciones %}
+      <p><strong>Observaciones:</strong> {{ convocatoria.observaciones }}</p>
+      {% endif %}
+      {% if convocatoria.estado.value == "abierta" and puede("convocatorias:cerrar") %}
+      <div class="border-t border-gray-100 pt-4">
+        <p class="mb-3 text-sm text-gray-600">Al cerrar la recepción, los lotes de esta ronda quedan como historial. Podés agregar necesidades nuevas para una próxima convocatoria.</p>
+        {{ formulario_accion(
+          url_for("convocatorias.cerrar", convocatoria_id=convocatoria.id),
+          "Cerrar recepción de ofertas",
+          variante="secundario",
+          confirmar="La convocatoria dejará de recibir nuevas ofertas y las necesidades publicadas quedarán congeladas para esta ronda.",
+          confirmar_titulo="¿Cerrar esta convocatoria?",
+          confirmar_boton="Cerrar convocatoria",
+          icono_nombre="cerrar"
+        ) }}
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}
