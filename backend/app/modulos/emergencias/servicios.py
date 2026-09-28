@@ -22,6 +22,7 @@ from app.modulos.emergencias.modelos import (
     Emergencia,
     EstadoEmergencia,
     NivelGravedad,
+    TipoEmergencia
 )
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
@@ -65,6 +66,16 @@ def _normalizar_nivel_gravedad(valor: str) -> NivelGravedad:
             detalle={"campo": "nivel_gravedad"},
         ) from error
 
+def _normalizar_tipo_emergencia(valor: str) -> TipoEmergencia:
+    """Convierte el valor del formulario al enum correspondiente."""
+    try:
+        return TipoEmergencia(valor)
+    except ValueError as error:
+        opciones = ", ".join(n.value for n in TipoEmergencia)
+        raise SolicitudInvalida(
+            f"Tipo de emergencia inválido. Opciones: {opciones}.",
+            detalle={"campo": "tipo_emergencia"},
+        ) from error
 
 def crear_emergencia(
     *,
@@ -74,6 +85,7 @@ def crear_emergencia(
     zona_afectada: str,
     municipio_id: int,
     usuario_id: int,
+    tipo_emergencia: str
 ) -> Emergencia:
     """Registra una nueva emergencia.
     """
@@ -106,7 +118,8 @@ def crear_emergencia(
 
     _validar_municipio(municipio_id)
     gravedad = _normalizar_nivel_gravedad(nivel_gravedad)
-
+    tipo = _normalizar_tipo_emergencia(tipo_emergencia)
+    
     # Alta de emergencia
 
     emergencia = Emergencia(
@@ -117,6 +130,7 @@ def crear_emergencia(
         estado=EstadoEmergencia.registrada,
         municipio_id=municipio_id,
         usuario_id=usuario_id,
+        tipo_emergencia=tipo
     )
     db.session.add(emergencia)
     db.session.commit()
@@ -137,6 +151,7 @@ def crear_emergencia(
         emergencia_id=emergencia.id,
         municipio_id=municipio_id,
         nivel_gravedad=gravedad.value,
+        tipo_emergencia=tipo.value
     )
     return emergencia
 
@@ -148,7 +163,7 @@ def obtener_emergencia_por_id(emergencia_id: int) -> Emergencia:
     return emergencia
 
 # Nivel de gravedad vuelto número para poder usar order_by(). A más alto el número, más urgente.
-_NILVEL_GRAVEDAD = {
+_NIVEL_GRAVEDAD = {
     NivelGravedad.baja: 1,
     NivelGravedad.media: 2,
     NivelGravedad.alta: 3,
@@ -161,7 +176,7 @@ def listar_emergencias(
 ) -> list[Emergencia]:
     """Lista emergencias ordenadas por gravedad, desempata por fecha."""
     expresion_gravedad = case(
-        _NILVEL_GRAVEDAD,
+        _NIVEL_GRAVEDAD,
         value=Emergencia.nivel_gravedad,
         else_=0,
     )

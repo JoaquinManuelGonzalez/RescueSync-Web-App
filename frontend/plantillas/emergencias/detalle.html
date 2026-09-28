@@ -19,6 +19,7 @@
           {% set es_activa = emergencia.estado.value == "activa" %}
           {{ insignia("En revisión" if emergencia.estado.value == "en_evaluacion" else emergencia.estado.value|replace("_", " ")|capitalize, "exito" if es_activa else "neutra") }}
         {% endcall %}
+        {{ dato("Tipo de emergencia", emergencia.tipo_emergencia.value|capitalize) }}
         {{ dato("Nivel de gravedad", emergencia.nivel_gravedad.value|capitalize) }}
         {{ dato("Zona afectada", emergencia.zona_afectada) }}
         {{ dato("Registrada", emergencia.creado_en|fecha) }}

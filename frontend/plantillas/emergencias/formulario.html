@@ -74,6 +74,21 @@
           </div>
 
           <div>
+            <label for="tipo_emergencia" class="campo-etiqueta">Tipo de emergencia</label>
+            <select id="tipo_emergencia" name="tipo_emergencia" required class="campo-control">
+              <option value="">-- Seleccioná --</option>
+              {% for tipo in tipos_emergencia %}
+                <option value="{{ tipo.value }}" {% if valores.get('tipo_emergencia') == tipo.value %}selected{% endif %}>
+                  {{ tipo.value|capitalize }}
+                </option>
+              {% endfor %}
+            </select>
+            {% if errores_por_campo.get('tipo_emergencia') %}
+              <p class="mt-1 text-xs text-red-600">{{ errores_por_campo['tipo_emergencia'] }}</p>
+            {% endif %}
+          </div>
+
+          <div>
             <label for="zona_afectada" class="campo-etiqueta">Zona afectada</label>
             <input
               id="zona_afectada"
