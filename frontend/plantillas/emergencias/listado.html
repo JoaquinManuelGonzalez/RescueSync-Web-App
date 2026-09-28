@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 {% from "componentes/iconos.html" import icono %}
 {% from "componentes/diseno.html" import encabezado_pagina, estado_vacio, insignia %}
+{% from "componentes/tablas.html" import tabla, celda %}
 
 {% block title %}Emergencias{% endblock %}
 
@@ -13,28 +14,32 @@
   {% endcall %}
 
   {% if emergencias %}
-  <div class="space-y-3">
+  {% call tabla(["Emergencia", "Zona afectada", "Gravedad", "Estado", "Registrada", none]) %}
     {% for emergencia in emergencias %}
-    <article class="tarjeta">
-      <div class="tarjeta-cuerpo flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div class="min-w-0">
-          <h2 class="mt-1 tarjeta-titulo">{{ emergencia.titulo }}</h2>
-          <p class="mt-1 text-sm text-gray-700">{{ emergencia.zona_afectada }}</p>
-          <p class="mt-1 text-sm text-gray-500">
-            Gravedad {{ emergencia.nivel_gravedad.value }} · Registrada {{ emergencia.creado_en|fecha }}
-          </p>
-        </div>
-        <div class="flex items-center gap-3">
-          {% set es_activa = emergencia.estado.value == "activa" %}
-          {{ insignia("En revisión" if emergencia.estado.value == "en_evaluacion" else emergencia.estado.value|replace("_", " ")|capitalize, "exito" if es_activa else "neutra") }}
+    <tr class="tabla-fila">
+      {% call celda("Emergencia") %}
+        <p class="font-medium text-gray-900">{{ emergencia.titulo }}</p>
+        <p class="text-xs text-gray-500">{{ emergencia.municipio.nombre if emergencia.municipio else "Municipio no informado" }}</p>
+      {% endcall %}
+      {% call celda("Zona afectada") %}{{ emergencia.zona_afectada }}{% endcall %}
+      {% call celda("Gravedad") %}
+        <span class="insignia insignia-clasificacion">{{ emergencia.nivel_gravedad.value|capitalize }}</span>
+      {% endcall %}
+      {% call celda("Estado") %}
+        {% set es_activa = emergencia.estado.value == "activa" %}
+        {{ insignia(emergencia.estado.value|replace("_", " ")|capitalize, "exito" if es_activa else "neutra") }}
+      {% endcall %}
+      {% call celda("Registrada") %}{{ emergencia.creado_en|fecha }}{% endcall %}
+      {% call celda() %}
+        <div class="tabla-acciones">
           <a class="btn btn-fantasma btn-icono" href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}" title="Ver emergencia">
             {{ icono("ver") }}<span class="sr-only">Ver emergencia {{ emergencia.id }}</span>
           </a>
         </div>
-      </div>
-    </article>
+      {% endcall %}
+    </tr>
     {% endfor %}
-  </div>
+  {% endcall %}
   {% else %}
   {{ estado_vacio("Todavía no hay emergencias", "Las situaciones registradas por los municipios aparecerán aquí.", "alerta") }}
   {% endif %}

@@ -22,6 +22,7 @@ def importar_modelos() -> None:
     """
     from app.modulos.convocatorias import modelos as _convocatorias  # noqa: F401
     from app.modulos.emergencias import modelos as _emergencias  # noqa: F401
+    from app.modulos.notificaciones import modelos as _notificaciones  # noqa: F401
     from app.modulos.ofertas import modelos as _ofertas  # noqa: F401
     from app.modulos.organizaciones import modelos as _organizaciones  # noqa: F401
     from app.modulos.usuarios_roles import modelos as _usuarios_roles  # noqa: F401
@@ -41,6 +42,9 @@ def registrar_modulos(app: Flask) -> None:
     from app.modulos.convocatorias import rutas as rutas_de_convocatorias
     from app.modulos.emergencias import rutas as rutas_de_emergencias
     from app.modulos.emergencias.lotes import rutas as rutas_de_lotes
+    from app.modulos.notificaciones import rutas as rutas_de_notificaciones
+    from app.modulos.notificaciones import servicios as servicios_de_notificaciones
+    from app.modulos.ofertas import rutas as rutas_de_ofertas
     from app.modulos.organizaciones import rutas as rutas_de_organizaciones
     from app.modulos.usuarios_roles import rutas as rutas_de_usuarios_roles
     from app.modulos.usuarios_roles.servicios import instalar_cargador_de_sesion
@@ -57,6 +61,10 @@ def registrar_modulos(app: Flask) -> None:
     app.register_blueprint(rutas_de_convocatorias.blueprint_convocatorias, url_prefix="/convocatorias")
     app.register_blueprint(rutas_de_emergencias.blueprint_emergencias, url_prefix="/emergencias")
     app.register_blueprint(rutas_de_lotes.blueprint_lotes, url_prefix="/lotes")
+    app.register_blueprint(
+        rutas_de_notificaciones.blueprint_notificaciones, url_prefix="/notificaciones"
+    )
+    servicios_de_notificaciones.registrar_contexto(app)
 
 
     # Cada pantalla con acceso propio en el menu declara su entrada junto a sus rutas; aca solo

@@ -6,8 +6,10 @@
 
 {% block content %}
 <div class="pagina-angosta space-y-6">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primario" href="{{ url_for('emergencias.listar') }}">
+    {{ icono("volver", "size-4") }} Volver a emergencias
+  </a>
   {% call encabezado_pagina(emergencia.titulo, emergencia.zona_afectada) %}
-    <a class="btn btn-secundario" href="{{ url_for('emergencias.listar') }}">{{ icono("volver") }} Volver</a>
   {% endcall %}
 
   <section class="tarjeta">
@@ -17,6 +19,7 @@
           {% set es_activa = emergencia.estado.value == "activa" %}
           {{ insignia("En revisión" if emergencia.estado.value == "en_evaluacion" else emergencia.estado.value|replace("_", " ")|capitalize, "exito" if es_activa else "neutra") }}
         {% endcall %}
+        {{ dato("Tipo de emergencia", emergencia.tipo_emergencia.value|capitalize) }}
         {{ dato("Nivel de gravedad", emergencia.nivel_gravedad.value|capitalize) }}
         {{ dato("Zona afectada", emergencia.zona_afectada) }}
         {{ dato("Registrada", emergencia.creado_en|fecha) }}

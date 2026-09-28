@@ -138,7 +138,6 @@ def sembrar_zonas_de_cobertura() -> list[ResultadoSemilla]:
 # * Los nombres de ítems deben existir en emergencias/semillas_items.py::ITEMS.
 # * Sólo las ONGs tienen inventarios.
 #
-# `Manos Unidas` aún no tiene inventario.
 # Cruz Solidaria tiene stock demo porque es la ONG utilizada para probar ofertas.
 
 INVENTARIOS: dict[str, dict] = {
@@ -152,6 +151,13 @@ INVENTARIOS: dict[str, dict] = {
             "Paramédicos": 10,
             "Raciones de alimento no perecedero": 600,
         },
+    },
+    "Manos Unidas": {
+        "inventario": {
+            "nombre": "Depósito Manos Unidas",
+            "descripcion": "Inventario demo para gestionar recursos disponibles.",
+        },
+        "stock": {},
     },
     "Cruz Roja Argentina - Filial Bahía Blanca": {
         "inventario": {

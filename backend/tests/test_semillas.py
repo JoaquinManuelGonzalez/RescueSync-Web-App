@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from app.core.acceso.permisos import CATALOGO_DE_PERMISOS, PERMISOS_POR_ROL, NombreRol
 from app.core.semillas import SEEDERS, importar_seeders
 from app.extensiones import db
+from app.modulos.notificaciones.modelos import Notificacion
 from app.modulos.organizaciones.modelos import Inventario, InventarioItem, Organizacion
 from app.modulos.usuarios_roles.modelos import Permiso, Rol, Usuario
 
@@ -27,9 +28,10 @@ def test_la_semilla_carga_el_catalogo_completo(app, base_de_datos: None) -> None
         assert _contar(Permiso) == len(CATALOGO_DE_PERMISOS)
         assert _contar(Rol) == len(NombreRol)
         assert _contar(Organizacion) == 10
-        assert _contar(Inventario) == 4
+        assert _contar(Inventario) == 5
         assert _contar(InventarioItem) == 53
         assert _contar(Usuario) == 8
+        assert _contar(Notificacion) == 6
 
 
 def test_volver_a_sembrar_no_duplica_nada(app, base_de_datos: None) -> None:
@@ -42,6 +44,7 @@ def test_volver_a_sembrar_no_duplica_nada(app, base_de_datos: None) -> None:
             _contar(Inventario),
             _contar(InventarioItem),
             _contar(Usuario),
+            _contar(Notificacion),
         )
         _volver_a_sembrar()
         _volver_a_sembrar()
@@ -53,6 +56,7 @@ def test_volver_a_sembrar_no_duplica_nada(app, base_de_datos: None) -> None:
             _contar(Inventario),
             _contar(InventarioItem),
             _contar(Usuario),
+            _contar(Notificacion),
         ) == antes
 
 

@@ -1,0 +1,103 @@
+"""Casos de uso de notificaciones."""
+
+from __future__ import annotations
+
+from sqlalchemy import select
+
+from app.core.errores import RecursoNoEncontrado
+from app.extensiones import db
+from app.modulos.notificaciones.modelos import Notificacion
+from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
+
+
+def crear(
+    *, organizacion_id: int, titulo: str, mensaje: str, enlace: str
+) -> Notificacion:
+    """Crea un aviso compartido por todos los usuarios de una organización."""
+    notificacion = Notificacion(
+        organizacion_id=organizacion_id,
+        titulo=titulo,
+        mensaje=mensaje,
+        enlace=enlace,
+    )
+    db.session.add(notificacion)
+    return notificacion
+
+
+def crear_para_tipo_organizacion(
+    *, tipo: TipoOrganizacion, titulo: str, mensaje: str, enlace: str
+) -> list[Notificacion]:
+    """Crea un aviso por cada organización activa del tipo indicado."""
+    organizaciones = db.session.execute(
+        select(Organizacion).where(Organizacion.tipo == tipo, Organizacion.activo.is_(True))
+    ).scalars()
+    notificaciones = [
+        crear(organizacion_id=organizacion.id, titulo=titulo, mensaje=mensaje, enlace=enlace)
+        for organizacion in organizaciones
+    ]
+    return notificaciones
+
+
+def notificar_convocatoria(convocatoria) -> list[Notificacion]:
+    """Notifica una convocatoria publicada a cada ONG activa, una sola vez por ONG."""
+    return crear_para_tipo_organizacion(
+        tipo=TipoOrganizacion.ong,
+        titulo="Nueva convocatoria disponible",
+        mensaje=(
+            f"Se abrió una convocatoria para la emergencia «{convocatoria.emergencia.titulo}»."
+        ),
+        enlace=f"/ofertas?convocatoria_id={convocatoria.id}",
+    )
+
+
+def listar_para_usuario(usuario_id: int, *, limite: int | None = None) -> list[Notificacion]:
+    """Lista avisos de la organización del usuario, del más reciente al más antiguo."""
+    from app.modulos.usuarios_roles.modelos import Usuario
+
+    organizacion_id = db.session.scalar(
+        select(Usuario.organizacion_id).where(Usuario.id == usuario_id)
+    )
+    if organizacion_id is None:
+        return []
+    consulta = (
+        select(Notificacion)
+        .where(Notificacion.organizacion_id == organizacion_id)
+        .order_by(Notificacion.creado_en.desc(), Notificacion.id.desc())
+    )
+    if limite is not None:
+        consulta = consulta.limit(limite)
+    return list(db.session.execute(consulta).scalars())
+
+
+def contar_no_leidas(usuario_id: int) -> int:
+    return sum(not notificacion.leida for notificacion in listar_para_usuario(usuario_id))
+
+
+def marcar_como_leida(notificacion_id: int, usuario_id: int) -> Notificacion:
+    """Marca el aviso como leído verificando que pertenezca a la organización del usuario."""
+    from app.modulos.usuarios_roles.modelos import Usuario
+
+    notificacion = db.session.get(Notificacion, notificacion_id)
+    usuario = db.session.get(Usuario, usuario_id)
+    if not notificacion or not usuario or not usuario.organizacion_id:
+        raise RecursoNoEncontrado("No encontramos la notificación solicitada.")
+    if notificacion.organizacion_id != usuario.organizacion_id:
+        raise RecursoNoEncontrado("No encontramos la notificación solicitada.")
+    notificacion.leida = True
+    db.session.commit()
+    return notificacion
+
+
+def registrar_contexto(app) -> None:
+    """Expone el resumen usado por el navbar en todas las plantillas."""
+    from flask_login import current_user
+
+    @app.context_processor
+    def _notificaciones_de_la_sesion():
+        if not current_user.is_authenticated:
+            return {"notificaciones_recientes": [], "notificaciones_no_leidas": 0}
+        recientes = listar_para_usuario(current_user.id, limite=3)
+        return {
+            "notificaciones_recientes": recientes,
+            "notificaciones_no_leidas": contar_no_leidas(current_user.id),
+        }

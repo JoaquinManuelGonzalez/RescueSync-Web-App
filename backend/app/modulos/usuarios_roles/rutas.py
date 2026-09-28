@@ -114,7 +114,7 @@ def ingresar():
 def cerrar():
     """Cierre de sesion. Deja la cookie sin contenido utilizable."""
     cerrar_sesion()
-    return redirigir("sesion.formulario_de_ingreso", "Sesión cerrada.")
+    return redirigir("inicio.raiz", "Sesión cerrada.")
 
 
 @blueprint_sesion.get("/actual")

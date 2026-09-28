@@ -23,7 +23,7 @@ from app.core.interfaz.navegacion import EntradaDeMenu
 from app.core.interfaz.vistas import pide_json, redirigir
 from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
 from app.modulos.emergencias import servicios
-from app.modulos.emergencias.modelos import Emergencia, NivelGravedad
+from app.modulos.emergencias.modelos import Emergencia, NivelGravedad, TipoEmergencia
 
 blueprint_emergencias = Blueprint("emergencias", __name__)
 
@@ -32,7 +32,7 @@ ENTRADA_DE_MENU = EntradaDeMenu(
     titulo="Emergencias",
     permiso=EMERGENCIAS_LISTAR,
     descripcion="Registro y seguimiento de emergencias por municipio",
-    icono="alerta",
+    icono="advertencia",
     orden=20,
 )
 
@@ -42,8 +42,10 @@ def _es_operador_municipal() -> bool:
 
 
 def _contexto_de_formulario() -> dict[str, Any]:
-    return {"niveles_gravedad": list(NivelGravedad)}
-
+    return {
+        "niveles_gravedad": list(NivelGravedad),
+        "tipos_emergencia": list(TipoEmergencia),
+    }
 
 def _formulario_con_error(error: ErrorDeAplicacion):
     if isinstance(error.detalle, dict):
@@ -73,10 +75,12 @@ def _filtrar_emergencia_para_municipio(emergencia: Emergencia) -> None:
 
 def _serializar_emergencia(emergencia: Emergencia) -> dict[str, Any]:
     return {
+        # TODO agregar bonita_case_id
         "id": emergencia.id,
         "titulo": emergencia.titulo,
         "descripcion": emergencia.descripcion,
         "nivel_gravedad": emergencia.nivel_gravedad.value,
+        "tipo_emergencia": emergencia.tipo_emergencia.value,
         "zona_afectada": emergencia.zona_afectada,
         "estado": emergencia.estado.value,
         "municipio_id": emergencia.municipio_id,
@@ -125,8 +129,6 @@ def formulario_de_alta():
 def crear_desde_formulario():
     """Persiste una emergencia enviada desde la pantalla web."""
     try:
-        # CREO QUE FALTA EL CAMPO DE TIPO DE DESASTRE ZASSS
-        # QUEDA PENDIENTE HACER UNA MIGRACION ENTONCES ZASSSS
         emergencia = servicios.crear_emergencia(
             titulo=request.form.get("titulo", ""),
             descripcion=request.form.get("descripcion", ""),
@@ -134,6 +136,7 @@ def crear_desde_formulario():
             zona_afectada=request.form.get("zona_afectada", ""),
             municipio_id=current_user.organizacion_id,
             usuario_id=current_user.id,
+            tipo_emergencia=request.form.get("tipo_emergencia", "")
         )
     except ErrorDeAplicacion as error:
         if pide_json():

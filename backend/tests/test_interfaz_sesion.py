@@ -117,7 +117,7 @@ def test_el_ingreso_sin_csrf_vuelve_a_la_pantalla_con_un_aviso(cliente_sembrado)
 # --- Cierre y expiracion ------------------------------------------------------
 
 
-def test_cerrar_sesion_por_formulario_vuelve_al_ingreso(
+def test_cerrar_sesion_por_formulario_vuelve_a_la_landing(
     ingresar_por_formulario, enviar_formulario, navegar
 ) -> None:
     ingresar_por_formulario(EMAIL_OPERADOR)
@@ -125,8 +125,10 @@ def test_cerrar_sesion_por_formulario_vuelve_al_ingreso(
     respuesta = enviar_formulario("/sesion/cierre")
 
     assert respuesta.status_code == 302
-    assert respuesta.headers["Location"].endswith("/sesion/ingreso")
-    assert "Sesión cerrada." in _texto(navegar("/sesion/ingreso"))
+    assert respuesta.headers["Location"].endswith("/")
+    cuerpo = _texto(navegar("/"))
+    assert "Sesión cerrada." in cuerpo
+    assert "Cuando cada minuto cuenta" in cuerpo
     assert navegar("/inicio").status_code == 302
 
 

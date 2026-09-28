@@ -21,6 +21,7 @@
 @import "./componentes/destacados.css";
 @import "./componentes/accesos.css";
 @import "./componentes/bienvenida.css";
+@import "./componentes/landing.css";
 
 /* Que archivos escanea Tailwind para decidir que clases incluir. Las rutas son relativas
  * a este archivo.

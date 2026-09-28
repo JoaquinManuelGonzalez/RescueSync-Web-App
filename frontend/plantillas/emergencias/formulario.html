@@ -6,9 +6,11 @@
 {% block title %}Nueva emergencia{% endblock %}
 
 {% block content %}
-<div class="pagina-angosta space-y-6">
+<div class="pagina space-y-8">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primario" href="{{ url_for('emergencias.listar') }}">
+    {{ icono("volver", "size-4") }} Volver a las emergencias
+  </a>
   {% call encabezado_pagina("Nueva emergencia", "Registrá la situación inicial y la zona afectada") %}
-    <a class="btn btn-secundario" href="{{ url_for('emergencias.listar') }}">{{ icono("volver") }} Volver</a>
   {% endcall %}
 
   {% if error_mensaje %}
@@ -72,6 +74,21 @@
           </div>
 
           <div>
+            <label for="tipo_emergencia" class="campo-etiqueta">Tipo de emergencia</label>
+            <select id="tipo_emergencia" name="tipo_emergencia" required class="campo-control">
+              <option value="">-- Seleccioná --</option>
+              {% for tipo in tipos_emergencia %}
+                <option value="{{ tipo.value }}" {% if valores.get('tipo_emergencia') == tipo.value %}selected{% endif %}>
+                  {{ tipo.value|capitalize }}
+                </option>
+              {% endfor %}
+            </select>
+            {% if errores_por_campo.get('tipo_emergencia') %}
+              <p class="mt-1 text-xs text-red-600">{{ errores_por_campo['tipo_emergencia'] }}</p>
+            {% endif %}
+          </div>
+
+          <div>
             <label for="zona_afectada" class="campo-etiqueta">Zona afectada</label>
             <input
               id="zona_afectada"
@@ -92,8 +109,8 @@
     </section>
 
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-      <a class="btn btn-secundario" href="{{ url_for('emergencias.listar') }}">Cancelar</a>
-      {{ boton_envio("Registrar emergencia", texto_cargando="Guardando...", icono_nombre="guardar") }}
+      <a class="btn btn-cancelar" href="{{ url_for('emergencias.listar') }}">Cancelar</a>
+      {{ boton_envio("Registrar emergencia", texto_cargando="Guardando...") }}
     </div>
   </form>
 </div>

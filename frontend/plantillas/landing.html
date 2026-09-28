@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+{% from "componentes/destacados.html" import rasgo, cifra %}
+{% from "componentes/iconos.html" import icono %}
+
+{% block title %}RescueSync | Coordinación ante emergencias{% endblock %}
+
+{% block content %}
+<main class="landing">
+  <section class="landing-hero" aria-labelledby="landing-titulo">
+    <div class="landing-hero-copia animate-fade-up">
+      <span class="hero-etiqueta">Cada minuto, cuenta</span>
+      <h1 id="landing-titulo">Coordinamos la ayuda
+        cuando más importa.</h1>
+      <p>
+        RescueSync conecta municipios, organizaciones y equipos de respuesta para que cada
+        necesidad encuentre ayuda, cada recurso tenga destino y cada pedido encuentre respuesta.
+      </p>
+      <div class="landing-acciones">
+        <a class="btn btn-primario" href="{{ url_for('sesion.formulario_de_ingreso') }}">
+          Entrar a RescueSync
+        </a>
+        <a class="landing-enlace" href="#como-funciona">Conocé la red <span aria-hidden="true">↓</span></a>
+      </div>
+    </div>
+
+    <div class="landing-visual animate-fade" aria-hidden="true">
+      <img
+        src="{{ url_for('static', filename='img/RescueSync.gif') }}"
+        alt="RescueSync"
+        class="landing-visual-circulo">
+    </div>
+  </section>
+
+  <section id="como-funciona" class="landing-red" aria-labelledby="red-titulo">
+    <div class="landing-seccion-cabecera">
+      <span class="landing-kicker">Una red, una respuesta</span>
+      <h2 id="red-titulo">Todo lo que necesitás para actuar mejor.</h2>
+    </div>
+    <div class="landing-rasgos animar-escalonado">
+      {{ rasgo("rayo", "Emergencias en tiempo real", "Registrá una situación y avisá a las organizaciones de la zona en minutos.") }}
+      {{ rasgo("inventario", "Ayuda trazable", "Conocé qué recursos hay, dónde están y quién los aporta.") }}
+      {{ rasgo("escudo", "Acceso por perfiles", "Cada persona ve la información que necesita para trabajar.") }}
+    </div>
+    <div class="landing-cifras animar-escalonado">
+      {{ cifra("24/7", "Disponibilidad de la red") }}
+      {{ cifra("+100", "Organizaciones conectadas") }}
+      {{ cifra("5", "Perfiles de trabajo") }}
+    </div>
+  </section>
+</main>
+{% endblock %}
