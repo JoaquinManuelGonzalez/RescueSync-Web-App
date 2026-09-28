@@ -8,10 +8,8 @@ con nivel de gravedad, zona afectada y descripción.
 from __future__ import annotations
 
 import logging
-from decimal import Decimal
 
 from sqlalchemy import case, select
-
 
 from app.core.errores import (
     RecursoNoEncontrado,
@@ -26,6 +24,7 @@ from app.modulos.emergencias.modelos import (
     NivelGravedad,
     TipoEmergencia
 )
+from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
 
 
@@ -134,6 +133,14 @@ def crear_emergencia(
         tipo_emergencia=tipo
     )
     db.session.add(emergencia)
+    db.session.commit()
+
+    servicios_de_notificaciones.crear_para_tipo_organizacion(
+        tipo=TipoOrganizacion.centro_coordinador_regional,
+        titulo="Nueva emergencia registrada",
+        mensaje=f"Se registró la emergencia «{emergencia.titulo}» en {emergencia.zona_afectada}.",
+        enlace=f"/emergencias/{emergencia.id}",
+    )
     db.session.commit()
 
     # Registrar evento de alta de emergencia

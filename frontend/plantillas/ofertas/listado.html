@@ -2,6 +2,7 @@
 {% from "componentes/iconos.html" import icono %}
 {% from "componentes/diseno.html" import encabezado_pagina, estado_vacio, insignia %}
 {% from "componentes/formularios.html" import formulario_accion %}
+{% from "componentes/tablas.html" import tabla, celda %}
 
 {% block title %}Ofertas de ayuda{% endblock %}
 
@@ -11,21 +12,27 @@
   {% endcall %}
 
   {% if ofertas %}
-  <div class="space-y-3">
+  {% call tabla(["Organización", "Emergencia", "Recursos", "Estado", "Actualizada", none]) %}
     {% for oferta in ofertas %}
     {% set miembro_actual = oferta.organizaciones_consorcio|selectattr("organizacion_id", "equalto", current_user.organizacion_id)|first %}
-    <article class="tarjeta">
-      <div class="tarjeta-cuerpo flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div class="min-w-0">
-          <h2 class="mt-1 tarjeta-titulo">
-            {{ oferta.organizacion.nombre if oferta.organizacion else "Organización no informada" }}{% for miembro in oferta.organizaciones_consorcio if oferta.organizacion and miembro.organizacion_id != oferta.organizacion.id %} + {{ miembro.organizacion.nombre }}{% endfor %}
-          </h2>
-          <p class="mt-1 text-sm text-gray-700">{{ oferta.convocatoria.emergencia.titulo }}</p>
-          <p class="mt-1 text-sm text-gray-500">{{ oferta.items|length }} recurso(s) · Actualizada {{ oferta.actualizado_en|fecha }}</p>
-        </div>
-        <div class="flex items-center gap-3">
-          {{ insignia(oferta.estado.value|capitalize, "exito" if oferta.estado.value == "presentada" else "neutra") }}
-          <span class="insignia insignia-info">Versión actual</span>
+    <tr class="tabla-fila">
+      {% call celda("Organización") %}
+        <p class="font-medium text-gray-900">
+          {{ oferta.organizacion.nombre if oferta.organizacion else "Organización no informada" }}
+        </p>
+        {% for miembro in oferta.organizaciones_consorcio if oferta.organizacion and miembro.organizacion_id != oferta.organizacion.id %}
+        <p class="text-xs text-gray-500">+ {{ miembro.organizacion.nombre }}</p>
+        {% endfor %}
+      {% endcall %}
+      {% call celda("Emergencia") %}{{ oferta.convocatoria.emergencia.titulo }}{% endcall %}
+      {% call celda("Recursos") %}{{ oferta.items|length }} recurso(s){% endcall %}
+      {% call celda("Estado") %}
+        {{ insignia(oferta.estado.value|capitalize, "exito" if oferta.estado.value == "presentada" else "neutra") }}
+        <span class="insignia insignia-info">Versión {{ oferta.version }}</span>
+      {% endcall %}
+      {% call celda("Actualizada") %}{{ oferta.actualizado_en|fecha }}{% endcall %}
+      {% call celda() %}
+        <div class="tabla-acciones">
           <a class="btn btn-fantasma btn-icono" href="{{ url_for('ofertas.obtener', oferta_id=oferta.id) }}" title="Ver oferta">
             {{ icono("ver") }}<span class="sr-only">Ver oferta {{ oferta.id }}</span>
           </a>
@@ -38,10 +45,10 @@
           {{ formulario_accion(url_for("ofertas.retirar", oferta_id=oferta.id), "Retirar", clase="btn btn-fantasma btn-icono", confirmar="La oferta va a quedar retirada y ya no podrá modificarse.", confirmar_titulo="¿Retirar esta oferta?", confirmar_boton="Retirar", icono_nombre="eliminar", solo_icono=true) }}
           {% endif %}
         </div>
-      </div>
-    </article>
+      {% endcall %}
+    </tr>
     {% endfor %}
-  </div>
+  {% endcall %}
   {% else %}
   {{ estado_vacio("Todavía no hay ofertas", "Las propuestas registradas aparecerán aquí.", "carpeta") }}
   {% endif %}

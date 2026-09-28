@@ -8,39 +8,10 @@
 {#- Bienvenida con el ingreso. El envio con spinner y el mostrar/ocultar contraseña los resuelve
     estaticos/js/interfaz.js (data-envio-con-carga y data-alternar-contrasena). -#}
 {% block content %}
-<div class="bienvenida">
-
-  <section class="bienvenida-presentacion hero" aria-labelledby="bienvenida-titulo">
-    <div class="bienvenida-marca animate-fade">
-      <img class="bienvenida-logo" src="{{ url_for('static', filename='img/RescueSync.png') }}" alt="Icono RescueSync">
-      <span class="hero-etiqueta">Red de respuesta ante emergencias</span>
-    </div>
-
-    <div class="animate-fade-up">
-      <h1 id="bienvenida-titulo" class="hero-titulo">¡Bienvenido a RescueSync!</h1>
-      <p class="hero-texto">
-        Coordinamos la respuesta ante emergencias entre municipios, ONGs y el centro coordinador:
-        cada necesidad, cada oferta de ayuda y cada recurso, en un mismo lugar.
-      </p>
-    </div>
-
-    <div class="bienvenida-rasgos animar-escalonado">
-      {{ rasgo("rayo", "Emergencias en tiempo real", "Registrá una emergencia y avisá a las organizaciones de la zona en minutos.") }}
-      {{ rasgo("inventario", "Ayuda trazable", "Ofertas e inventario versionados: siempre sabés qué hay, dónde y quién lo aporta.") }}
-      {{ rasgo("escudo", "Acceso por perfiles", "Cada persona ve solo lo que su rol necesita para trabajar.") }}
-    </div>
-
-    <div class="bienvenida-cifras animar-escalonado">
-      {{ cifra("24/7", "Disponibilidad de la red") }}
-      {{ cifra("+100", "Organizaciones conectadas") }}
-      {{ cifra("5", "Perfiles de trabajo") }}
-    </div>
-  </section>
-
+<main class="bienvenida-solo">
   <section class="bienvenida-acceso animate-fade-up" aria-labelledby="acceso-titulo">
-    <div class="tarjeta">
-      <div class="tarjeta-cuerpo">
-        <h2 id="acceso-titulo" class="bienvenida-acceso-titulo">Iniciá sesión</h2>
+    <div class="bienvenida-formulario">
+        <h2 id="acceso-titulo" class="bienvenida-acceso-titulo">¡Bienvenido a RescueSync!</h2>
         <p class="bienvenida-acceso-texto">Ingresá con el email y la contraseña de tu cuenta.</p>
 
         <form id="login-form" class="formulario" action="{{ url_for('sesion.ingresar') }}" method="POST" data-envio-con-carga>
@@ -59,9 +30,7 @@
           {{ icono("info") }}
           <span>¿No podés ingresar? Contactá a un administrador de RescueSync para que restablezca tu contraseña.</span>
         </p>
-      </div>
     </div>
   </section>
-
-</div>
+</main>
 {% endblock %}

@@ -6,8 +6,10 @@
 
 {% block content %}
 <div class="pagina-angosta space-y-6">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primario" href="{{ url_for('emergencias.listar') }}">
+    {{ icono("volver", "size-4") }} Volver a emergencias
+  </a>
   {% call encabezado_pagina(emergencia.titulo, emergencia.zona_afectada) %}
-    <a class="btn btn-secundario" href="{{ url_for('emergencias.listar') }}">{{ icono("volver") }} Volver</a>
   {% endcall %}
 
   <section class="tarjeta">

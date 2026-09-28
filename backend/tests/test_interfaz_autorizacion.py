@@ -91,6 +91,17 @@ def test_el_operador_municipal_ve_la_pantalla_de_ofertas(
     assert "Ofertas de ayuda" in cuerpo
 
 
+def test_el_representante_ve_el_estado_de_sus_ofertas_en_el_hub(
+    ingresar_por_formulario, navegar
+) -> None:
+    ingresar_por_formulario(EMAIL_REPRESENTANTE)
+
+    cuerpo = _texto(navegar("/inicio"))
+
+    assert "Estado de tus últimas ofertas" in cuerpo
+    assert "Oferta #" in cuerpo
+
+
 def test_una_pantalla_nueva_aparece_en_el_menu_solo_declarando_su_entrada(
     app, ingresar_por_formulario, navegar
 ) -> None:
