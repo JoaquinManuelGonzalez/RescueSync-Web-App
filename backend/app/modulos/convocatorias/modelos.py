@@ -17,7 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.extensiones import db
 
 if TYPE_CHECKING:
-    from app.modulos.emergencias.modelos import Emergencia
+    from app.modulos.emergencias.modelos import Emergencia, LoteNecesidad
     from app.modulos.ofertas.modelos import Oferta
     from app.modulos.usuarios_roles.modelos import Usuario
 
@@ -67,6 +67,12 @@ class Convocatoria(db.Model):
         ),
     )
 
+    resumen_situacion: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Resumen de la situación publicado junto con la convocatoria.",
+    )
+
     estado: Mapped[EstadoConvocatoria] = mapped_column(
         Enum(EstadoConvocatoria, name="estado_convocatoria_enum"),
         default=EstadoConvocatoria.abierta,
@@ -93,6 +99,11 @@ class Convocatoria(db.Model):
     coordinador: Mapped[Usuario] = relationship("Usuario", lazy="select")
     ofertas: Mapped[list[Oferta]] = relationship(
         "Oferta",
+        back_populates="convocatoria",
+        lazy="select",
+    )
+    lotes: Mapped[list[LoteNecesidad]] = relationship(
+        "LoteNecesidad",
         back_populates="convocatoria",
         lazy="select",
     )

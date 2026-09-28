@@ -206,6 +206,12 @@ class LoteNecesidad(db.Model):
         nullable=False,
         index=True,
     )
+    convocatoria_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("convocatoria.id"),
+        nullable=True,
+        index=True,
+    )
 
     descripcion: Mapped[str | None] = mapped_column(
         String(255),
@@ -226,6 +232,9 @@ class LoteNecesidad(db.Model):
 
     # --- relaciones -----------------------------------------------------------
     emergencia: Mapped[Emergencia] = relationship("Emergencia", back_populates="lotes")
+    convocatoria: Mapped[Convocatoria | None] = relationship(
+        "Convocatoria", back_populates="lotes"
+    )
     lote_items: Mapped[list[LoteItem]] = relationship(
         "LoteItem",
         back_populates="lote",

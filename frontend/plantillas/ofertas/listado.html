@@ -9,9 +9,6 @@
 {% block content %}
 <div class="pagina">
   {% call encabezado_pagina("Ofertas de ayuda", "Propuestas recibidas y trazabilidad de sus versiones.") %}
-    {% if convocatoria_id and puede("ofertas:crear") %}
-    <a class="btn btn-primario" href="{{ url_for('ofertas.formulario_de_alta', convocatoria_id=convocatoria_id) }}">{{ icono("mas") }} Nueva oferta</a>
-    {% endif %}
   {% endcall %}
 
   {% if ofertas %}

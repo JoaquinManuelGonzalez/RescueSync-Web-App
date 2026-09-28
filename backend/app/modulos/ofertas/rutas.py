@@ -38,6 +38,7 @@ from app.core.interfaz.vistas import ERROR, pide_json, redirigir
 from app.core.logging import registrar_evento
 from app.extensiones import csrf, db
 from app.modulos.convocatorias.modelos import Convocatoria
+from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
 from app.modulos.ofertas import servicios
 from app.modulos.ofertas.modelos import Oferta
 from app.modulos.ofertas.servicios import _formatear_fecha_iso
@@ -64,7 +65,7 @@ def _contexto_de_formulario(convocatoria_id: int, oferta: Oferta | None = None) 
     convocatoria = db.session.get(Convocatoria, convocatoria_id)
     if not convocatoria:
         raise SolicitudInvalida("La convocatoria indicada no existe.")
-    lotes = [item for lote in convocatoria.emergencia.lotes for item in lote.lote_items]
+    lotes = [item for lote in convocatoria.lotes for item in lote.lote_items]
     organizacion_actual_id = current_user.organizacion_id
     cantidades = {
         linea.lote_item_id: linea
@@ -128,7 +129,7 @@ def _formulario_con_error(
 
 def _items_desde_formulario(convocatoria: Convocatoria) -> list[dict[str, Any]]:
     items = []
-    for lote in convocatoria.emergencia.lotes:
+    for lote in convocatoria.lotes:
         for lote_item in lote.lote_items:
             valor = request.form.get(f"item_{lote_item.id}", "").strip()
             if not valor:
@@ -212,6 +213,15 @@ def formulario_de_alta():
     convocatoria_id = request.args.get("convocatoria_id", type=int)
     if convocatoria_id is None:
         raise SolicitudInvalida("Seleccioná una convocatoria antes de cargar la oferta.")
+    cerrar_convocatorias_vencidas()
+    convocatoria = db.session.get(Convocatoria, convocatoria_id)
+    if not convocatoria:
+        raise RecursoNoEncontrado("No encontramos la convocatoria solicitada.")
+    if not convocatoria.esta_vigente():
+        return redirigir(
+            "convocatorias.listar",
+            "La convocatoria ya no está recibiendo ofertas.",
+        )
     return render_template(
         "ofertas/formulario.html",
         modo="alta",

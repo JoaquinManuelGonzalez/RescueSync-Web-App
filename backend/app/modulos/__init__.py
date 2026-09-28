@@ -38,6 +38,8 @@ def registrar_modulos(app: Flask) -> None:
     importar_modelos()
 
     from app.core.interfaz.navegacion import registrar_entrada
+    from app.modulos.ofertas import rutas as rutas_de_ofertas
+    from app.modulos.convocatorias import rutas as rutas_de_convocatorias
     from app.modulos.emergencias import rutas as rutas_de_emergencias
     from app.modulos.emergencias.lotes import rutas as rutas_de_lotes
     from app.modulos.notificaciones import rutas as rutas_de_notificaciones
@@ -56,6 +58,7 @@ def registrar_modulos(app: Flask) -> None:
         rutas_de_organizaciones.blueprint_organizaciones, url_prefix="/organizaciones"
     )
     app.register_blueprint(rutas_de_ofertas.blueprint_ofertas, url_prefix="/ofertas")
+    app.register_blueprint(rutas_de_convocatorias.blueprint_convocatorias, url_prefix="/convocatorias")
     app.register_blueprint(rutas_de_emergencias.blueprint_emergencias, url_prefix="/emergencias")
     app.register_blueprint(rutas_de_lotes.blueprint_lotes, url_prefix="/lotes")
     app.register_blueprint(
@@ -71,4 +74,5 @@ def registrar_modulos(app: Flask) -> None:
     registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU_MI_ORGANIZACION)
     registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU_INVENTARIO)
     registrar_entrada(app, rutas_de_ofertas.ENTRADA_DE_MENU)
+    registrar_entrada(app, rutas_de_convocatorias.ENTRADA_DE_MENU)
     registrar_entrada(app, rutas_de_emergencias.ENTRADA_DE_MENU)

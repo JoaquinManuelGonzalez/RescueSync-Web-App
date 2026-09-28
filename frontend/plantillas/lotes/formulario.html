@@ -23,7 +23,7 @@
       <p class="mt-1 text-sm text-gray-500">
         {{ emergencia.zona_afectada }}
         · Gravedad {{ emergencia.nivel_gravedad.value|capitalize }}
-        · Estado {{ emergencia.estado.value|replace("_", " ")|capitalize }}
+        · Estado {{ "En revisión" if emergencia.estado.value == "en_evaluacion" else emergencia.estado.value|replace("_", " ")|capitalize }}
       </p>
       <p class="mt-3 whitespace-pre-line text-gray-700">{{ emergencia.descripcion }}</p>
     </div>
@@ -36,6 +36,7 @@
   </div>
   {% endif %}
 
+  {% if emergencia.estado.value == "registrada" %}
   <form method="post"
         action="{{ url_for('lotes.crear_desde_formulario', emergencia_id=emergencia.id) }}"
         class="space-y-6"
@@ -103,6 +104,11 @@
       {{ boton_envio("Generar lote", texto_cargando="Guardando...") }}
     </div>
   </form>
+  {% else %}
+  <div class="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900" role="alert">
+    Solo se pueden generar lotes cuando la emergencia está registrada.
+  </div>
+  {% endif %}
 </div>
 
 {# --- Template de fila de ítem --- #}

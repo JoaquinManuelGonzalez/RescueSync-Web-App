@@ -22,6 +22,7 @@ from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 from app.modulos.emergencias.modelos import (
     Emergencia,
     EstadoEmergencia,
+    EstadoLote,
     Item,
     LoteItem,
     LoteNecesidad,
@@ -128,8 +129,11 @@ def datos_ofertas_web(app, base_de_datos: None):
             coordinador_id=rep.id,
             fecha_inicio=ahora - timedelta(hours=1),
             fecha_cierre=ahora + timedelta(days=2),
+            resumen_situacion="Crecida de río con familias evacuadas.",
             estado=EstadoConvocatoria.abierta,
         )
+        lote.convocatoria = convocatoria
+        lote.estado = EstadoLote.en_convocatoria
         db.session.add(convocatoria)
         db.session.commit()
 
@@ -157,6 +161,46 @@ def test_crear_oferta_sin_sesion_da_401(cliente_sembrado, cabecera_csrf, datos_o
     )
     assert resp.status_code == 401
     assert resp.get_json()["error"]["codigo"] == "NO_AUTENTICADO"
+
+
+def test_ong_puede_seleccionar_convocatoria_vigente(
+    cliente_sembrado, ingresar, datos_ofertas_web
+):
+    ingresar(EMAIL_REPRESENTANTE)
+
+    respuesta = cliente_sembrado.get(
+        "/convocatorias",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+    )
+
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.get_data(as_text=True)
+    assert "Inundación Ribereña" in cuerpo
+    assert "Agua potable" in cuerpo
+    assert "Presentar oferta" in cuerpo
+    assert f"/ofertas/nueva?convocatoria_id={datos_ofertas_web['convocatoria_id']}" in cuerpo
+
+
+def test_formulario_de_oferta_no_se_muestra_si_la_convocatoria_vencio(
+    app, cliente_sembrado, ingresar, datos_ofertas_web
+):
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, datos_ofertas_web["convocatoria_id"])
+        convocatoria.fecha_cierre = datetime.now(UTC) - timedelta(minutes=1)
+        db.session.commit()
+
+    assert ingresar(EMAIL_REPRESENTANTE).status_code == 200
+    respuesta = cliente_sembrado.get(
+        f"/ofertas/nueva?convocatoria_id={datos_ofertas_web['convocatoria_id']}",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+    )
+
+    assert respuesta.status_code == 302
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, datos_ofertas_web["convocatoria_id"])
+        emergencia = db.session.get(Emergencia, datos_ofertas_web["emergencia_id"])
+        assert convocatoria.estado == EstadoConvocatoria.cerrada
+        assert emergencia.estado == EstadoEmergencia.registrada
 
 
 def test_crear_oferta_con_rol_sin_permiso_da_403(
