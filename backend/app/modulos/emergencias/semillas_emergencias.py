@@ -7,6 +7,7 @@ from app.modulos.emergencias.modelos import (
     Emergencia,
     EstadoEmergencia,
     NivelGravedad,
+    TipoEmergencia,
 )
 from app.modulos.organizaciones.modelos import Organizacion
 from app.modulos.usuarios_roles.modelos import Usuario
@@ -27,7 +28,43 @@ EMERGENCIAS: list[dict] = [
         "estado": EstadoEmergencia.registrada,
         "municipio_nombre": "Municipio de Chascomús",
         "usuario_email": "operador@chascomus.test",
+        "tipo_emergencia" : TipoEmergencia.otros,
+        # "bonita_case_id": "111",
     },
+    {
+        "titulo": "Inundación en zona costera de Bahía Blanca",
+        "descripcion": (
+            "Lluvias intensas provocaron el desborde del arroyo Napostá. "
+            "Se reportan viviendas evacuadas, cortes de rutas"
+            "y pérdida de suministro eléctrico en amplios sectores."
+            "Al menos 80 familias evacuadas que no pueden vovler a sus viviendas."
+            "Se requiere asistencia inmediata para la población desplazada."
+        ),
+        "nivel_gravedad": NivelGravedad.critica,
+        "zona_afectada": "Barrios alrededor del arroyo Napostá y costanera municipal",
+        "estado": EstadoEmergencia.registrada,
+        "municipio_nombre": "Municipalidad de Bahía Blanca",
+        "usuario_email": "operador@bahia.test",
+        "tipo_emergencia" : TipoEmergencia.inundacion,
+        # "bonita_case_id": "112",
+    },
+    {
+        "titulo": "Incendio de forestal en Parque Pereyra",
+        "descripcion": (
+            "Un incendio se propagó desde los pastizales"
+            "cercanos a la Autopista Dr. R. Balbín."
+            "Viviendas rurales y producciones familiares afectadas."
+            "Bomberos locales trabajan en el control del fuego"
+            "pero necesitan refuerzos por la aparición de nuevos focos."
+        ),
+        "nivel_gravedad": NivelGravedad.baja,
+        "zona_afectada": "A. Dr. R. Balbín y estación Pereyra, partido de La Plata",
+        "estado": EstadoEmergencia.registrada,
+        "municipio_nombre": "Municipalidad de La Plata",
+        "usuario_email": "operador@laplata.test",
+        "tipo_emergencia" : TipoEmergencia.incendio,
+        # "bonita_case_id": "113",
+    }
 ]
 
 
@@ -57,8 +94,10 @@ def sembrar_emergencias() -> list[ResultadoSemilla]:
             valores={
                 "descripcion": datos["descripcion"],
                 "nivel_gravedad": datos["nivel_gravedad"],
+                "tipo_emergencia": datos["tipo_emergencia"],
                 "zona_afectada": datos["zona_afectada"],
                 "estado": datos["estado"],
+                # "bonita_case_id": ...
                 "municipio_id": municipio.id,
                 "usuario_id": usuario.id,
             },
