@@ -31,7 +31,7 @@ ENTRADA_DE_MENU = EntradaDeMenu(
     titulo="Emergencias",
     permiso=EMERGENCIAS_LISTAR,
     descripcion="Registro y seguimiento de emergencias por municipio",
-    icono="alerta",
+    icono="advertencia",
     orden=20,
 )
 

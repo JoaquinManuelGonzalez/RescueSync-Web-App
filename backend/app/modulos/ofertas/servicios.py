@@ -28,6 +28,7 @@ from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import Convocatoria
 from app.modulos.emergencias.modelos import LoteItem
+from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.ofertas.modelos import (
     EstadoOferta,
     Oferta,
@@ -366,6 +367,19 @@ def crear_oferta(
 
     db.session.commit()
 
+    for organizacion in organizaciones_validas:
+        servicios_de_notificaciones.crear(
+            organizacion_id=organizacion.id,
+            titulo="Invitación a una oferta conjunta",
+            mensaje=(
+                f"La ONG {org_validada.nombre} te invitó a participar en una oferta conjunta "
+                f"para la emergencia «{convocatoria.emergencia.titulo}»."
+            ),
+            enlace=f"/ofertas/{oferta.id}",
+        )
+    if organizaciones_validas:
+        db.session.commit()
+
     registrar_evento(
         logging.INFO,
         "oferta_creada",
@@ -596,6 +610,7 @@ def aceptar_invitacion(
     oferta = db.session.get(Oferta, oferta_id)
     if not oferta:
         raise RecursoNoEncontrado(f"Oferta con id {oferta_id} no encontrada.")
+    organizacion = _validar_y_obtener_organizacion(organizacion_id)
     _validar_ventana_convocatoria(oferta.convocatoria)
     if oferta.estado in (
         EstadoOferta.retirada,
@@ -630,6 +645,16 @@ def aceptar_invitacion(
     miembro.estado_participacion = "aceptada"
     _actualizar_estado_por_invitaciones(oferta)
     oferta.version += 1
+    servicios_de_notificaciones.crear(
+        organizacion_id=oferta.organizacion_lider.id,
+        titulo="Invitación aceptada",
+        mensaje=(
+            f"La ONG {organizacion.nombre} aceptó tu invitación a participar "
+            f"en la oferta conjunta para la emergencia "
+            f"«{oferta.convocatoria.emergencia.titulo}»."
+        ),
+        enlace=f"/ofertas/{oferta.id}",
+    )
     db.session.commit()
     registrar_evento(
         logging.INFO,
@@ -651,6 +676,7 @@ def rechazar_invitacion(
     oferta = db.session.get(Oferta, oferta_id)
     if not oferta:
         raise RecursoNoEncontrado(f"Oferta con id {oferta_id} no encontrada.")
+    organizacion = _validar_y_obtener_organizacion(organizacion_id)
     _validar_ventana_convocatoria(oferta.convocatoria)
     if oferta.estado in (
         EstadoOferta.retirada,
@@ -672,6 +698,16 @@ def rechazar_invitacion(
     miembro.estado_participacion = "rechazada"
     _actualizar_estado_por_invitaciones(oferta)
     oferta.version += 1
+    servicios_de_notificaciones.crear(
+        organizacion_id=oferta.organizacion_lider.id,
+        titulo="Invitación rechazada",
+        mensaje=(
+            f"La ONG {organizacion.nombre} rechazó tu invitación a participar "
+            f"en la oferta conjunta para la emergencia "
+            f"«{oferta.convocatoria.emergencia.titulo}»."
+        ),
+        enlace=f"/ofertas/{oferta.id}",
+    )
     db.session.commit()
     registrar_evento(
         logging.INFO,

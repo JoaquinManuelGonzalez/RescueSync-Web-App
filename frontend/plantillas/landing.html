@@ -8,11 +8,12 @@
 <main class="landing">
   <section class="landing-hero" aria-labelledby="landing-titulo">
     <div class="landing-hero-copia animate-fade-up">
-      <span class="hero-etiqueta">Red de respuesta ante emergencias</span>
-      <h1 id="landing-titulo">Cuando cada minuto cuenta, coordinamos la respuesta.</h1>
+      <span class="hero-etiqueta">Cada minuto, cuenta</span>
+      <h1 id="landing-titulo">Coordinamos la ayuda
+        cuando más importa.</h1>
       <p>
         RescueSync conecta municipios, organizaciones y equipos de respuesta para que cada
-        necesidad encuentre ayuda, cada recurso tenga destino y nadie trabaje a ciegas.
+        necesidad encuentre ayuda, cada recurso tenga destino y cada pedido encuentre respuesta.
       </p>
       <div class="landing-acciones">
         <a class="btn btn-primario" href="{{ url_for('sesion.formulario_de_ingreso') }}">
@@ -23,14 +24,10 @@
     </div>
 
     <div class="landing-visual animate-fade" aria-hidden="true">
-      <div class="landing-visual-circulo"></div>
-      <div class="landing-visual-panel">
-        <span class="landing-visual-punto"></span>
-        <span>Red activa</span>
-        <strong>Respuesta coordinada</strong>
-        <div class="landing-visual-linea"><span></span><span></span><span></span></div>
-      </div>
-      <div class="landing-visual-alerta">Emergencia atendida <strong>100%</strong></div>
+      <img
+        src="{{ url_for('static', filename='img/RescueSync.gif') }}"
+        alt="RescueSync"
+        class="landing-visual-circulo">
     </div>
   </section>
 
