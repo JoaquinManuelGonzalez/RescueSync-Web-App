@@ -8,7 +8,6 @@ from app.core.integraciones.bonita.api import (
     obtener_usuario_actual_id,
 )
 
-
 NOMBRE_TAREA_PUBLICAR = "Gestionar emergencia y publicar convocatoria"
 
 

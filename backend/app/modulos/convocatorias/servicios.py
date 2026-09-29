@@ -76,9 +76,7 @@ def cerrar_convocatorias_vencidas(*, emergencia_id: int | None = None) -> int:
         ).scalar_one_or_none()
         if sigue_abierta is None:
             emergencia = db.session.execute(
-                select(Emergencia)
-                .where(Emergencia.id == id_emergencia)
-                .with_for_update()
+                select(Emergencia).where(Emergencia.id == id_emergencia).with_for_update()
             ).scalar_one_or_none()
             if emergencia and emergencia.estado == EstadoEmergencia.activa:
                 emergencia.estado = EstadoEmergencia.registrada
@@ -90,9 +88,7 @@ def cerrar_convocatorias_vencidas(*, emergencia_id: int | None = None) -> int:
 def cerrar_convocatoria(convocatoria_id: int) -> Convocatoria:
     """Cierra la recepción de ofertas y habilita una nueva evaluación de necesidades."""
     convocatoria = db.session.execute(
-        select(Convocatoria)
-        .where(Convocatoria.id == convocatoria_id)
-        .with_for_update()
+        select(Convocatoria).where(Convocatoria.id == convocatoria_id).with_for_update()
     ).scalar_one_or_none()
     if convocatoria is None:
         raise RecursoNoEncontrado(f"Convocatoria con id {convocatoria_id} no encontrada.")
@@ -115,9 +111,7 @@ def cerrar_convocatoria(convocatoria_id: int) -> Convocatoria:
     ).scalar_one_or_none()
     if sigue_abierta is None:
         emergencia = db.session.execute(
-            select(Emergencia)
-            .where(Emergencia.id == convocatoria.emergencia_id)
-            .with_for_update()
+            select(Emergencia).where(Emergencia.id == convocatoria.emergencia_id).with_for_update()
         ).scalar_one_or_none()
         if emergencia and emergencia.estado == EstadoEmergencia.activa:
             emergencia.estado = EstadoEmergencia.registrada
@@ -164,9 +158,7 @@ def crear_convocatoria(
         )
 
     emergencia = db.session.execute(
-        select(Emergencia)
-        .where(Emergencia.id == emergencia_id)
-        .with_for_update()
+        select(Emergencia).where(Emergencia.id == emergencia_id).with_for_update()
     ).scalar_one_or_none()
     if emergencia is None:
         raise RecursoNoEncontrado(f"Emergencia con id {emergencia_id} no encontrada.")
@@ -194,12 +186,16 @@ def crear_convocatoria(
             detalle={"emergencia_id": emergencia.id, "estado": EstadoConvocatoria.abierta.value},
         )
 
-    lotes_existentes = db.session.execute(
-        select(LoteNecesidad)
-        .where(LoteNecesidad.emergencia_id == emergencia.id)
-        .order_by(LoteNecesidad.id)
-        .with_for_update()
-    ).scalars().all()
+    lotes_existentes = (
+        db.session.execute(
+            select(LoteNecesidad)
+            .where(LoteNecesidad.emergencia_id == emergencia.id)
+            .order_by(LoteNecesidad.id)
+            .with_for_update()
+        )
+        .scalars()
+        .all()
+    )
     if not lotes_existentes:
         raise SolicitudInvalida(
             "La emergencia debe tener al menos un lote de necesidad para publicar.",
@@ -242,4 +238,64 @@ def crear_convocatoria(
         coordinador_id=coordinador.id,
         lotes=len(lotes),
     )
+
+    # --- Integración con Bonita: enviar el timer de la ventana temporal -------
+    _notificar_bonita_timer(emergencia, convocatoria)
+
     return convocatoria
+
+
+def _notificar_bonita_timer(emergencia: Emergencia, convocatoria: Convocatoria) -> None:
+    """Inicia el proceso en Bonita (si aún no existe) y envía la fecha de cierre.
+
+    1. Si la emergencia no tiene ``bonita_case_id``, llama a
+       ``iniciar_gestion()`` para instanciar el proceso y persiste el
+       ``case_id`` en la emergencia.
+    2. Ejecuta la tarea humana de publicación pasando el ``timerInput``
+       con la fecha de cierre de la convocatoria.
+
+    Si Bonita no está disponible se registra un warning y la convocatoria
+    se crea igual — no se interrumpe el flujo principal.
+    """
+    try:
+        from app.core.integraciones.bonita.proceso import (
+            iniciar_gestion as _bonita_iniciar,
+        )
+        from app.core.integraciones.bonita.proceso import (
+            publicar_convocatoria as _bonita_publicar,
+        )
+
+        case_id = emergencia.bonita_case_id
+
+        if not case_id:
+            case_id = _bonita_iniciar(emergencia.id)
+            emergencia.bonita_case_id = case_id
+            db.session.commit()
+            registrar_evento(
+                logging.INFO,
+                "bonita_proceso_iniciado",
+                convocatoria_id=convocatoria.id,
+                emergencia_id=emergencia.id,
+                bonita_case_id=case_id,
+            )
+
+        _bonita_publicar(
+            case_id=case_id,
+            fecha_cierre=convocatoria.fecha_cierre,
+        )
+        registrar_evento(
+            logging.INFO,
+            "bonita_timer_enviado",
+            convocatoria_id=convocatoria.id,
+            emergencia_id=emergencia.id,
+            bonita_case_id=case_id,
+            fecha_cierre=convocatoria.fecha_cierre.isoformat(),
+        )
+    except Exception:
+        registrar_evento(
+            logging.WARNING,
+            "bonita_timer_error",
+            convocatoria_id=convocatoria.id,
+            emergencia_id=emergencia.id,
+            motivo="No se pudo comunicar con Bonita; la convocatoria se creó igual.",
+        )
