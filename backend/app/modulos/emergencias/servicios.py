@@ -27,6 +27,7 @@ from app.modulos.emergencias.modelos import (
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
 
+from app.core.integraciones.bonita.proceso import iniciar_gestion as _bonita_iniciar
 
 def _validar_municipio(municipio_id: int) -> Organizacion:
     """Valida que la organización exista, esté activa y sea de tipo municipio."""
@@ -66,6 +67,7 @@ def _normalizar_nivel_gravedad(valor: str) -> NivelGravedad:
             detalle={"campo": "nivel_gravedad"},
         ) from error
 
+
 def _normalizar_tipo_emergencia(valor: str) -> TipoEmergencia:
     """Convierte el valor del formulario al enum correspondiente."""
     try:
@@ -76,6 +78,37 @@ def _normalizar_tipo_emergencia(valor: str) -> TipoEmergencia:
             f"Tipo de emergencia inválido. Opciones: {opciones}.",
             detalle={"campo": "tipo_emergencia"},
         ) from error
+
+
+def _registrar_alta_de_emergencia(emergencia, municipio, gravedad, tipo):
+        registrar_evento(
+        logging.INFO,
+        "emergencia_creada",
+        emergencia_id=emergencia,
+        municipio_id=municipio,
+        nivel_gravedad=gravedad,
+        tipo_emergencia=tipo
+    )
+
+        
+def _notificar_instanciacion_bonita(case_id: str | None, emergencia_id):
+    if not case_id:
+        registrar_evento(
+            logging.WARNING,
+            "bonita_start_event_error",
+            emergencia_id=emergencia_id,
+            motivo=f"No se pudo comunicar con Bonita." \
+            "Revisar conexión." \
+            "La emergencia se dio de alta localmente, aunque sin instancia de proceso.",
+        )
+    else:
+        registrar_evento(
+            logging.INFO,
+            "bonita_start_event",
+            emergencia_id=emergencia_id,
+            bonita_case_id=case_id,
+        )
+
 
 def crear_emergencia(
     *,
@@ -130,10 +163,32 @@ def crear_emergencia(
         estado=EstadoEmergencia.registrada,
         municipio_id=municipio_id,
         usuario_id=usuario_id,
-        tipo_emergencia=tipo
+        tipo_emergencia=tipo,
     )
     db.session.add(emergencia)
     db.session.commit()
+
+    # Registrar evento de alta de emergencia
+
+    _registrar_alta_de_emergencia(emergencia.id, municipio_id, gravedad.value, tipo.value)
+        
+    # Disparar creación de una instancia de proceso en Bonita BPM.
+    # Envía emergencia_id, recibe identificador del caso. 
+
+    try:
+        case_id = _bonita_iniciar(emergencia.id)
+        emergencia.bonita_case_id = case_id
+        db.session.commit()
+        _notificar_instanciacion_bonita(case_id, emergencia.id) 
+    except Exception:
+        # No diferencia entre SistemaExternoRechazo, ServicioExternoNoDisponible y RuntimeError.
+        # Lo importante es que aunque falle Bonita, la emergencia se registre.
+        # Puede volver a intentar conectar a la hora de abrir convocatoria.
+        db.session.rollback()
+        _notificar_instanciacion_bonita(None, emergencia.id)
+    
+
+    # Servicio de notificación al Centro Coordinador Regional.
 
     servicios_de_notificaciones.crear_para_tipo_organizacion(
         tipo=TipoOrganizacion.centro_coordinador_regional,
@@ -143,16 +198,6 @@ def crear_emergencia(
     )
     db.session.commit()
 
-    # Registrar evento de alta de emergencia
-
-    registrar_evento(
-        logging.INFO,
-        "emergencia_creada",
-        emergencia_id=emergencia.id,
-        municipio_id=municipio_id,
-        nivel_gravedad=gravedad.value,
-        tipo_emergencia=tipo.value
-    )
     return emergencia
 
 
@@ -162,7 +207,8 @@ def obtener_emergencia_por_id(emergencia_id: int) -> Emergencia:
         raise RecursoNoEncontrado(f"Emergencia con id {emergencia_id} no encontrada.")
     return emergencia
 
-# Nivel de gravedad vuelto número para poder usar order_by(). A más alto el número, más urgente.
+# Nivel de gravedad vuelto número para poder usar order_by().
+# A más alto el número, más urgente.
 _NIVEL_GRAVEDAD = {
     NivelGravedad.baja: 1,
     NivelGravedad.media: 2,
