@@ -244,17 +244,17 @@ def crear_convocatoria(
     )
 
     # --- Integración con Bonita: enviar el timer de la ventana temporal -------
-    _notificar_bonita_timer(convocatoria)
+    _notificar_bonita_timer(emergencia, convocatoria)
 
     return convocatoria
 
 
-def _notificar_bonita_timer(convocatoria: Convocatoria) -> None:
+def _notificar_bonita_timer(emergencia: Emergencia, convocatoria: Convocatoria) -> None:
     """Inicia el proceso en Bonita (si aún no existe) y envía la fecha de cierre.
 
-    1. Si la convocatoria no tiene ``bonita_case_id``, llama a
+    1. Si la emergencia no tiene ``bonita_case_id``, llama a
        ``iniciar_gestion()`` para instanciar el proceso y persiste el
-       ``case_id`` en la convocatoria.
+       ``case_id`` en la emergencia.
     2. Ejecuta la tarea humana de publicación pasando el ``timerInput``
        con la fecha de cierre de la convocatoria.
 
@@ -269,17 +269,17 @@ def _notificar_bonita_timer(convocatoria: Convocatoria) -> None:
             publicar_convocatoria as _bonita_publicar,
         )
 
-        case_id = convocatoria.bonita_case_id
+        case_id = emergencia.bonita_case_id
 
         if not case_id:
-            case_id = _bonita_iniciar(convocatoria.emergencia_id)
-            convocatoria.bonita_case_id = case_id
+            case_id = _bonita_iniciar(emergencia.id)
+            emergencia.bonita_case_id = case_id
             db.session.commit()
             registrar_evento(
                 logging.INFO,
                 "bonita_proceso_iniciado",
                 convocatoria_id=convocatoria.id,
-                emergencia_id=convocatoria.emergencia_id,
+                emergencia_id=emergencia.id,
                 bonita_case_id=case_id,
             )
 
@@ -291,7 +291,7 @@ def _notificar_bonita_timer(convocatoria: Convocatoria) -> None:
             logging.INFO,
             "bonita_timer_enviado",
             convocatoria_id=convocatoria.id,
-            emergencia_id=convocatoria.emergencia_id,
+            emergencia_id=emergencia.id,
             bonita_case_id=case_id,
             fecha_cierre=convocatoria.fecha_cierre.isoformat(),
         )
@@ -300,6 +300,6 @@ def _notificar_bonita_timer(convocatoria: Convocatoria) -> None:
             logging.WARNING,
             "bonita_timer_error",
             convocatoria_id=convocatoria.id,
-            emergencia_id=convocatoria.emergencia_id,
+            emergencia_id=emergencia.id,
             motivo="No se pudo comunicar con Bonita; la convocatoria se creó igual.",
         )
