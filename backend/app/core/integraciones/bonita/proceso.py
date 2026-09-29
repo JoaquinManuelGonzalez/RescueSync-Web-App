@@ -21,6 +21,7 @@ def iniciar_gestion(emergencia_id: int) -> str:
 
 def publicar_convocatoria(
     case_id: str,
+    convocatoria_id: int,
     fecha_cierre: datetime,
 ) -> None:
     task_id = buscar_tarea_humana(
@@ -29,15 +30,12 @@ def publicar_convocatoria(
     )
 
     usuario_id = obtener_usuario_actual_id()
-
-    asignar_tarea(
-        task_id,
-        usuario_id,
-    )
+    asignar_tarea(task_id, usuario_id)
 
     ejecutar_tarea(
         task_id,
         {
             "timerInput": fecha_cierre.isoformat(),
+            "convocatoriaIdInput": str(convocatoria_id),
         },
     )

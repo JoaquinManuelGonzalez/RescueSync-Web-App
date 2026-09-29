@@ -281,6 +281,7 @@ def _notificar_bonita_timer(emergencia: Emergencia, convocatoria: Convocatoria) 
 
         _bonita_publicar(
             case_id=case_id,
+            convocatoria_id=convocatoria.id,
             fecha_cierre=convocatoria.fecha_cierre,
         )
         registrar_evento(
