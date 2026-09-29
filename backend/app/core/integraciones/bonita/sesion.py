@@ -19,6 +19,7 @@ NOMBRE_COOKIE_TOKEN = "X-Bonita-API-Token"
 _cliente: httpx.Client | None = None
 _lock = threading.Lock()
 
+
 def iniciar_sesion() -> httpx.Client:
     cliente = httpx.Client()
 
@@ -40,13 +41,12 @@ def iniciar_sesion() -> httpx.Client:
 
     if not token:
         cliente.close()
-        raise RuntimeError(
-            "Bonita inició sesión pero no devolvió X-Bonita-API-Token."
-        )
+        raise RuntimeError("Bonita inició sesión pero no devolvió X-Bonita-API-Token.")
 
     cliente.headers[NOMBRE_COOKIE_TOKEN] = token
 
     return cliente
+
 
 def obtener_cliente() -> httpx.Client:
     global _cliente

@@ -17,6 +17,7 @@ BONITA_PROCESO_VERSION = os.environ["BONITA_PROCESO_VERSION"]
 
 _process_definition_id: str | None = None
 
+
 def obtener_process_definition_id(*, forzar_recarga: bool = False) -> str:
     global _process_definition_id
 
@@ -55,6 +56,7 @@ def obtener_process_definition_id(*, forzar_recarga: bool = False) -> str:
 
     return process_definition_id
 
+
 def instanciar_proceso(
     variables_contrato: dict[str, object],
 ) -> str:
@@ -67,10 +69,7 @@ def instanciar_proceso(
             componente=COMPONENTE_BONITA,
             metodo="POST",
             endpoint_normalizado="/API/bpm/process/{id}/instantiation",
-            url=(
-                f"{BONITA_BASE_URL}/API/bpm/process/"
-                f"{process_definition_id}/instantiation"
-            ),
+            url=(f"{BONITA_BASE_URL}/API/bpm/process/{process_definition_id}/instantiation"),
             idempotente=False,
             json=variables_contrato,
         )
@@ -81,10 +80,7 @@ def instanciar_proceso(
             componente=COMPONENTE_BONITA,
             metodo="POST",
             endpoint_normalizado="/API/bpm/process/{id}/instantiation",
-            url=(
-                f"{BONITA_BASE_URL}/API/bpm/process/"
-                f"{process_definition_id}/instantiation"
-            ),
+            url=(f"{BONITA_BASE_URL}/API/bpm/process/{process_definition_id}/instantiation"),
             idempotente=False,
             json=variables_contrato,
         )
@@ -92,11 +88,10 @@ def instanciar_proceso(
     datos = respuesta.json()
 
     if "caseId" not in datos:
-        raise RuntimeError(
-            "Bonita creó la instancia pero no devolvió caseId."
-        )
+        raise RuntimeError("Bonita creó la instancia pero no devolvió caseId.")
 
     return str(datos["caseId"])
+
 
 def buscar_tarea_humana(
     case_id: str,
@@ -131,9 +126,9 @@ def buscar_tarea_humana(
         time.sleep(espera_segundos)
 
     raise RuntimeError(
-        f"No se encontró la tarea '{nombre_tarea}' "
-        f"en estado ready para el caso {case_id}."
+        f"No se encontró la tarea '{nombre_tarea}' en estado ready para el caso {case_id}."
     )
+
 
 def ejecutar_tarea(
     task_id: str,
@@ -151,6 +146,7 @@ def ejecutar_tarea(
         json=variables_contrato,
     )
 
+
 def obtener_usuario_actual_id() -> str:
     cliente = obtener_cliente()
 
@@ -166,6 +162,7 @@ def obtener_usuario_actual_id() -> str:
     datos = respuesta.json()
 
     return str(datos["user_id"])
+
 
 def asignar_tarea(
     task_id: str,

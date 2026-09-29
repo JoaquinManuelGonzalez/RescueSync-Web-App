@@ -76,9 +76,7 @@ def cerrar_convocatorias_vencidas(*, emergencia_id: int | None = None) -> int:
         ).scalar_one_or_none()
         if sigue_abierta is None:
             emergencia = db.session.execute(
-                select(Emergencia)
-                .where(Emergencia.id == id_emergencia)
-                .with_for_update()
+                select(Emergencia).where(Emergencia.id == id_emergencia).with_for_update()
             ).scalar_one_or_none()
             if emergencia and emergencia.estado == EstadoEmergencia.activa:
                 emergencia.estado = EstadoEmergencia.registrada
@@ -90,9 +88,7 @@ def cerrar_convocatorias_vencidas(*, emergencia_id: int | None = None) -> int:
 def cerrar_convocatoria(convocatoria_id: int) -> Convocatoria:
     """Cierra la recepción de ofertas y habilita una nueva evaluación de necesidades."""
     convocatoria = db.session.execute(
-        select(Convocatoria)
-        .where(Convocatoria.id == convocatoria_id)
-        .with_for_update()
+        select(Convocatoria).where(Convocatoria.id == convocatoria_id).with_for_update()
     ).scalar_one_or_none()
     if convocatoria is None:
         raise RecursoNoEncontrado(f"Convocatoria con id {convocatoria_id} no encontrada.")
@@ -115,9 +111,7 @@ def cerrar_convocatoria(convocatoria_id: int) -> Convocatoria:
     ).scalar_one_or_none()
     if sigue_abierta is None:
         emergencia = db.session.execute(
-            select(Emergencia)
-            .where(Emergencia.id == convocatoria.emergencia_id)
-            .with_for_update()
+            select(Emergencia).where(Emergencia.id == convocatoria.emergencia_id).with_for_update()
         ).scalar_one_or_none()
         if emergencia and emergencia.estado == EstadoEmergencia.activa:
             emergencia.estado = EstadoEmergencia.registrada
@@ -164,9 +158,7 @@ def crear_convocatoria(
         )
 
     emergencia = db.session.execute(
-        select(Emergencia)
-        .where(Emergencia.id == emergencia_id)
-        .with_for_update()
+        select(Emergencia).where(Emergencia.id == emergencia_id).with_for_update()
     ).scalar_one_or_none()
     if emergencia is None:
         raise RecursoNoEncontrado(f"Emergencia con id {emergencia_id} no encontrada.")
@@ -194,12 +186,16 @@ def crear_convocatoria(
             detalle={"emergencia_id": emergencia.id, "estado": EstadoConvocatoria.abierta.value},
         )
 
-    lotes_existentes = db.session.execute(
-        select(LoteNecesidad)
-        .where(LoteNecesidad.emergencia_id == emergencia.id)
-        .order_by(LoteNecesidad.id)
-        .with_for_update()
-    ).scalars().all()
+    lotes_existentes = (
+        db.session.execute(
+            select(LoteNecesidad)
+            .where(LoteNecesidad.emergencia_id == emergencia.id)
+            .order_by(LoteNecesidad.id)
+            .with_for_update()
+        )
+        .scalars()
+        .all()
+    )
     if not lotes_existentes:
         raise SolicitudInvalida(
             "La emergencia debe tener al menos un lote de necesidad para publicar.",
