@@ -13,9 +13,7 @@
     </title>
   </head>
   <body class="bg-fondo min-h-screen"{% if current_user.is_authenticated %} data-minutos-sesion="{{ config.SESION_MINUTOS_INACTIVIDAD }}"{% endif %}>
-    {% if current_user.is_authenticated or request.endpoint in ('inicio.raiz', 'sesion.formulario_de_ingreso') %}
       {% include "navbar.html" %}
-    {% endif %}
     <div>
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}

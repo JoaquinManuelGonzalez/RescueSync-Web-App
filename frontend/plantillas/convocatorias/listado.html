@@ -10,7 +10,6 @@
     "Convocatorias",
     "Elegí una emergencia vigente para presentar una oferta." if es_representante_ong else "Listado de publicaciones vigentes y cerradas"
   ) %}
-    <a class="btn btn-secundario" href="{{ url_for('inicio.panel') }}">{{ icono("volver") }} Volver</a>
   {% endcall %}
 
   {% if convocatorias %}
@@ -23,7 +22,7 @@
               <h2 class="tarjeta-titulo">{{ convocatoria.emergencia.titulo }}</h2>
               <p class="mt-1 text-sm text-gray-600">{{ convocatoria.emergencia.zona_afectada }}</p>
             </div>
-            {{ insignia("Recibiendo ofertas" if convocatoria.esta_vigente() else convocatoria.estado.value|replace('_', ' ')|capitalize, 'exito' if convocatoria.esta_vigente() else 'neutra') }}
+            {{ insignia(convocatoria.estado.value|replace('_', ' ')|capitalize, 'exito' if convocatoria.estado.value == 'abierta' else 'neutra') }}
           </div>
 
           <div>
