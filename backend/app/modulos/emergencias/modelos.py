@@ -121,7 +121,7 @@ class Emergencia(db.Model):
     # ID de instancia de proceso en Bonita BPM asociado a esta emergencia.
     bonita_case_id: Mapped[str | None] = mapped_column(
         String(255),
-        nullable=True, # Por ahora lo dejo nulleable, modificar una vez que este bien asentado en tema d ela integración con Bonita
+        nullable=True,
         index=True,
     )
 

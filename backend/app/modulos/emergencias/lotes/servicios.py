@@ -20,6 +20,7 @@ from app.core.errores import (
 )
 from app.core.logging import registrar_evento
 from app.extensiones import db
+from app.modulos.convocatorias.modelos import EstadoConvocatoria
 from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
 from app.modulos.emergencias.modelos import (
     Emergencia,
@@ -187,3 +188,134 @@ def listar_lotes() -> list[LoteNecesidad]:
         )
     )
 
+
+def obtener_lote(lote_id: int) -> LoteNecesidad:
+    """
+        Recupera un lote con sus ítems cargados.
+    """
+    lote = db.session.scalar(
+        select(LoteNecesidad)
+        .where(LoteNecesidad.id == lote_id)
+        .options(selectinload(LoteNecesidad.lote_items).selectinload(LoteItem.item))
+    )
+    if not lote:
+        raise RecursoNoEncontrado(
+            f"No encontramos el lote con id {lote_id}."
+        )
+    return lote
+
+
+def _validar_edicion_permitida(lote: LoteNecesidad) -> None:
+    """
+        Reglas de negocio para permitir la edición de un lote:
+        1. La Emergencia debe seguir en un estado editable.
+        2. El Lote debe estar en estado pendiente.
+        3. Lote debe tener su Convocatoria en estado "borrador", o no tener Convocatoria asignada.
+    """
+
+    # Regla 1
+    if lote.emergencia.estado in (
+        EstadoEmergencia.cancelada,
+        EstadoEmergencia.finalizada,
+    ):
+        raise ReglaDeNegocioIncumplida(
+            "No se pueden editar lotes de una emergencia finalizada o cancelada.",
+            detalle={"emergencia_id": lote.emergencia_id,
+                     "estado": lote.emergencia.estado.value},
+        )
+
+    # Regla 2
+    if lote.estado != EstadoLote.pendiente:
+        if lote.estado == EstadoLote.en_convocatoria:
+            raise ReglaDeNegocioIncumplida(
+                "No se puede editar un lote que ya está vinculado a una convocatoria.",
+                detalle={"lote_id": lote.id},
+            )
+        elif lote.estado in (EstadoLote.adjudicado_parcial, EstadoLote.adjudicado_total):
+            raise ReglaDeNegocioIncumplida(
+                "No se puede editar un lote ya adjudicado.",
+                detalle={"lote_id": lote.id},
+            )
+        elif lote.estado == EstadoLote.cancelado:
+            raise ReglaDeNegocioIncumplida(
+                "No se puede editar un lote cancelado.",
+                detalle={"lote_id": lote.id},
+            )
+
+    # Regla 3
+    if lote.convocatoria_id is not None and lote.convocatoria.estado != EstadoConvocatoria.borrador:
+        raise ReglaDeNegocioIncumplida(
+            "Existe una convocatoria abierta para esta emergencia; "
+            "no se pueden editar sus lotes.",
+            detalle={"emergencia_id": lote.emergencia_id},
+        )
+
+
+def editar_lote(
+    *,
+    lote_id: int,
+    descripcion: str | None,
+    items: list[dict],
+) -> LoteNecesidad:
+    """
+        Actualiza un lote existente (descripción + ítems) validando ciertas reglas.
+        Reemplaza por completo los LoteItem del lote.(*)
+    """
+    lote = obtener_lote(lote_id)
+    _validar_edicion_permitida(lote)
+
+    if not items:
+        raise SolicitudInvalida(
+            "Debés cargar al menos un ítem en el lote.",
+            detalle={"campo": "items"},
+        )
+
+    descripcion = (descripcion or "").strip() or None
+    if descripcion and len(descripcion) > 255:
+        raise SolicitudInvalida(
+            "La descripción del lote no puede superar los 255 caracteres.",
+            detalle={"campo": "descripcion"},
+        )
+
+    nuevos_items: list[LoteItem] = []
+    for indice, fila in enumerate(items):
+        item_id = fila.get("item_id")
+        if not item_id:
+            raise SolicitudInvalida(
+                f"Falta el ítem en la fila {indice + 1}.",
+                detalle={"campo": f"items[{indice}].item_id"},
+            )
+
+        item = db.session.get(Item, int(item_id))
+        if not item:
+            raise RecursoNoEncontrado(
+                f"No existe el ítem con id {item_id}.",
+                detalle={"campo": f"items[{indice}].item_id"},
+            )
+
+        cantidad = _parsear_cantidad(fila.get("cantidad_solicitada"))
+        observaciones = (fila.get("observaciones") or "").strip() or None
+
+        nuevos_items.append(
+            LoteItem(
+                item_id=item.id,
+                cantidad_solicitada=cantidad,
+                observaciones=observaciones,
+            )
+        )
+
+    # Reemplazo total de los ítems(*)
+    lote.descripcion = descripcion
+    lote.lote_items = nuevos_items
+
+    db.session.commit()
+
+    registrar_evento(
+        logging.INFO,
+        "lote_editado",
+        emergencia_id=lote.emergencia_id,
+        lote_id=lote.id,
+        cantidad_items=len(nuevos_items),
+    )
+
+    return lote

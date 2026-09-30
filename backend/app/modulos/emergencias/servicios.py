@@ -16,18 +16,18 @@ from app.core.errores import (
     ReglaDeNegocioIncumplida,
     SolicitudInvalida,
 )
+from app.core.integraciones.bonita.proceso import iniciar_gestion as _bonita_iniciar
 from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.emergencias.modelos import (
     Emergencia,
     EstadoEmergencia,
     NivelGravedad,
-    TipoEmergencia
+    TipoEmergencia,
 )
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
 
-from app.core.integraciones.bonita.proceso import iniciar_gestion as _bonita_iniciar
 
 def _validar_municipio(municipio_id: int) -> Organizacion:
     """Valida que la organización exista, esté activa y sea de tipo municipio."""
@@ -49,7 +49,7 @@ def _validar_municipio(municipio_id: int) -> Organizacion:
 
     if org.tipo != TipoOrganizacion.municipio:
         raise ReglaDeNegocioIncumplida(
-            f"La organización '{org.nombre}' debe ser de tipo municipio para registrar emergencias.",
+            f"La organización '{org.nombre}' debe ser de tipo municipio para registrar emergencias",
             detalle={"municipio_id": org.id, "tipo": org.tipo.value},
         )
 
@@ -97,7 +97,7 @@ def _notificar_instanciacion_bonita(case_id: str | None, emergencia_id):
             logging.WARNING,
             "bonita_start_event_error",
             emergencia_id=emergencia_id,
-            motivo=f"No se pudo comunicar con Bonita." \
+            motivo="No se pudo comunicar con Bonita." \
             "Revisar conexión." \
             "La emergencia se dio de alta localmente, aunque sin instancia de proceso.",
         )
@@ -229,7 +229,8 @@ def listar_emergencias(
 
     consulta = (
         select(Emergencia)
-        .where(Emergencia.estado != EstadoEmergencia.finalizada, Emergencia.estado != EstadoEmergencia.cancelada )
+        .where(Emergencia.estado != EstadoEmergencia.finalizada,
+               Emergencia.estado != EstadoEmergencia.cancelada )
         .order_by(expresion_gravedad.desc(), Emergencia.creado_en.desc())
     )
 

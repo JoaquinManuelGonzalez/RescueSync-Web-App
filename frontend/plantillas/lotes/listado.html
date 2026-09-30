@@ -45,6 +45,7 @@
       {% if lotes %}
         <div class="mt-4 space-y-4">
           {% for lote in lotes %}
+
           <article class="rounded-lg border border-gray-100 px-4 py-4">
             <header class="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -95,6 +96,16 @@
             </p>
             {% endif %}
           </article>
+            {% if puede("lotes:editar") %}
+                <a
+                    class="btn btn-primario mt-4"
+                    href="{{ url_for('lotes.formulario_de_edicion',
+                    emergencia_id=emergencia.id,
+                    lote_id=lote.id) }}"
+                >
+                    {{ icono("editar") }} Editar lote
+                </a>
+            {% endif %}
           {% endfor %}
         </div>
       {% else %}
@@ -104,15 +115,17 @@
             Esta emergencia todavía no tiene lotes de necesidad generados.
           </p>
 
+            <br>
+            {% if puede("lotes:crear") %}
+                <a class="btn btn-primario mt-4"
+                    href="{{ url_for('lotes.formulario_de_alta', emergencia_id=emergencia.id) }}">
+                    {{ icono("mas") }} Crear nuevo lote
+                </a>
+            {% endif %}
         </div>
       {% endif %}
-      <br>
-      {% if puede("lotes:crear") %}
-        <a class="btn btn-primario mt-4"
-            href="{{ url_for('lotes.formulario_de_alta', emergencia_id=emergencia.id) }}">
-            {{ icono("mas") }} Crear nuevo lote
-        </a>
-      {% endif %}
+
+
     </div>
   </section>
 </div>
