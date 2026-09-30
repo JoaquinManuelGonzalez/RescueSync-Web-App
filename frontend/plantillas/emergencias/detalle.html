@@ -122,7 +122,7 @@
           <a class="btn btn-primario" href="{{ url_for('convocatorias.formulario_de_alta', emergencia_id=emergencia.id) }}">
             {{ icono("mas") }} Abrir convocatoria
           </a>
-        {% elif ns.convocatoria_abierta %}
+        {% elif puede("convocatorias:crear") and ns.convocatoria_abierta %}
           <button class="btn btn-secundario" disabled title="Ya existe una convocatoria abierta para esta emergencia">{{ icono("clock") }} Convocatoria abierta</button>
         {% endif %}
       </div>
@@ -142,10 +142,10 @@
             <p class="font-medium text-gray-900">Convocatoria publicada</p>
             <p class="text-sm text-gray-500">Cierra {{ convocatoria.fecha_cierre|fecha }}</p>
           </div>
+          {{ insignia(convocatoria.estado.value|replace('_', ' ')|capitalize, 'exito' if convocatoria.estado.value == 'abierta' else 'neutra') }}
           <a class="btn btn-fantasma btn-icono" href="{{ url_for('convocatorias.obtener', convocatoria_id=convocatoria.id) }}" title="Ver convocatoria">
             {{ icono("ver") }}<span class="sr-only">Ver convocatoria</span>
           </a>
-          {{ insignia("Vigente" if convocatoria.esta_vigente() else "Cerrada", "exito" if convocatoria.esta_vigente() else "neutra") }}
         </div>
         {% endfor %}
       </div>
