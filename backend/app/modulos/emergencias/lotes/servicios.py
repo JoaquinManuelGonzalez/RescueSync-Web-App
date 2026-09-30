@@ -20,6 +20,7 @@ from app.core.errores import (
 )
 from app.core.logging import registrar_evento
 from app.extensiones import db
+from app.modulos.convocatorias.modelos import EstadoConvocatoria
 from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
 from app.modulos.emergencias.modelos import (
     Emergencia,
@@ -29,7 +30,6 @@ from app.modulos.emergencias.modelos import (
     LoteItem,
     LoteNecesidad,
 )
-from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 
 
 def obtener_emergencia(emergencia_id: int) -> Emergencia:
@@ -210,7 +210,7 @@ def _validar_edicion_permitida(lote: LoteNecesidad) -> None:
         Reglas de negocio para permitir la edición de un lote:
         1. La Emergencia debe seguir en un estado editable.
         2. El Lote debe estar en estado pendiente.
-        3. El Lote debe tener su Convocatoria en estado "borrador", o no tener Convocatoria asignada.
+        3. Lote debe tener su Convocatoria en estado "borrador", o no tener Convocatoria asignada.
     """
 
     # Regla 1

@@ -38,7 +38,6 @@ def registrar_modulos(app: Flask) -> None:
     importar_modelos()
 
     from app.core.interfaz.navegacion import registrar_entrada
-    from app.modulos.ofertas import rutas as rutas_de_ofertas
     from app.modulos.convocatorias import rutas as rutas_de_convocatorias
     from app.modulos.emergencias import rutas as rutas_de_emergencias
     from app.modulos.emergencias.lotes import rutas as rutas_de_lotes

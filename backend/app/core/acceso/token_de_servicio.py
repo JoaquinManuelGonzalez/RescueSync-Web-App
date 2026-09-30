@@ -7,7 +7,6 @@ from flask import request
 
 from app.core.errores import NoAutenticado
 
-
 _ESQUEMA_BEARER = "Bearer"
 
 

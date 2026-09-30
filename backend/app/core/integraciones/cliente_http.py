@@ -28,11 +28,14 @@ Reglas que la implementacion tiene que respetar
 """
 
 from __future__ import annotations
-import time
+
 import random
+import time
+
 import httpx
-from app.core.logging import registrar_llamada_saliente, id_correlacion_actual
-from app.core.errores import SistemaExternoRechazo, ServicioExternoNoDisponible
+
+from app.core.errores import ServicioExternoNoDisponible, SistemaExternoRechazo
+from app.core.logging import id_correlacion_actual, registrar_llamada_saliente
 
 TIMEOUT_CONEXION_S = 3
 TIMEOUT_LECTURA_S = 10
