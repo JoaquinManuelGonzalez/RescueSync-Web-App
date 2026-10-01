@@ -13,7 +13,6 @@ Verifica:
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 
 import pytest
 
@@ -33,6 +32,7 @@ from app.modulos.organizaciones.modelos import InventarioItem, Organizacion, Tip
 from app.modulos.usuarios_roles.modelos import Usuario
 
 from .conftest import (
+    EMAIL_COORDINADOR,
     EMAIL_OPERADOR,
     EMAIL_REPRESENTANTE,
 )
@@ -97,12 +97,12 @@ def datos_ofertas_web(app, base_de_datos: None):
         lote_item1 = LoteItem(
             lote_id=lote.id,
             item_id=item1.id,
-            cantidad_solicitada=Decimal("2000.00"),
+            cantidad_solicitada=2000,
         )
         lote_item2 = LoteItem(
             lote_id=lote.id,
             item_id=item2.id,
-            cantidad_solicitada=Decimal("500.00"),
+            cantidad_solicitada=500,
         )
         db.session.add_all([lote_item1, lote_item2])
         db.session.flush()
@@ -112,12 +112,12 @@ def datos_ofertas_web(app, base_de_datos: None):
                 InventarioItem(
                     inventario_id=ong.inventario.id,
                     item_id=item1.id,
-                    cantidad_disponible=Decimal("1000"),
+                    cantidad_disponible=1000,
                 ),
                 InventarioItem(
                     inventario_id=ong.inventario.id,
                     item_id=item2.id,
-                    cantidad_disponible=Decimal("5000"),
+                    cantidad_disponible=5000,
                 ),
             ]
         )
@@ -616,3 +616,128 @@ def test_historial_oferta_ruta(
     assert versiones[0]["estado_anterior"] == "presentada"
     assert versiones[0]["observaciones_anteriores"] == "Versión 1"
     assert versiones[0]["items"][0]["cantidad_ofrecida"] == 200.0
+
+
+# --- Alcance del operador municipal ---------------------------------------------
+
+
+def _crear_oferta_como_ong(cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web) -> int:
+    ingresar(EMAIL_REPRESENTANTE)
+    resp = cliente_sembrado.post(
+        "/ofertas",
+        json={
+            "convocatoria_id": datos_ofertas_web["convocatoria_id"],
+            "items": [
+                {"lote_item_id": datos_ofertas_web["lote_item1_id"], "cantidad_ofrecida": 100}
+            ],
+        },
+        headers=cabecera_csrf(),
+    )
+    assert resp.status_code == 201
+    cliente_sembrado.post("/sesion/cierre", headers=cabecera_csrf())
+    return resp.get_json()["id"]
+
+
+def _asignar_emergencia_a_municipio(app, emergencia_id: int, *, propio: bool) -> None:
+    """Deja la emergencia en el municipio del operador sembrado o en otro distinto."""
+    with app.app_context():
+        operador = db.session.execute(
+            db.select(Usuario).where(Usuario.email == EMAIL_OPERADOR)
+        ).scalar_one()
+        if propio:
+            municipio_id = operador.organizacion_id
+        else:
+            otro = Organizacion(
+                nombre="Municipio Vecino",
+                tipo=TipoOrganizacion.municipio,
+                activo=True,
+            )
+            db.session.add(otro)
+            db.session.flush()
+            municipio_id = otro.id
+        db.session.get(Emergencia, emergencia_id).municipio_id = municipio_id
+        db.session.commit()
+
+
+def test_operador_ve_convocatorias_y_ofertas_de_su_municipio(
+    app, cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
+):
+    oferta_id = _crear_oferta_como_ong(
+        cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
+    )
+    _asignar_emergencia_a_municipio(app, datos_ofertas_web["emergencia_id"], propio=True)
+    convocatoria_id = datos_ofertas_web["convocatoria_id"]
+
+    assert ingresar(EMAIL_OPERADOR).status_code == 200
+
+    convocatorias = cliente_sembrado.get("/convocatorias").get_json()["convocatorias"]
+    assert convocatoria_id in [c["id"] for c in convocatorias]
+    assert cliente_sembrado.get(f"/convocatorias/{convocatoria_id}").status_code == 200
+
+    ofertas = cliente_sembrado.get("/ofertas").get_json()["ofertas"]
+    assert oferta_id in [o["id"] for o in ofertas]
+    assert cliente_sembrado.get(f"/ofertas/{oferta_id}").status_code == 200
+    assert cliente_sembrado.get(f"/ofertas/{oferta_id}/historial").status_code == 200
+    assert cliente_sembrado.get(f"/ofertas/convocatoria/{convocatoria_id}").status_code == 200
+
+
+def test_operador_no_ve_convocatorias_ni_ofertas_de_otro_municipio(
+    app, cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
+):
+    oferta_id = _crear_oferta_como_ong(
+        cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
+    )
+    _asignar_emergencia_a_municipio(app, datos_ofertas_web["emergencia_id"], propio=False)
+    convocatoria_id = datos_ofertas_web["convocatoria_id"]
+    emergencia_id = datos_ofertas_web["emergencia_id"]
+
+    assert ingresar(EMAIL_OPERADOR).status_code == 200
+
+    convocatorias = cliente_sembrado.get("/convocatorias").get_json()["convocatorias"]
+    assert convocatoria_id not in [c["id"] for c in convocatorias]
+    assert cliente_sembrado.get(f"/convocatorias/{convocatoria_id}").status_code == 404
+
+    ofertas = cliente_sembrado.get("/ofertas").get_json()["ofertas"]
+    assert oferta_id not in [o["id"] for o in ofertas]
+    filtradas = cliente_sembrado.get(f"/ofertas?convocatoria_id={convocatoria_id}")
+    assert filtradas.get_json()["ofertas"] == []
+    assert cliente_sembrado.get(f"/ofertas/{oferta_id}").status_code == 404
+    assert cliente_sembrado.get(f"/ofertas/{oferta_id}/historial").status_code == 404
+    assert cliente_sembrado.get(f"/ofertas/convocatoria/{convocatoria_id}").status_code == 404
+
+    assert cliente_sembrado.get(f"/emergencias/{emergencia_id}/lotes").status_code == 404
+
+
+def test_coordinador_sigue_viendo_convocatorias_y_ofertas_de_todos_los_municipios(
+    app, cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
+):
+    oferta_id = _crear_oferta_como_ong(
+        cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
+    )
+    _asignar_emergencia_a_municipio(app, datos_ofertas_web["emergencia_id"], propio=False)
+
+    assert ingresar(EMAIL_COORDINADOR).status_code == 200
+
+    convocatorias = cliente_sembrado.get("/convocatorias").get_json()["convocatorias"]
+    assert datos_ofertas_web["convocatoria_id"] in [c["id"] for c in convocatorias]
+    ofertas = cliente_sembrado.get("/ofertas").get_json()["ofertas"]
+    assert oferta_id in [o["id"] for o in ofertas]
+    assert cliente_sembrado.get(f"/ofertas/{oferta_id}").status_code == 200
+
+
+def test_crear_oferta_rechaza_cantidades_no_enteras(
+    cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
+):
+    ingresar(EMAIL_REPRESENTANTE)
+    resp = cliente_sembrado.post(
+        "/ofertas",
+        json={
+            "convocatoria_id": datos_ofertas_web["convocatoria_id"],
+            "items": [
+                {"lote_item_id": datos_ofertas_web["lote_item1_id"], "cantidad_ofrecida": 1.5}
+            ],
+        },
+        headers=cabecera_csrf(),
+    )
+    assert resp.status_code == 400
+    assert "entero" in resp.get_json()["error"]["mensaje"]

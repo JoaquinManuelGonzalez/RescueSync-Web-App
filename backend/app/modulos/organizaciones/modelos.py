@@ -28,7 +28,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     UniqueConstraint,
     func,
@@ -272,8 +271,8 @@ class InventarioItem(db.Model):
         nullable=False,
         index=True,
     )
-    cantidad_disponible: Mapped[float] = mapped_column(
-        Numeric(12, 2),
+    cantidad_disponible: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
         default=0,
         comment="Cantidad del item actualmente disponible en el inventario.",

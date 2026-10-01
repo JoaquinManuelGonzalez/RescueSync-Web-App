@@ -177,6 +177,26 @@ def _filtrar_oferta_para_ong(oferta: Oferta) -> None:
         raise RecursoNoEncontrado("No encontramos la oferta solicitada.")
 
 
+def _es_operador_municipal() -> bool:
+    return current_user.tiene_rol("operador_municipal")
+
+
+def _filtrar_convocatoria_para_municipio(convocatoria: Convocatoria) -> None:
+    if (
+        _es_operador_municipal()
+        and convocatoria.emergencia.municipio_id != current_user.organizacion_id
+    ):
+        raise RecursoNoEncontrado("No encontramos la convocatoria solicitada.")
+
+
+def _filtrar_oferta_para_municipio(oferta: Oferta) -> None:
+    if (
+        _es_operador_municipal()
+        and oferta.convocatoria.emergencia.municipio_id != current_user.organizacion_id
+    ):
+        raise RecursoNoEncontrado("No encontramos la oferta solicitada.")
+
+
 @blueprint_ofertas.get("")
 @requiere_permiso(OFERTAS_LISTAR)
 def listar():
@@ -189,6 +209,13 @@ def listar():
         consulta = consulta.where(
             Oferta.organizaciones_consorcio.any(
                 organizacion_id=current_user.organizacion_id,
+            )
+        )
+    if _es_operador_municipal():
+        # El Municipio sólo ve las ofertas de convocatorias de sus propias emergencias.
+        consulta = consulta.where(
+            Oferta.convocatoria.has(
+                Convocatoria.emergencia.has(municipio_id=current_user.organizacion_id)
             )
         )
     ofertas = list(db.session.execute(consulta).scalars().all())
@@ -294,7 +321,7 @@ def _serializar_oferta(oferta: Oferta) -> dict[str, Any]:
             {
                 "id": linea.id,
                 "lote_item_id": linea.lote_item_id,
-                "cantidad_ofrecida": float(linea.cantidad_ofrecida),
+                "cantidad_ofrecida": int(linea.cantidad_ofrecida),
                 "observaciones": linea.observaciones,
                 "organizacion_id": linea.organizacion_id,
                 "recurso": (
@@ -401,6 +428,7 @@ def obtener(oferta_id: int):
     """Devuelve el detalle de una oferta simple."""
     oferta = servicios.obtener_oferta_por_id(oferta_id)
     _filtrar_oferta_para_ong(oferta)
+    _filtrar_oferta_para_municipio(oferta)
     if not pide_json():
         historial = []
         for version in servicios.obtener_historial_de_oferta(oferta_id):
@@ -584,6 +612,9 @@ def retirar(oferta_id: int):
 @requiere_permiso(OFERTAS_LISTAR)
 def obtener_historial(oferta_id: int):
     """Devuelve el historial cronológico de versiones anteriores de una oferta."""
+    oferta = servicios.obtener_oferta_por_id(oferta_id)
+    _filtrar_oferta_para_ong(oferta)
+    _filtrar_oferta_para_municipio(oferta)
     versiones = servicios.obtener_historial_de_oferta(oferta_id)
     resultado = []
     for v in versiones:
@@ -617,6 +648,9 @@ def listar_por_convocatoria(convocatoria_id: int):
         "si",
         "yes",
     )
+    convocatoria = db.session.get(Convocatoria, convocatoria_id)
+    if convocatoria is not None:
+        _filtrar_convocatoria_para_municipio(convocatoria)
     ofertas = servicios.listar_ofertas_por_convocatoria(
         convocatoria_id,
         incluir_retiradas=incluir_retiradas,

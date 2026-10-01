@@ -18,7 +18,6 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
-    Numeric,
     String,
     Text,
     func,
@@ -287,8 +286,8 @@ class LoteItem(db.Model):
         index=True,
     )
 
-    cantidad_solicitada: Mapped[float] = mapped_column(
-        Numeric(12, 2),
+    cantidad_solicitada: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
         comment="Cantidad requerida del ítem en este lote.",
     )

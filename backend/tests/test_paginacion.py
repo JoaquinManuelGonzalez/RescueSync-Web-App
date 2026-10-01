@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from app.core.interfaz.paginacion import POR_PAGINA_POR_DEFECTO, Pagina
+from app.core.interfaz.paginacion import POR_PAGINA_MAXIMO, POR_PAGINA_POR_DEFECTO, Pagina
 
 from .conftest import EMAIL_ADMINISTRADOR
 
@@ -113,7 +113,8 @@ def test_la_paginacion_de_la_pantalla_conserva_los_filtros(
 def test_una_sola_pagina_no_muestra_controles(ingresar_por_formulario, navegar) -> None:
     ingresar_por_formulario(EMAIL_ADMINISTRADOR)
 
-    cuerpo = navegar("/usuarios").get_data(as_text=True)
+    # Las cuentas sembradas superan una pagina por defecto: se pide una pagina que las abarque.
+    cuerpo = navegar(f"/usuarios?por_pagina={POR_PAGINA_MAXIMO}").get_data(as_text=True)
 
     assert "Mostrando 1–" in cuerpo
     assert "paginacion-controles" not in cuerpo
