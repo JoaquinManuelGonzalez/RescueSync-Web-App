@@ -17,7 +17,6 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
-    Numeric,
     String,
     Text,
     func,
@@ -219,8 +218,8 @@ class OfertaLinea(db.Model):
         comment="ONG responsable de esta línea dentro de la oferta conjunta.",
     )
 
-    cantidad_ofrecida: Mapped[float] = mapped_column(
-        Numeric(12, 2),
+    cantidad_ofrecida: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
         comment="Cantidad que la ONG se compromete a aportar para este ítem del lote.",
     )

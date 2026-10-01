@@ -103,7 +103,12 @@ def test_no_se_cambia_el_tipo_de_una_organizacion_con_cuentas(app, base_de_datos
 
 def test_sin_cuentas_el_tipo_se_puede_cambiar(app, base_de_datos: None) -> None:
     with app.app_context():
-        municipio = _organizacion("Municipalidad de Pergamino")
+        # Todos los municipios sembrados tienen un operador: se usa uno nuevo, sin cuentas.
+        municipio = servicios.crear(
+            nombre="Municipio de Lezama",
+            tipo="municipio",
+            zonas=[{"provincia": "Buenos Aires", "localidad": "Lezama"}],
+        )
         servicios.editar(municipio.id, nombre=municipio.nombre, tipo="ong")
 
         assert servicios.obtener(municipio.id).tipo.value == "ong"

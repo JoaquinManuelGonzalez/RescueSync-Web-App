@@ -60,25 +60,30 @@ def listar_items() -> list[Item]:
     )
 
 
-def _parsear_cantidad(valor: str | float | Decimal | None) -> Decimal:
+def _parsear_cantidad(valor: str | int | float | Decimal | None) -> int:
     if valor is None or valor == "":
         raise SolicitudInvalida(
             "La cantidad es obligatoria.",
             detalle={"campo": "cantidad_solicitada"},
         )
     try:
-        cantidad = Decimal(str(valor))
+        cantidad = Decimal(str(valor).strip())
     except (InvalidOperation, ValueError) as error:
         raise SolicitudInvalida(
             "La cantidad debe ser un número válido.",
             detalle={"campo": "cantidad_solicitada"},
         ) from error
+    if not cantidad.is_finite() or cantidad != cantidad.to_integral_value():
+        raise SolicitudInvalida(
+            "La cantidad debe ser un número entero.",
+            detalle={"campo": "cantidad_solicitada"},
+        )
     if cantidad <= 0:
         raise SolicitudInvalida(
             "La cantidad debe ser mayor a cero.",
             detalle={"campo": "cantidad_solicitada"},
         )
-    return cantidad
+    return int(cantidad)
 
 
 

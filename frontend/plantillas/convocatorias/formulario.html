@@ -55,7 +55,7 @@
             {% for li in lote.lote_items %}
             <li class="flex items-center justify-between gap-3">
               <span>{{ li.item.nombre }}</span>
-              <span class="font-medium text-gray-800">{{ li.cantidad_solicitada }} {{ li.item.unidad_medida }}</span>
+              <span class="font-medium text-gray-800">{{ li.cantidad_solicitada|int }} {{ li.item.unidad_medida }}</span>
             </li>
             {% endfor %}
           </ul>

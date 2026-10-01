@@ -128,7 +128,7 @@ def test_cerrar_sesion_por_formulario_vuelve_a_la_landing(
     assert respuesta.headers["Location"].endswith("/")
     cuerpo = _texto(navegar("/"))
     assert "Sesión cerrada." in cuerpo
-    assert "Cuando cada minuto cuenta" in cuerpo
+    assert "Coordinamos la ayuda" in cuerpo
     assert navegar("/inicio").status_code == 302
 
 

@@ -21,7 +21,7 @@ from app.modulos.convocatorias.servicios import (
     crear_convocatoria,
 )
 from app.modulos.emergencias import servicios as servicios_emergencias
-from app.modulos.emergencias.modelos import EstadoEmergencia
+from app.modulos.emergencias.modelos import Emergencia, EstadoEmergencia
 
 blueprint_convocatorias = Blueprint("convocatorias", __name__)
 
@@ -33,6 +33,10 @@ ENTRADA_DE_MENU = EntradaDeMenu(
     icono="lista",
     orden=40,
 )
+
+
+def _es_operador_municipal() -> bool:
+    return current_user.tiene_rol("operador_municipal")
 
 
 def _contexto_de_formulario(emergencia) -> dict:
@@ -99,9 +103,15 @@ def _parsear_fecha_cierre(fecha_valor: str | None, hora_valor: str | None) -> da
 def listar():
     """Listado de convocatorias publicadas."""
     cerrar_convocatorias_vencidas()
-    convocatorias = db.session.execute(
-        db.select(Convocatoria).order_by(Convocatoria.fecha_cierre.desc(), Convocatoria.id.desc())
-    ).scalars().all()
+    consulta = db.select(Convocatoria).order_by(
+        Convocatoria.fecha_cierre.desc(), Convocatoria.id.desc()
+    )
+    if _es_operador_municipal():
+        # El Municipio sólo ve las convocatorias de sus propias emergencias.
+        consulta = consulta.join(Emergencia).where(
+            Emergencia.municipio_id == current_user.organizacion_id
+        )
+    convocatorias = db.session.execute(consulta).scalars().all()
     es_representante_ong = current_user.tiene_rol("representante_ong")
     if es_representante_ong:
         convocatorias = [
@@ -176,6 +186,11 @@ def obtener(convocatoria_id: int):
     cerrar_convocatorias_vencidas()
     convocatoria = db.session.get(Convocatoria, convocatoria_id)
     if not convocatoria:
+        raise RecursoNoEncontrado(f"Convocatoria con id {convocatoria_id} no encontrada.")
+    if (
+        _es_operador_municipal()
+        and convocatoria.emergencia.municipio_id != current_user.organizacion_id
+    ):
         raise RecursoNoEncontrado(f"Convocatoria con id {convocatoria_id} no encontrada.")
     if pide_json():
         return jsonify(

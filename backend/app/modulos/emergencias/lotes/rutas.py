@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from flask import Blueprint, jsonify, render_template, request
+from flask_login import current_user
 
 from app.core.acceso.autorizacion import requiere_permiso
 from app.core.acceso.permisos import LOTES_CREAR, LOTES_EDITAR, LOTES_LISTAR
@@ -222,6 +223,11 @@ def editar_desde_formulario(emergencia_id: int, lote_id: int):
 def listar_por_emergencia(emergencia_id: int):
     """Listado de lotes de una emergencia (JSON o vista)."""
     emergencia = servicios.obtener_emergencia(emergencia_id)
+    if (
+        current_user.tiene_rol("operador_municipal")
+        and emergencia.municipio_id != current_user.organizacion_id
+    ):
+        raise RecursoNoEncontrado("No encontramos la emergencia solicitada.")
     lotes = servicios.listar_lotes_por_emergencia(emergencia_id)
     if pide_json():
         return jsonify(
@@ -235,7 +241,7 @@ def listar_por_emergencia(emergencia_id: int):
                             {
                                 "item_id": li.item_id,
                                 "nombre": li.item.nombre,
-                                "cantidad_solicitada": float(li.cantidad_solicitada),
+                                "cantidad_solicitada": int(li.cantidad_solicitada),
                                 "unidad_medida": li.item.unidad_medida,
                                 "observaciones": li.observaciones,
                             }

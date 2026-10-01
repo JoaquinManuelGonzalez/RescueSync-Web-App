@@ -13,7 +13,7 @@ def test_la_raiz_sin_sesion_muestra_la_landing(cliente_sembrado) -> None:
     respuesta = cliente_sembrado.get("/", headers=CABECERA_NAVEGADOR)
 
     assert respuesta.status_code == 200
-    assert "Coordinamos la respuesta ante emergencias" in respuesta.get_data(as_text=True)
+    assert "Coordinamos la ayuda" in respuesta.get_data(as_text=True)
 
 
 def test_la_raiz_con_sesion_lleva_al_panel(cliente_sembrado, ingresar) -> None:

@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from sqlalchemy import select
@@ -142,20 +142,36 @@ def _validar_y_procesar_items(
             )
 
         cantidad = item_dato.get("cantidad_ofrecida")
-        if cantidad is None or Decimal(str(cantidad)) <= 0:
+        try:
+            cantidad_decimal = Decimal(str(cantidad)) if cantidad is not None else None
+        except InvalidOperation:
+            cantidad_decimal = None
+        if cantidad_decimal is None or not cantidad_decimal.is_finite():
+            raise SolicitudInvalida(
+                f"La cantidad ofrecida para el ítem {li_id} debe ser un número válido.",
+                detalle={"lote_item_id": li_id, "cantidad_ofrecida": cantidad},
+            )
+        if cantidad_decimal != cantidad_decimal.to_integral_value():
+            raise SolicitudInvalida(
+                f"La cantidad ofrecida para el ítem {li_id} debe ser un número entero.",
+                detalle={"lote_item_id": li_id, "cantidad_ofrecida": cantidad},
+            )
+        if cantidad_decimal <= 0:
             raise SolicitudInvalida(
                 f"La cantidad ofrecida para el ítem {li_id} debe ser mayor a 0.",
                 detalle={"lote_item_id": li_id, "cantidad_ofrecida": cantidad},
             )
+        cantidad = int(cantidad_decimal)
+        item_dato["cantidad_ofrecida"] = cantidad
 
-        if Decimal(str(cantidad)) > li.cantidad_solicitada:
+        if cantidad > li.cantidad_solicitada:
             raise ReglaDeNegocioIncumplida(
                 f"La cantidad ofrecida ({cantidad}) supera la cantidad requerida "
                 f"({li.cantidad_solicitada}) para el ítem {li_id}.",
                 detalle={
                     "lote_item_id": li_id,
-                    "cantidad_ofrecida": float(cantidad),
-                    "cantidad_solicitada": float(li.cantidad_solicitada),
+                    "cantidad_ofrecida": cantidad,
+                    "cantidad_solicitada": int(li.cantidad_solicitada),
                 },
             )
 
@@ -199,8 +215,8 @@ def _validar_disponibilidad_en_inventario(
                 f"La cantidad ofrecida ({cantidad}) supera el stock disponible ({disponible}).",
                 detalle={
                     "lote_item_id": dato["lote_item_id"],
-                    "cantidad_ofrecida": float(cantidad),
-                    "cantidad_disponible": float(disponible),
+                    "cantidad_ofrecida": int(cantidad),
+                    "cantidad_disponible": int(disponible),
                 },
             )
 
@@ -239,8 +255,8 @@ def _validar_totales_del_consorcio(
                 codigo="OFERTA_CONJUNTA_SUPERA_NECESIDAD",
                 detalle={
                     "lote_item_id": lote_item_id,
-                    "cantidad_acumulada": float(total),
-                    "cantidad_solicitada": float(cantidad_requerida),
+                    "cantidad_acumulada": int(total),
+                    "cantidad_solicitada": int(cantidad_requerida),
                 },
             )
 
@@ -361,7 +377,7 @@ def crear_oferta(
         linea = OfertaLinea(
             oferta_id=oferta.id,
             lote_item_id=item_dato["lote_item_id"],
-            cantidad_ofrecida=Decimal(str(item_dato["cantidad_ofrecida"])),
+            cantidad_ofrecida=item_dato["cantidad_ofrecida"],
             observaciones=item_dato.get("observaciones"),
             organizacion_id=org_validada.id,
         )
@@ -400,7 +416,7 @@ def _serializar_items_para_snapshot(oferta: Oferta) -> str:
         dato: dict[str, Any] = {
             "id": linea.id,
             "lote_item_id": linea.lote_item_id,
-            "cantidad_ofrecida": float(linea.cantidad_ofrecida),
+            "cantidad_ofrecida": int(linea.cantidad_ofrecida),
             "observaciones": linea.observaciones,
         }
         if linea.lote_item and linea.lote_item.item:
@@ -553,7 +569,7 @@ def modificar_oferta(
             linea = OfertaLinea(
                 oferta_id=oferta.id,
                 lote_item_id=item_dato["lote_item_id"],
-                cantidad_ofrecida=Decimal(str(item_dato["cantidad_ofrecida"])),
+                cantidad_ofrecida=item_dato["cantidad_ofrecida"],
                 observaciones=item_dato.get("observaciones"),
                 organizacion_id=organizacion_editora,
             )
@@ -639,7 +655,7 @@ def aceptar_invitacion(
             OfertaLinea(
                 oferta_id=oferta.id,
                 lote_item_id=item_dato["lote_item_id"],
-                cantidad_ofrecida=Decimal(str(item_dato["cantidad_ofrecida"])),
+                cantidad_ofrecida=item_dato["cantidad_ofrecida"],
                 observaciones=item_dato.get("observaciones"),
                 organizacion_id=organizacion_id,
             )

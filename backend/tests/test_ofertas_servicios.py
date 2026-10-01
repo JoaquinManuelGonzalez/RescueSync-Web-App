@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 
 import pytest
 
@@ -119,12 +118,12 @@ def datos_base(app):
         lote_item1 = LoteItem(
             lote_id=lote.id,
             item_id=item_agua.id,
-            cantidad_solicitada=Decimal("5000.00"),
+            cantidad_solicitada=5000,
         )
         lote_item2 = LoteItem(
             lote_id=lote.id,
             item_id=item_frazadas.id,
-            cantidad_solicitada=Decimal("500.00"),
+            cantidad_solicitada=500,
         )
         db.session.add_all([lote_item1, lote_item2])
         db.session.flush()
@@ -144,12 +143,12 @@ def datos_base(app):
                 InventarioItem(
                     inventario_id=inventario1.id,
                     item_id=item_agua.id,
-                    cantidad_disponible=Decimal("4000"),
+                    cantidad_disponible=4000,
                 ),
                 InventarioItem(
                     inventario_id=inventario2.id,
                     item_id=item_frazadas.id,
-                    cantidad_disponible=Decimal("500"),
+                    cantidad_disponible=500,
                 ),
             ]
         )
@@ -212,7 +211,7 @@ def test_crear_oferta_individual_exitosa(app, datos_base):
         assert len(oferta.organizaciones_consorcio) == 1
         assert oferta.organizaciones_consorcio[0].rol_consorcio == "lider"
         assert len(oferta.items) == 1
-        assert oferta.items[0].cantidad_ofrecida == Decimal("1000")
+        assert oferta.items[0].cantidad_ofrecida == 1000
 
 
 def test_una_organizacion_no_puede_tener_dos_ofertas_en_la_convocatoria(app, datos_base):
@@ -318,7 +317,7 @@ def test_oferta_conjunta_no_supera_necesidad_acumulada(app, datos_base):
             InventarioItem(
                 inventario_id=inventario.id,
                 item_id=lote_item.item_id,
-                cantidad_disponible=Decimal("2000"),
+                cantidad_disponible=2000,
             )
         )
         db.session.commit()
@@ -436,8 +435,8 @@ def test_miembro_solo_modifica_sus_lineas_y_puede_retirar(app, datos_base):
         cantidades = {
             linea.organizacion_id: linea.cantidad_ofrecida for linea in oferta_actualizada.items
         }
-        assert cantidades[datos_base["ong1_id"]] == Decimal("1000")
-        assert cantidades[datos_base["ong2_id"]] == Decimal("75")
+        assert cantidades[datos_base["ong1_id"]] == 1000
+        assert cantidades[datos_base["ong2_id"]] == 75
 
         retirada = retirar_oferta(oferta.id, organizacion_id=datos_base["ong2_id"])
         assert retirada.estado == EstadoOferta.retirada
@@ -540,7 +539,7 @@ def test_modificar_oferta_incrementa_version(app, datos_base):
         assert modificada.version == 2
         assert modificada.estado == EstadoOferta.presentada
         assert modificada.observaciones == "Ampliamos a 1500 litros"
-        assert modificada.items[0].cantidad_ofrecida == Decimal("1500")
+        assert modificada.items[0].cantidad_ofrecida == 1500
 
 
 def test_modificar_oferta_no_crea_nueva_version_si_no_hubo_cambios(app, datos_base):
