@@ -5,11 +5,7 @@ import time
 
 from app.core.integraciones.bonita.sesion import (
     BONITA_BASE_URL,
-    obtener_cliente,
-)
-from app.core.integraciones.cliente_http import (
-    COMPONENTE_BONITA,
-    ejecutar_solicitud,
+    ejecutar_solicitud_bonita,
 )
 
 BONITA_PROCESO_NOMBRE = os.environ["BONITA_PROCESO_NOMBRE"]
@@ -24,11 +20,7 @@ def obtener_process_definition_id(*, forzar_recarga: bool = False) -> str:
     if _process_definition_id is not None and not forzar_recarga:
         return _process_definition_id
 
-    cliente = obtener_cliente()
-
-    respuesta = ejecutar_solicitud(
-        cliente,
-        componente=COMPONENTE_BONITA,
+    respuesta = ejecutar_solicitud_bonita(
         metodo="GET",
         endpoint_normalizado="/API/bpm/process",
         url=f"{BONITA_BASE_URL}/API/bpm/process",
@@ -60,30 +52,15 @@ def obtener_process_definition_id(*, forzar_recarga: bool = False) -> str:
 def instanciar_proceso(
     variables_contrato: dict[str, object],
 ) -> str:
-    cliente = obtener_cliente()
     process_definition_id = obtener_process_definition_id()
 
-    try:
-        respuesta = ejecutar_solicitud(
-            cliente,
-            componente=COMPONENTE_BONITA,
-            metodo="POST",
-            endpoint_normalizado="/API/bpm/process/{id}/instantiation",
-            url=(f"{BONITA_BASE_URL}/API/bpm/process/{process_definition_id}/instantiation"),
-            idempotente=False,
-            json=variables_contrato,
-        )
-    except Exception:
-        process_definition_id = obtener_process_definition_id(forzar_recarga=True)
-        respuesta = ejecutar_solicitud(
-            cliente,
-            componente=COMPONENTE_BONITA,
-            metodo="POST",
-            endpoint_normalizado="/API/bpm/process/{id}/instantiation",
-            url=(f"{BONITA_BASE_URL}/API/bpm/process/{process_definition_id}/instantiation"),
-            idempotente=False,
-            json=variables_contrato,
-        )
+    respuesta = ejecutar_solicitud_bonita(
+        metodo="POST",
+        endpoint_normalizado="/API/bpm/process/{id}/instantiation",
+        url=f"{BONITA_BASE_URL}/API/bpm/process/{process_definition_id}/instantiation",
+        idempotente=False,
+        json=variables_contrato,
+    )
 
     datos = respuesta.json()
 
@@ -100,12 +77,9 @@ def buscar_tarea_humana(
     reintentos: int = 5,
     espera_segundos: float = 0.5,
 ) -> str:
-    cliente = obtener_cliente()
 
     for _ in range(reintentos):
-        respuesta = ejecutar_solicitud(
-            cliente,
-            componente=COMPONENTE_BONITA,
+        respuesta = ejecutar_solicitud_bonita(
             metodo="GET",
             endpoint_normalizado="/API/bpm/humanTask",
             url=f"{BONITA_BASE_URL}/API/bpm/humanTask",
@@ -134,11 +108,8 @@ def ejecutar_tarea(
     task_id: str,
     variables_contrato: dict[str, object],
 ) -> None:
-    cliente = obtener_cliente()
 
-    ejecutar_solicitud(
-        cliente,
-        componente=COMPONENTE_BONITA,
+    ejecutar_solicitud_bonita(
         metodo="POST",
         endpoint_normalizado="/API/bpm/userTask/{id}/execution",
         url=f"{BONITA_BASE_URL}/API/bpm/userTask/{task_id}/execution",
@@ -148,11 +119,8 @@ def ejecutar_tarea(
 
 
 def obtener_usuario_actual_id() -> str:
-    cliente = obtener_cliente()
 
-    respuesta = ejecutar_solicitud(
-        cliente,
-        componente=COMPONENTE_BONITA,
+    respuesta = ejecutar_solicitud_bonita(
         metodo="GET",
         endpoint_normalizado="/API/system/session/1",
         url=f"{BONITA_BASE_URL}/API/system/session/1",
@@ -168,11 +136,8 @@ def asignar_tarea(
     task_id: str,
     usuario_id: str,
 ) -> None:
-    cliente = obtener_cliente()
 
-    ejecutar_solicitud(
-        cliente,
-        componente=COMPONENTE_BONITA,
+    ejecutar_solicitud_bonita(
         metodo="PUT",
         endpoint_normalizado="/API/bpm/humanTask/{id}",
         url=f"{BONITA_BASE_URL}/API/bpm/humanTask/{task_id}",
