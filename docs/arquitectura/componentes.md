@@ -175,9 +175,14 @@ Puntos que se deben tener presentes al implementar y al evaluar esta integració
 - **Disparador temporal, no una acción de usuario.** La llamada no la origina un clic en la
   interfaz: la dispara el propio motor de Bonita al vencer el Timer Event asociado a la ventana
   de ofertas de la convocatoria, como parte de la orquestación del proceso BPMN de la Entrega 1.
-- **Contrato de datos consolidado.** La respuesta agrupa todas las ofertas vigentes de la
-  convocatoria al momento del cierre de la ventana, para que Bonita pueda continuar el proceso
-  (integración 5) con un único conjunto de datos consistente.
+- **Contrato de datos consolidado.** La respuesta agrupa todas las ofertas presentadas de la
+  convocatoria al momento del cierre de la ventana. `ofertas` contiene una entrada por oferta,
+  con las organizaciones participantes (incluido su rol) y sus necesidades dentro de `items`.
+  Cada ítem conserva `lote_item_id`, `cantidad_total` y `aportes`, que identifica a cada
+  organización por ID y la cantidad que aporta. Los nombres y roles se informan una sola vez en
+  la oferta. Así Bonita puede validar y reservar las contribuciones sin confundir ítems con
+  ofertas ni repetir datos de organizaciones. Las invitaciones pendientes y las ofertas en estado
+  final no se envían.
 
 ### Ejemplo de respuesta del endpoint
 
@@ -189,24 +194,40 @@ Puntos que se deben tener presentes al implementar y al evaluar esta integració
   "ofertas": [
     {
       "oferta_id": 931,
-      "ong_id": 44,
-      "ong_nombre": "Cruz Solidaria",
-      "tipo_recurso": "agua_potable",
-      "cantidad": 2000,
-      "unidad": "litros",
-      "es_consorcio": false,
-      "fecha_creacion": "2026-10-05T14:22:10Z"
+      "organizaciones": [
+        {"id": 44, "nombre": "Cruz Solidaria", "rol": "lider"}
+      ],
+      "fecha_creacion": "2026-10-05T14:22:10Z",
+      "items": [
+        {
+          "lote_item_id": 710,
+          "tipo_recurso": "agua_potable",
+          "cantidad_total": 2000,
+          "unidad": "litros",
+          "aportes": [
+            {"organizacion_id": 44, "cantidad": 2000}
+          ]
+        }
+      ]
     },
     {
       "oferta_id": 933,
-      "ong_id": 51,
-      "ong_nombre": "Manos Unidas",
-      "tipo_recurso": "kits_de_abrigo",
-      "cantidad": 350,
-      "unidad": "unidades",
-      "es_consorcio": true,
-      "consorcio_con": [58],
-      "fecha_creacion": "2026-10-05T15:47:02Z"
+      "organizaciones": [
+        {"id": 51, "nombre": "Manos Unidas", "rol": "lider"},
+        {"id": 58, "nombre": "Red de Abrigo", "rol": "aportante"}
+      ],
+      "fecha_creacion": "2026-10-05T15:47:02Z",
+      "items": [
+        {
+          "lote_item_id": 712,
+          "tipo_recurso": "kits_de_abrigo",
+          "cantidad_total": 350,
+          "unidad": "unidades",
+          "aportes": [
+            {"organizacion_id": 58, "cantidad": 350}
+          ]
+        }
+      ]
     }
   ]
 }

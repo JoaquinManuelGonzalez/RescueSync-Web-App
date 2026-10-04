@@ -675,21 +675,169 @@ def test_obtener_ofertas_consolidadas_para_bonita(app, datos_base):
         assert "ventana_cerrada_en" in resultado
         assert len(resultado["ofertas"]) == 2
 
-        of1 = [o for o in resultado["ofertas"] if o["ong_id"] == datos_base["ong1_id"]][0]
-        assert of1["ong_nombre"] == "Cruz Solidaria"
-        assert of1["tipo_recurso"] == "agua"
-        assert of1["cantidad"] == 2000.0
-        assert of1["unidad"] == "litros"
-        assert not of1["es_consorcio"]
+        of1 = next(
+            oferta
+            for oferta in resultado["ofertas"]
+            if oferta["organizaciones"][0]["id"] == datos_base["ong1_id"]
+        )
+        assert of1["organizaciones"] == [
+            {"id": datos_base["ong1_id"], "nombre": "Cruz Solidaria", "rol": "lider"}
+        ]
+        assert of1["items"] == [
+            {
+                "lote_item_id": datos_base["lote_item1_id"],
+                "tipo_recurso": "agua",
+                "cantidad_total": 2000,
+                "unidad": "litros",
+                "aportes": [
+                    {
+                        "organizacion_id": datos_base["ong1_id"],
+                        "cantidad": 2000,
+                    }
+                ],
+            }
+        ]
+        assert "es_consorcio" not in of1
         assert "consorcio_con" not in of1
 
-        of2 = [o for o in resultado["ofertas"] if o["ong_id"] == datos_base["ong2_id"]][0]
-        assert of2["ong_nombre"] == "Manos Unidas"
-        assert of2["tipo_recurso"] == "abrigo"
-        assert of2["cantidad"] == 350.0
-        assert of2["unidad"] == "unidades"
-        assert not of2["es_consorcio"]
+        of2 = next(
+            oferta
+            for oferta in resultado["ofertas"]
+            if oferta["organizaciones"][0]["id"] == datos_base["ong2_id"]
+        )
+        assert of2["organizaciones"] == [
+            {"id": datos_base["ong2_id"], "nombre": "Manos Unidas", "rol": "lider"}
+        ]
+        assert of2["items"][0]["tipo_recurso"] == "abrigo"
+        assert of2["items"][0]["cantidad_total"] == 350
+        assert of2["items"][0]["unidad"] == "unidades"
+        assert "es_consorcio" not in of2
         assert "consorcio_con" not in of2
+
+
+def test_ofertas_con_invitacion_pendiente_no_se_envian_a_bonita(app, datos_base):
+    with app.app_context():
+        crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+            organizaciones_ids=[datos_base["ong2_id"]],
+        )
+
+        resultado = obtener_ofertas_consolidadas_para_bonita(
+            datos_base["convocatoria_abierta_id"]
+        )
+
+        assert resultado["ofertas"] == []
+
+
+def test_obtener_ofertas_consolidadas_para_bonita_con_consorcio(app, datos_base):
+    """Una oferta conjunta contiene sus ítems y aportes identificados por ONG."""
+    with app.app_context():
+        # Oferta conjunta: ong1 lidera invitando a ong2
+        oferta_conjunta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+            organizaciones_ids=[datos_base["ong2_id"]],
+        )
+
+        # ong2 acepta la invitación y aporta frazadas
+        aceptar_invitacion(
+            oferta_conjunta.id,
+            organizacion_id=datos_base["ong2_id"],
+            usuario_id=datos_base["usuario_id"],
+            items=[{"lote_item_id": datos_base["lote_item2_id"], "cantidad_ofrecida": 200}],
+        )
+
+        resultado = obtener_ofertas_consolidadas_para_bonita(datos_base["convocatoria_abierta_id"])
+
+        assert resultado["convocatoria_id"] == datos_base["convocatoria_abierta_id"]
+        ofertas = resultado["ofertas"]
+        assert len(ofertas) == 1
+        oferta_json = ofertas[0]
+        assert oferta_json["oferta_id"] == oferta_conjunta.id
+        assert oferta_json["organizaciones"] == [
+            {"id": datos_base["ong1_id"], "nombre": "Cruz Solidaria", "rol": "lider"},
+            {"id": datos_base["ong2_id"], "nombre": "Manos Unidas", "rol": "aportante"},
+        ]
+        assert "es_consorcio" not in oferta_json
+        assert "consorcio_con" not in oferta_json
+        assert len(oferta_json["items"]) == 2
+
+        item_agua = next(i for i in oferta_json["items"] if i["tipo_recurso"] == "agua")
+        assert item_agua["cantidad_total"] == 1000
+        assert item_agua["aportes"] == [
+            {
+                "organizacion_id": datos_base["ong1_id"],
+                "cantidad": 1000,
+            }
+        ]
+
+        item_abrigo = next(i for i in oferta_json["items"] if i["tipo_recurso"] == "abrigo")
+        assert item_abrigo["cantidad_total"] == 200
+        assert item_abrigo["aportes"] == [
+            {
+                "organizacion_id": datos_base["ong2_id"],
+                "cantidad": 200,
+            }
+        ]
+
+
+def test_obtener_ofertas_consolidadas_suma_cantidades_mismo_recurso_en_consorcio(app, datos_base):
+    """Las cantidades del mismo recurso se suman conservando cada aporte."""
+    with app.app_context():
+        # Dar inventario de agua también a ong2
+        from app.modulos.emergencias.modelos import LoteItem
+        from app.modulos.organizaciones.modelos import Inventario, InventarioItem
+        lote_item1 = db.session.get(LoteItem, datos_base["lote_item1_id"])
+        inventario_ong2 = Inventario.query.filter_by(organizacion_id=datos_base["ong2_id"]).first()
+        db.session.add(
+            InventarioItem(
+                inventario_id=inventario_ong2.id,
+                item_id=lote_item1.item_id,
+                cantidad_disponible=1000,
+            )
+        )
+        db.session.commit()
+
+        # ong1 lidera ofreciendo 1000 de agua
+        oferta_conjunta = crear_oferta(
+            convocatoria_id=datos_base["convocatoria_abierta_id"],
+            usuario_id=datos_base["usuario_id"],
+            organizacion_id=datos_base["ong1_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1000}],
+            organizaciones_ids=[datos_base["ong2_id"]],
+        )
+
+        # ong2 acepta aportando 500 de agua adicional sobre el mismo lote_item1_id
+        aceptar_invitacion(
+            oferta_conjunta.id,
+            organizacion_id=datos_base["ong2_id"],
+            usuario_id=datos_base["usuario_id"],
+            items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 500}],
+        )
+
+        resultado = obtener_ofertas_consolidadas_para_bonita(datos_base["convocatoria_abierta_id"])
+        # Debe haber una oferta, con un ítem de agua y aportes separados por ONG.
+        assert len(resultado["ofertas"]) == 1
+        oferta_json = resultado["ofertas"][0]
+        assert len(oferta_json["items"]) == 1
+        item_agua = oferta_json["items"][0]
+        assert item_agua["tipo_recurso"] == "agua"
+        assert item_agua["cantidad_total"] == 1500
+        assert item_agua["aportes"] == [
+            {
+                "organizacion_id": datos_base["ong1_id"],
+                "cantidad": 1000,
+            },
+            {
+                "organizacion_id": datos_base["ong2_id"],
+                "cantidad": 500,
+            },
+        ]
 
 
 def test_historial_de_versiones_trazabilidad(app, datos_base):
