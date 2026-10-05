@@ -28,6 +28,7 @@ from app.modulos.emergencias.modelos import (
     NivelGravedad,
     TipoNecesidad,
 )
+from app.modulos.ofertas.modelos import EstadoOferta, Oferta, OfertaOrganizacion
 from app.modulos.organizaciones.modelos import InventarioItem, Organizacion, TipoOrganizacion
 from app.modulos.usuarios_roles.modelos import Usuario
 
@@ -179,6 +180,63 @@ def test_ong_puede_seleccionar_convocatoria_vigente(
     assert "Agua potable" in cuerpo
     assert "Presentar oferta" in cuerpo
     assert f"/ofertas/nueva?convocatoria_id={datos_ofertas_web['convocatoria_id']}" in cuerpo
+
+
+def test_listado_de_ofertas_admite_busqueda_por_emergencia(
+    app, cliente_sembrado, ingresar, datos_ofertas_web
+):
+    with app.app_context():
+        oferta = Oferta(
+            convocatoria_id=datos_ofertas_web["convocatoria_id"],
+            usuario_id=datos_ofertas_web["usuario_id"],
+            estado=EstadoOferta.presentada,
+        )
+        oferta.organizaciones_consorcio.append(
+            OfertaOrganizacion(
+                organizacion_id=datos_ofertas_web["ong_id"],
+                rol_consorcio="lider",
+                estado_participacion="aceptada",
+            )
+        )
+        db.session.add(oferta)
+        db.session.commit()
+
+    ingresar(EMAIL_REPRESENTANTE)
+    respuesta = cliente_sembrado.get(
+        "/ofertas?texto=Ribere",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+    )
+
+    assert respuesta.status_code == 200
+    assert "Inundación Ribereña" in respuesta.get_data(as_text=True)
+
+
+def test_ong_puede_ver_convocatorias_cerradas(
+    app, cliente_sembrado, ingresar, datos_ofertas_web
+):
+    with app.app_context():
+        convocatoria_cerrada = Convocatoria(
+            emergencia_id=datos_ofertas_web["emergencia_id"],
+            coordinador_id=datos_ofertas_web["usuario_id"],
+            fecha_inicio=datetime.now(UTC) - timedelta(days=3),
+            fecha_cierre=datetime.now(UTC) - timedelta(days=1),
+            resumen_situacion="Convocatoria finalizada.",
+            estado=EstadoConvocatoria.cerrada,
+        )
+        db.session.add(convocatoria_cerrada)
+        db.session.commit()
+        convocatoria_cerrada_id = convocatoria_cerrada.id
+
+    ingresar(EMAIL_REPRESENTANTE)
+    respuesta = cliente_sembrado.get(
+        "/convocatorias",
+        headers={"Accept": "application/json"},
+    )
+
+    assert respuesta.status_code == 200
+    assert convocatoria_cerrada_id in {
+        convocatoria["id"] for convocatoria in respuesta.get_json()["convocatorias"]
+    }
 
 
 def test_formulario_de_oferta_no_se_muestra_si_la_convocatoria_vencio(
@@ -425,7 +483,7 @@ def test_detalle_html_muestra_el_historial_de_versiones(
     assert "Actualización registrada" in respuesta.get_data(as_text=True)
 
 
-def test_retirar_oferta_desde_html_redirige_al_listado(
+def test_retirar_oferta_desde_html_redirige_a_la_convocatoria(
     cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
 ):
     ingresar(EMAIL_REPRESENTANTE)
@@ -451,7 +509,7 @@ def test_retirar_oferta_desde_html_redirige_al_listado(
 
     assert respuesta.status_code == 302
     assert respuesta.headers["Location"].endswith(
-        f"/ofertas?convocatoria_id={datos_ofertas_web['convocatoria_id']}"
+        f"/convocatorias/{datos_ofertas_web['convocatoria_id']}"
     )
 
 

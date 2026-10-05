@@ -1,76 +1,77 @@
 {% extends "layout.html" %}
 {% from "componentes/iconos.html" import icono %}
-{% from "componentes/diseno.html" import encabezado_pagina, insignia %}
+{% from "componentes/diseno.html" import encabezado_pagina, estado_vacio, insignia, temporizador_convocatoria %}
+{% from "componentes/formularios.html" import filtro_texto, filtro_select %}
+{% from "componentes/tablas.html" import tabla, celda, paginacion %}
 
 {% block title %}Convocatorias{% endblock %}
 
 {% block content %}
-<div class="pagina-angosta space-y-6">
+<div class="pagina">
   {% call encabezado_pagina(
     "Convocatorias",
-    "Elegí una emergencia vigente para presentar una oferta." if es_representante_ong else "Listado de publicaciones vigentes y cerradas"
+    "Consultá las convocatorias y presentá ofertas en las que todavía puedas participar." if es_representante_ong else "Listado de publicaciones vigentes y cerradas"
   ) %}
   {% endcall %}
 
+  <form method="get" action="{{ url_for('convocatorias.listar') }}" class="barra-filtros" data-busqueda-automatica>
+    <div class="filtros-en-grilla">
+      {{ filtro_texto("texto", "Buscar", filtros.get("texto"), "Emergencia, zona o resumen") }}
+      {{ filtro_select("estado", "Estado", opciones_de_estado, filtros.get("estado")) }}
+    </div>
+  </form>
+
   {% if convocatorias %}
-    <div class="space-y-3">
-      {% for convocatoria in convocatorias %}
-      <div class="tarjeta">
-        <div class="tarjeta-cuerpo space-y-4">
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 class="tarjeta-titulo">{{ convocatoria.emergencia.titulo }}</h2>
-              <p class="mt-1 text-sm text-gray-600">{{ convocatoria.emergencia.zona_afectada }}</p>
-            </div>
-            {{ insignia(convocatoria.estado.value|replace('_', ' ')|capitalize, 'exito' if convocatoria.estado.value == 'abierta' else 'neutra') }}
-          </div>
-
-          <div>
-            <p class="text-sm leading-6 text-gray-700">{{ convocatoria.resumen_situacion }}</p>
-            <p class="mt-2 text-sm text-gray-600">Fecha límite: {{ convocatoria.fecha_cierre|fecha }}</p>
-          </div>
-
-          {% if convocatoria.observaciones %}
-          <p class="text-sm text-gray-600">{{ convocatoria.observaciones }}</p>
-          {% endif %}
-
-          <div class="border-t border-gray-100 pt-4">
-            <h3 class="text-sm font-semibold text-gray-900">Necesidades</h3>
-            <ul class="mt-2 space-y-2">
-              {% for lote in convocatoria.lotes %}
-                {% for lote_item in lote.lote_items %}
-                <li class="flex flex-wrap justify-between gap-2 text-sm">
-                  <span class="text-gray-700">{{ lote_item.item.nombre }}</span>
-                  <span class="font-medium text-gray-900">{{ lote_item.cantidad_solicitada|int }} {{ lote_item.item.unidad_medida }}</span>
-                </li>
-                {% endfor %}
-              {% endfor %}
-            </ul>
-          </div>
-
-          <div class="flex justify-end border-t border-gray-100 pt-4">
-            {% if es_representante_ong and convocatoria.esta_vigente() %}
-            <a class="btn btn-primario" href="{{ url_for('ofertas.formulario_de_alta', convocatoria_id=convocatoria.id) }}">
-              {{ icono("mas") }} Presentar oferta
-            </a>
-            {% else %}
-            <a class="btn btn-secundario" href="{{ url_for('convocatorias.obtener', convocatoria_id=convocatoria.id) }}">
-              {{ icono("ver") }} Ver publicación
-            </a>
-            {% endif %}
-          </div>
+  {% call tabla(["Emergencia", "Estado", "Cierre", "Necesidades", none]) %}
+    {% for convocatoria in convocatorias %}
+    <tr class="tabla-fila">
+      {% call celda("Emergencia") %}
+        <p class="font-medium text-gray-900">{{ convocatoria.emergencia.titulo }}</p>
+        <p class="text-xs text-gray-500">{{ convocatoria.emergencia.zona_afectada }}</p>
+      {% endcall %}
+      {% call celda("Estado") %}
+        {{ insignia(convocatoria.estado.value|capitalize, "exito" if convocatoria.estado.value == "abierta" else "neutra") }}
+      {% endcall %}
+      {% call celda("Cierre") %}
+        <p class="text-sm text-gray-600">{{ convocatoria.fecha_cierre|fecha }}</p>
+        {% if convocatoria.estado.value == "abierta" %}
+        <div class="mt-1">
+          {{ temporizador_convocatoria(convocatoria.fecha_cierre) }}
         </div>
-      </div>
-      {% endfor %}
-    </div>
+        {% endif %}
+      {% endcall %}
+      {% call celda("Necesidades") %}
+        {% for lote in convocatoria.lotes %}
+          {% for lote_item in lote.lote_items %}
+          <p class="text-sm text-gray-700">
+            {{ lote_item.item.nombre }}:
+            <span class="font-medium">{{ lote_item.cantidad_solicitada|int }} {{ lote_item.item.unidad_medida }}</span>
+          </p>
+          {% endfor %}
+        {% endfor %}
+      {% endcall %}
+      {% call celda() %}
+        <div class="tabla-acciones">
+          {% if convocatoria.id not in convocatorias_con_oferta %}
+          <a class="btn btn-fantasma btn-icono" href="{{ url_for('ofertas.formulario_de_alta', convocatoria_id=convocatoria.id) }}" title="Presentar oferta">
+            {{ icono("mas") }}<span class="sr-only">Presentar oferta</span>
+          </a>
+          {% elif convocatoria.id in ofertas_de_ong %}
+          <a class="btn btn-fantasma btn-icono" href="{{ url_for('ofertas.obtener', oferta_id=ofertas_de_ong[convocatoria.id].id) }}" title="Ver mi oferta">
+            {{ icono("lista") }}<span class="sr-only">Ver mi oferta</span>
+          </a>
+          {% endif %}
+          <a class="btn btn-fantasma btn-icono" href="{{ url_for('convocatorias.obtener', convocatoria_id=convocatoria.id) }}" title="Ver publicación">
+            {{ icono("ver") }}<span class="sr-only">Ver publicación</span>
+          </a>
+        </div>
+      {% endcall %}
+    </tr>
+    {% endfor %}
+  {% endcall %}
+  {{ paginacion(pagina) }}
   {% else %}
-    <div class="tarjeta">
-      <div class="tarjeta-cuerpo">
-        <p class="text-sm text-gray-600">
-          {{ "No hay convocatorias vigentes para recibir ofertas." if es_representante_ong else "Todavía no hay convocatorias publicadas." }}
-        </p>
-      </div>
-    </div>
+  {{ estado_vacio("No hay convocatorias que coincidan con el filtro", "Probá con otros criterios de búsqueda.", "lista") }}
   {% endif %}
 </div>
 {% endblock %}

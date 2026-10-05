@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% from "componentes/iconos.html" import icono %}
-{% from "componentes/diseno.html" import insignia %}
+{% from "componentes/diseno.html" import insignia, temporizador_convocatoria %}
 {% from "componentes/formularios.html" import csrf, boton_envio %}
 
 {% block title %}{{ "Nueva oferta" if modo == "alta" else ("Aceptar invitación" if modo == "aceptacion" else "Editar oferta") }}{% endblock %}
@@ -8,9 +8,9 @@
 {% block content %}
 <main class="mx-auto max-w-4xl px-6 py-8">
   <div class="mb-8">
-    <a href="{{ url_for('ofertas.listar', convocatoria_id=convocatoria.id) }}" class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-primario">
+    <a href="{{ url_for('convocatorias.obtener', convocatoria_id=convocatoria.id) }}" class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-primario">
       {{ icono("volver") }}
-      Volver a ofertas
+      Volver a convocatorias
     </a>
 
     <h1 class="text-2xl font-bold tracking-tight text-gray-900">
@@ -45,6 +45,12 @@
         <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Fecha límite</p>
         <p class="mt-1 text-sm font-medium text-gray-900">{{ convocatoria.fecha_cierre.strftime('%d/%m/%Y - %H:%M') }} hs</p>
       </div>
+      {% if convocatoria.esta_vigente() %}
+      <div>
+        <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Tiempo restante</p>
+        <div class="mt-1">{{ temporizador_convocatoria(convocatoria.fecha_cierre) }}</div>
+      </div>
+      {% endif %}
     </div>
 
     {% if convocatoria.observaciones %}
@@ -62,21 +68,29 @@
     <section class="rounded-xl bg-white shadow-sm ring-1 ring-gray-200">
       <div class="border-b border-gray-100 px-6 py-5">
         <h2 class="text-base font-semibold text-gray-900">Recursos necesarios</h2>
-        <p class="mt-1 text-sm text-gray-500">Indicá cuánto de cada recurso puede aportar tu organización.</p>
+        <p class="mt-1 text-sm text-gray-500">El máximo combina la necesidad pendiente y el stock disponible de tu organización.</p>
       </div>
 
       <div class="divide-y divide-gray-100">
         {% for lote_item in lote_items %}
         {% set linea = cantidades.get(lote_item.id) %}
         {% set stock = stock_por_item.get(lote_item.item_id, 0) %}
-        <div class="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-[minmax(0,1fr)_8rem_8rem_10rem] sm:items-start sm:gap-5">
+        {% set aportes = aportes_por_lote_item.get(lote_item.id, []) %}
+        {% set cantidad_maxima = cantidad_maxima_por_lote_item.get(lote_item.id, 0)|int %}
+        <div class="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-[minmax(0,1fr)_8rem_{{ '11rem_' if aportes else '' }}8rem_9rem] sm:items-start sm:gap-5">
           <div>
             <p class="font-medium text-gray-900">{{ lote_item.item.nombre }}</p>
           </div>
-          <div>
-            <p class="text-xs font-medium text-gray-600">Cantidad requerida</p>
-            <p class="mt-2 font-medium text-gray-900">{{ lote_item.cantidad_solicitada|int }} {{ lote_item.item.unidad_medida }}</p>
+          <div class="border-l-4 border-secundario bg-secundario-light/40 px-3 py-2">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-700">Cantidad requerida</p>
+            <p class="mt-1 font-semibold text-gray-900">{{ lote_item.cantidad_solicitada|int }} {{ lote_item.item.unidad_medida }}</p>
           </div>
+          {% for aporte in aportes %}
+            <div>
+              <p class="text-xs font-medium text-gray-600">{{ aporte.organizacion.nombre }}</p>
+              <p class="mt-2 font-medium text-gray-900">{{ aporte.cantidad_ofrecida|int }} {{ lote_item.item.unidad_medida }}</p>
+            </div>
+          {% endfor %}
           <div>
             <p class="text-xs font-medium text-gray-600">Stock disponible</p>
             {% if stock|int > 0 %}
@@ -85,26 +99,12 @@
             <p class="mt-2 font-medium text-amber-700">Sin stock</p>
             {% endif %}
           </div>
-          {% if oferta and oferta.organizaciones_consorcio|length > 1 %}
-          <div>
-              <p class="text-xs font-medium text-gray-600">Aporte de otras ONG</p>
-              {% set aportes = aportes_por_lote_item.get(lote_item.id, []) %}
-              {% if aportes %}
-              <div class="mt-2 space-y-1">
-                {% for aporte in aportes %}
-                <p class="text-sm text-gray-900">{{ aporte.organizacion.nombre }}: {{ aporte.cantidad_ofrecida|int }} {{ lote_item.item.unidad_medida }}</p>
-                {% endfor %}
-              </div>
-              {% else %}
-              <p class="mt-2 text-sm text-gray-500">Todavía no hay aportes.</p>
-              {% endif %}
-          </div>
-          {% endif %}
           <div>
             <label for="item-{{ lote_item.id }}" class="mb-1.5 block text-xs font-medium text-gray-600">Tu aporte</label>
-            <input id="item-{{ lote_item.id }}" name="item_{{ lote_item.id }}" type="number" min="0" max="{{ lote_item.cantidad_solicitada|int }}" step="1" value="{{ valores.get('item_' ~ lote_item.id) if valores.get('item_' ~ lote_item.id) is not none else (linea.cantidad_ofrecida|int if linea and linea.cantidad_ofrecida is not none else '') }}" class="campo-control" inputmode="numeric" pattern="[0-9]*">
+            <input id="item-{{ lote_item.id }}" name="item_{{ lote_item.id }}" type="number" min="0" max="{{ cantidad_maxima }}" step="1" value="{{ valores.get('item_' ~ lote_item.id) if valores.get('item_' ~ lote_item.id) is not none else (linea.cantidad_ofrecida|int if linea and linea.cantidad_ofrecida is not none else '') }}" class="campo-control" inputmode="numeric" pattern="[0-9]*" {% if cantidad_maxima == 0 %}disabled{% endif %}>
+            <p class="mt-1 text-xs text-gray-500">Máximo: {{ cantidad_maxima }} {{ lote_item.item.unidad_medida }}</p>
           </div>
-          <div class="sm:col-span-4">
+          <div class="sm:col-span-5">
             <label for="item-{{ lote_item.id }}-obs" class="block text-xs font-medium text-gray-600">Detalle logístico (opcional)</label>
             <input id="item-{{ lote_item.id }}-obs" name="item_obs_{{ lote_item.id }}" value="{{ valores.get('item_obs_' ~ lote_item.id) if valores.get('item_obs_' ~ lote_item.id) is not none else (linea.observaciones if linea and linea.observaciones is not none else '') }}" class="campo-control mt-1" maxlength="255">
           </div>
@@ -193,7 +193,7 @@
     {% endif %}
 
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-      <a href="{{ url_for('ofertas.listar', convocatoria_id=convocatoria.id) }}" class="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100">Cancelar</a>
+      <a href="{{ url_for('convocatorias.obtener', convocatoria_id=convocatoria.id) }}" class="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100">Cancelar</a>
       {{ boton_envio("Guardar oferta" if modo == "alta" else ("Aceptar y sumar aporte" if modo == "aceptacion" else "Guardar nueva versión"), texto_cargando="Guardando...") }}
     </div>
   </form>

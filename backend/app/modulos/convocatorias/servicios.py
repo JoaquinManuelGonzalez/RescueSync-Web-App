@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import Select, or_, select
 
 from app.core.errores import (
     ConflictoDeEstado,
@@ -14,6 +14,7 @@ from app.core.errores import (
     SolicitudInvalida,
 )
 from app.core.logging import registrar_evento
+from app.core.interfaz.paginacion import Pagina, paginar
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 from app.modulos.emergencias.modelos import (
@@ -22,7 +23,56 @@ from app.modulos.emergencias.modelos import (
     EstadoLote,
     LoteNecesidad,
 )
+from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.usuarios_roles.modelos import Usuario
+
+
+def _consulta_de_convocatorias(
+    *, estado: str | None = None, texto: str | None = None, municipio_id: int | None = None
+) -> Select:
+    consulta = select(Convocatoria).join(Emergencia)
+    if estado:
+        consulta = consulta.where(Convocatoria.estado == estado)
+    if municipio_id is not None:
+        consulta = consulta.where(Emergencia.municipio_id == municipio_id)
+    if texto:
+        busqueda = f"%{texto.strip()}%"
+        consulta = consulta.where(
+            or_(
+                Emergencia.titulo.ilike(busqueda),
+                Emergencia.zona_afectada.ilike(busqueda),
+                Convocatoria.resumen_situacion.ilike(busqueda),
+            )
+        )
+    return consulta.order_by(Convocatoria.fecha_cierre.desc(), Convocatoria.id.desc())
+
+
+def listar_convocatorias(
+    *, estado: str | None = None, texto: str | None = None, municipio_id: int | None = None
+) -> list[Convocatoria]:
+    """Lista convocatorias aplicando los filtros de la pantalla."""
+    consulta = _consulta_de_convocatorias(
+        estado=estado, texto=texto, municipio_id=municipio_id
+    )
+    return list(db.session.execute(consulta).scalars())
+
+
+def paginar_convocatorias(
+    *,
+    pagina: int,
+    por_pagina: int,
+    estado: str | None = None,
+    texto: str | None = None,
+    municipio_id: int | None = None,
+) -> Pagina[Convocatoria]:
+    """Obtiene una página de convocatorias aplicando los mismos filtros."""
+    return paginar(
+        _consulta_de_convocatorias(
+            estado=estado, texto=texto, municipio_id=municipio_id
+        ),
+        pagina,
+        por_pagina,
+    )
 
 
 def _validar_resumen(resumen_situacion: str | None) -> str:
@@ -64,6 +114,7 @@ def cerrar_convocatorias_vencidas(*, emergencia_id: int | None = None) -> int:
     emergencias_afectadas = set()
     for convocatoria in vencidas:
         convocatoria.estado = EstadoConvocatoria.cerrada
+        servicios_de_notificaciones.notificar_cierre_convocatoria(convocatoria)
         emergencias_afectadas.add(convocatoria.emergencia_id)
 
     for id_emergencia in emergencias_afectadas:
@@ -79,7 +130,11 @@ def cerrar_convocatorias_vencidas(*, emergencia_id: int | None = None) -> int:
                 select(Emergencia).where(Emergencia.id == id_emergencia).with_for_update()
             ).scalar_one_or_none()
             if emergencia and emergencia.estado == EstadoEmergencia.activa:
+                estado_anterior = emergencia.estado
                 emergencia.estado = EstadoEmergencia.registrada
+                servicios_de_notificaciones.notificar_cambio_estado_emergencia(
+                    emergencia, estado_anterior
+                )
 
     db.session.commit()
     return len(vencidas)
@@ -101,6 +156,7 @@ def cerrar_convocatoria(convocatoria_id: int) -> Convocatoria:
         )
 
     convocatoria.estado = EstadoConvocatoria.cerrada
+    servicios_de_notificaciones.notificar_cierre_convocatoria(convocatoria)
     sigue_abierta = db.session.execute(
         select(Convocatoria.id).where(
             Convocatoria.emergencia_id == convocatoria.emergencia_id,
@@ -114,7 +170,11 @@ def cerrar_convocatoria(convocatoria_id: int) -> Convocatoria:
             select(Emergencia).where(Emergencia.id == convocatoria.emergencia_id).with_for_update()
         ).scalar_one_or_none()
         if emergencia and emergencia.estado == EstadoEmergencia.activa:
+            estado_anterior = emergencia.estado
             emergencia.estado = EstadoEmergencia.registrada
+            servicios_de_notificaciones.notificar_cambio_estado_emergencia(
+                emergencia, estado_anterior
+            )
 
     db.session.commit()
     registrar_evento(
@@ -217,12 +277,17 @@ def crear_convocatoria(
         observaciones=observaciones.strip() if observaciones and observaciones.strip() else None,
         estado=EstadoConvocatoria.abierta,
     )
+    estado_anterior = emergencia.estado
     emergencia.estado = EstadoEmergencia.activa
     db.session.add(convocatoria)
     db.session.flush()
     for lote in lotes:
         lote.convocatoria = convocatoria
         lote.estado = EstadoLote.en_convocatoria
+    servicios_de_notificaciones.notificar_convocatoria(convocatoria)
+    servicios_de_notificaciones.notificar_cambio_estado_emergencia(
+        emergencia, estado_anterior
+    )
 
     try:
         db.session.commit()

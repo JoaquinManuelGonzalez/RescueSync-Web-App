@@ -51,7 +51,7 @@ def sembrar_notificaciones() -> list[ResultadoSemilla]:
             organizacion_id=organizacion.id,
             titulo="Nueva convocatoria disponible",
             mensaje=mensaje_convocatoria,
-            enlace=f"/ofertas?convocatoria_id={convocatoria.id}",
+            enlace=f"/convocatorias/{convocatoria.id}",
         )
         resultado.contar(fue_creada)
 

@@ -27,11 +27,17 @@
       {% endcall %}
       {% call celda("Estado") %}
         {% set es_activa = emergencia.estado.value == "activa" %}
-        {{ insignia(emergencia.estado.value|replace("_", " ")|capitalize, "exito" if es_activa else "neutra") }}
+        {{ insignia(emergencia.estado|etiqueta_estado_emergencia, "exito" if es_activa else "neutra") }}
       {% endcall %}
       {% call celda("Registrada") %}{{ emergencia.creado_en|fecha }}{% endcall %}
       {% call celda() %}
         <div class="tabla-acciones">
+          {% set tiene_convocatoria_abierta = emergencia.convocatorias|selectattr("estado.value", "equalto", "abierta")|list|length > 0 %}
+          {% if puede("convocatorias:crear") and emergencia.lotes and not tiene_convocatoria_abierta and emergencia.estado.value == "en_evaluacion" %}
+          <a class="btn btn-fantasma whitespace-nowrap text-xs" href="{{ url_for('convocatorias.formulario_de_alta', emergencia_id=emergencia.id) }}">
+            {{ icono("activar") }} Abrir convocatoria
+          </a>
+          {% endif %}
           <a class="btn btn-fantasma btn-icono" href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}" title="Ver emergencia">
             {{ icono("ver") }}<span class="sr-only">Ver emergencia {{ emergencia.id }}</span>
           </a>
