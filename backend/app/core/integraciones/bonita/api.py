@@ -14,13 +14,18 @@ BONITA_PROCESO_VERSION = os.environ["BONITA_PROCESO_VERSION"]
 _process_definition_id: str | None = None
 
 
-def obtener_process_definition_id(*, forzar_recarga: bool = False) -> str:
+def obtener_process_definition_id(
+    username: str,
+    *,
+    forzar_recarga: bool = False,
+) -> str:
     global _process_definition_id
 
     if _process_definition_id is not None and not forzar_recarga:
         return _process_definition_id
 
     respuesta = ejecutar_solicitud_bonita(
+        username=username,
         metodo="GET",
         endpoint_normalizado="/API/bpm/process",
         url=f"{BONITA_BASE_URL}/API/bpm/process",
@@ -43,18 +48,19 @@ def obtener_process_definition_id(*, forzar_recarga: bool = False) -> str:
         )
 
     process_definition_id = str(procesos[0]["id"])
-
     _process_definition_id = process_definition_id
 
     return process_definition_id
 
 
 def instanciar_proceso(
+    username: str,
     variables_contrato: dict[str, object],
 ) -> str:
-    process_definition_id = obtener_process_definition_id()
+    process_definition_id = obtener_process_definition_id(username)
 
     respuesta = ejecutar_solicitud_bonita(
+        username=username,
         metodo="POST",
         endpoint_normalizado="/API/bpm/process/{id}/instantiation",
         url=f"{BONITA_BASE_URL}/API/bpm/process/{process_definition_id}/instantiation",
@@ -71,15 +77,16 @@ def instanciar_proceso(
 
 
 def buscar_tarea_humana(
+    username: str,
     case_id: str,
     nombre_tarea: str,
     *,
     reintentos: int = 5,
     espera_segundos: float = 0.5,
 ) -> str:
-
     for _ in range(reintentos):
         respuesta = ejecutar_solicitud_bonita(
+            username=username,
             metodo="GET",
             endpoint_normalizado="/API/bpm/humanTask",
             url=f"{BONITA_BASE_URL}/API/bpm/humanTask",
@@ -105,11 +112,12 @@ def buscar_tarea_humana(
 
 
 def ejecutar_tarea(
+    username: str,
     task_id: str,
     variables_contrato: dict[str, object],
 ) -> None:
-
     ejecutar_solicitud_bonita(
+        username=username,
         metodo="POST",
         endpoint_normalizado="/API/bpm/userTask/{id}/execution",
         url=f"{BONITA_BASE_URL}/API/bpm/userTask/{task_id}/execution",
@@ -118,9 +126,9 @@ def ejecutar_tarea(
     )
 
 
-def obtener_usuario_actual_id() -> str:
-
+def obtener_usuario_actual_id(username: str) -> str:
     respuesta = ejecutar_solicitud_bonita(
+        username=username,
         metodo="GET",
         endpoint_normalizado="/API/system/session/1",
         url=f"{BONITA_BASE_URL}/API/system/session/1",
@@ -133,11 +141,12 @@ def obtener_usuario_actual_id() -> str:
 
 
 def asignar_tarea(
+    username: str,
     task_id: str,
     usuario_id: str,
 ) -> None:
-
     ejecutar_solicitud_bonita(
+        username=username,
         metodo="PUT",
         endpoint_normalizado="/API/bpm/humanTask/{id}",
         url=f"{BONITA_BASE_URL}/API/bpm/humanTask/{task_id}",

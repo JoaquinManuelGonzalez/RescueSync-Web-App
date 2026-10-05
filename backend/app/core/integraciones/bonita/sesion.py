@@ -17,26 +17,34 @@ BONITA_PASSWORD = os.environ["BONITA_PASSWORD"]
 
 NOMBRE_COOKIE_TOKEN = "X-Bonita-API-Token"
 
-_cliente: httpx.Client | None = None
+_clientes: dict[str, httpx.Client] = {}
 _lock = threading.Lock()
 
 
-def iniciar_sesion() -> httpx.Client:
+def iniciar_sesion(username: str) -> httpx.Client:
     cliente = httpx.Client()
 
-    ejecutar_solicitud(
-        cliente,
-        componente=COMPONENTE_BONITA,
-        metodo="POST",
-        endpoint_normalizado="/loginservice",
-        url=f"{BONITA_BASE_URL}/loginservice",
-        idempotente=False,
-        data={
-            "username": BONITA_USER,
-            "password": BONITA_PASSWORD,
-            "redirect": "false",
-        },
-    )
+    try:
+        ejecutar_solicitud(
+            cliente,
+            componente=COMPONENTE_BONITA,
+            metodo="POST",
+            endpoint_normalizado="/loginservice",
+            url=f"{BONITA_BASE_URL}/loginservice",
+            idempotente=False,
+            data={
+                "username": username,
+                "password": BONITA_PASSWORD,
+                "redirect": "false",
+            },
+        )
+    except SistemaExternoRechazo:
+        cliente.close()
+
+        if username == BONITA_USER:
+            raise
+
+        return iniciar_sesion(BONITA_USER)
 
     token = cliente.cookies.get(NOMBRE_COOKIE_TOKEN)
 
@@ -49,38 +57,40 @@ def iniciar_sesion() -> httpx.Client:
     return cliente
 
 
-def obtener_cliente() -> httpx.Client:
-    global _cliente
+def obtener_cliente(username: str) -> httpx.Client:
+    cliente = _clientes.get(username)
 
-    if _cliente is not None:
-        return _cliente
-
-    with _lock:
-        # Otra request pudo haber iniciado sesión mientras esperábamos el lock.
-        if _cliente is None:
-            _cliente = iniciar_sesion()
-
-        return _cliente
-
-
-def invalidar_sesion() -> None:
-    global _cliente
+    if cliente is not None:
+        return cliente
 
     with _lock:
-        if _cliente is not None:
-            _cliente.close()
-            _cliente = None
+        cliente = _clientes.get(username)
+
+        if cliente is None:
+            cliente = iniciar_sesion(username)
+            _clientes[username] = cliente
+
+        return cliente
+
+
+def invalidar_sesion(username: str) -> None:
+    with _lock:
+        cliente = _clientes.pop(username, None)
+
+        if cliente is not None:
+            cliente.close()
 
 
 def ejecutar_solicitud_bonita(
     *,
+    username: str,
     metodo: str,
     endpoint_normalizado: str,
     url: str,
     idempotente: bool,
     **kwargs,
 ) -> httpx.Response:
-    cliente = obtener_cliente()
+    cliente = obtener_cliente(username)
 
     try:
         return ejecutar_solicitud(
@@ -96,8 +106,8 @@ def ejecutar_solicitud_bonita(
         if exc.detalle.get("codigo_estado") != 401:
             raise
 
-        invalidar_sesion()
-        cliente = obtener_cliente()
+        invalidar_sesion(username)
+        cliente = obtener_cliente(username)
 
         return ejecutar_solicitud(
             cliente,

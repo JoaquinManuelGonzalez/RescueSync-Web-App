@@ -27,6 +27,7 @@ from app.modulos.emergencias.modelos import (
 )
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
+from app.modulos.usuarios_roles.modelos import Usuario
 
 
 def _validar_municipio(municipio_id: int) -> Organizacion:
@@ -81,24 +82,24 @@ def _normalizar_tipo_emergencia(valor: str) -> TipoEmergencia:
 
 
 def _registrar_alta_de_emergencia(emergencia, municipio, gravedad, tipo):
-        registrar_evento(
+    registrar_evento(
         logging.INFO,
         "emergencia_creada",
         emergencia_id=emergencia,
         municipio_id=municipio,
         nivel_gravedad=gravedad,
-        tipo_emergencia=tipo
+        tipo_emergencia=tipo,
     )
 
-        
+
 def _notificar_instanciacion_bonita(case_id: str | None, emergencia_id):
     if not case_id:
         registrar_evento(
             logging.WARNING,
             "bonita_start_event_error",
             emergencia_id=emergencia_id,
-            motivo="No se pudo comunicar con Bonita." \
-            "Revisar conexión." \
+            motivo="No se pudo comunicar con Bonita."
+            "Revisar conexión."
             "La emergencia se dio de alta localmente, aunque sin instancia de proceso.",
         )
     else:
@@ -118,10 +119,9 @@ def crear_emergencia(
     zona_afectada: str,
     municipio_id: int,
     usuario_id: int,
-    tipo_emergencia: str
+    tipo_emergencia: str,
 ) -> Emergencia:
-    """Registra una nueva emergencia.
-    """
+    """Registra una nueva emergencia."""
 
     # Validación de campos
 
@@ -152,7 +152,14 @@ def crear_emergencia(
     _validar_municipio(municipio_id)
     gravedad = _normalizar_nivel_gravedad(nivel_gravedad)
     tipo = _normalizar_tipo_emergencia(tipo_emergencia)
-    
+
+    # NUEVO: obtener el usuario que está registrando la emergencia.
+
+    usuario = db.session.get(Usuario, usuario_id)
+
+    if usuario is None:
+        raise RecursoNoEncontrado(f"Usuario con id {usuario_id} no encontrado.")
+
     # Alta de emergencia
 
     emergencia = Emergencia(
@@ -170,30 +177,41 @@ def crear_emergencia(
 
     # Registrar evento de alta de emergencia
 
-    _registrar_alta_de_emergencia(emergencia.id, municipio_id, gravedad.value, tipo.value)
-        
+    _registrar_alta_de_emergencia(
+        emergencia.id,
+        municipio_id,
+        gravedad.value,
+        tipo.value,
+    )
+
     # Disparar creación de una instancia de proceso en Bonita BPM.
-    # Envía emergencia_id, recibe identificador del caso. 
+    # Envía emergencia_id, recibe identificador del caso.
 
     try:
-        case_id = _bonita_iniciar(emergencia.id)
+        # NUEVO: el email del usuario web es también su username en Bonita.
+        case_id = _bonita_iniciar(
+            emergencia.id,
+            usuario.email,
+        )
         emergencia.bonita_case_id = case_id
         db.session.commit()
-        _notificar_instanciacion_bonita(case_id, emergencia.id) 
+        _notificar_instanciacion_bonita(case_id, emergencia.id)
     except Exception:
-        # No diferencia entre SistemaExternoRechazo, ServicioExternoNoDisponible y RuntimeError.
-        # Lo importante es que aunque falle Bonita, la emergencia se registre.
-        # Puede volver a intentar conectar a la hora de abrir convocatoria.
+        # No diferencia entre SistemaExternoRechazo,
+        # ServicioExternoNoDisponible y RuntimeError.
+        # Lo importante es que aunque falle Bonita,
+        # la emergencia se registre.
+        # Puede volver a intentar conectar a la hora
+        # de abrir convocatoria.
         db.session.rollback()
         _notificar_instanciacion_bonita(None, emergencia.id)
-    
 
     # Servicio de notificación al Centro Coordinador Regional.
 
     servicios_de_notificaciones.crear_para_tipo_organizacion(
         tipo=TipoOrganizacion.centro_coordinador_regional,
         titulo="Nueva emergencia registrada",
-        mensaje=f"Se registró la emergencia «{emergencia.titulo}» en {emergencia.zona_afectada}.",
+        mensaje=(f"Se registró la emergencia «{emergencia.titulo}» en {emergencia.zona_afectada}."),
         enlace=f"/emergencias/{emergencia.id}",
     )
     db.session.commit()
@@ -207,6 +225,7 @@ def obtener_emergencia_por_id(emergencia_id: int) -> Emergencia:
         raise RecursoNoEncontrado(f"Emergencia con id {emergencia_id} no encontrada.")
     return emergencia
 
+
 # Nivel de gravedad vuelto número para poder usar order_by().
 # A más alto el número, más urgente.
 _NIVEL_GRAVEDAD = {
@@ -215,6 +234,7 @@ _NIVEL_GRAVEDAD = {
     NivelGravedad.alta: 3,
     NivelGravedad.critica: 4,
 }
+
 
 def listar_emergencias(
     *,
@@ -229,8 +249,10 @@ def listar_emergencias(
 
     consulta = (
         select(Emergencia)
-        .where(Emergencia.estado != EstadoEmergencia.finalizada,
-               Emergencia.estado != EstadoEmergencia.cancelada )
+        .where(
+            Emergencia.estado != EstadoEmergencia.finalizada,
+            Emergencia.estado != EstadoEmergencia.cancelada,
+        )
         .order_by(expresion_gravedad.desc(), Emergencia.creado_en.desc())
     )
 
