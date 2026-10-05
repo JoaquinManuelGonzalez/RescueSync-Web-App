@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, flash, jsonify, render_template, request
 from flask_login import current_user
 
 from app.core.acceso.autorizacion import requiere_permiso
@@ -48,6 +48,7 @@ def _contexto_de_formulario() -> dict[str, Any]:
     }
 
 def _formulario_con_error(error: ErrorDeAplicacion):
+    flash(error.mensaje, "error")
     if isinstance(error.detalle, dict):
         errores_por_campo = error.detalle
     elif isinstance(error.detalle, list):
@@ -61,7 +62,6 @@ def _formulario_con_error(error: ErrorDeAplicacion):
 
     return render_template(
         "emergencias/formulario.html",
-        error_mensaje=error.mensaje,
         errores_por_campo=errores_por_campo,
         valores=request.form,
         **_contexto_de_formulario(),
@@ -162,4 +162,3 @@ def obtener(emergencia_id: int):
         return render_template("emergencias/detalle.html", emergencia=emergencia)
 
     return jsonify(_serializar_emergencia(emergencia))
-

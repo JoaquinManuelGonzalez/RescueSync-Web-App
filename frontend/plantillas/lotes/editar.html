@@ -1,44 +1,33 @@
 {% extends "layout.html" %}
 {% from "componentes/iconos.html" import icono %}
-{% from "componentes/diseno.html" import encabezado_pagina,  insignia %}
+{% from "componentes/diseno.html" import encabezado_pagina %}
 {% from "componentes/formularios.html" import csrf, boton_envio %}
 
 {% block title %}Editar lote de necesidades{% endblock %}
 
 {% block content %}
 <div class="pagina-angosta space-y-6">
+  <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primario" href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">
+    {{ icono("volver", "size-4") }} Volver a la emergencia
+  </a>
   {% call encabezado_pagina(
-      "Editar lote de necesidades"
+      "Editar lote de necesidades",
+      "Desglosá la emergencia en ítems cuantificados para la convocatoria"
   ) %}
-    <a class="btn btn-secundario"
-    href="{{ url_for('lotes.listar_por_emergencia', emergencia_id=emergencia.id) }}">
-    {{ icono("volver") }} Volver
-    </a>
   {% endcall %}
 
-  {# --- Contexto del lote --- #}
+  {# --- Contexto de la emergencia --- #}
   <section class="tarjeta">
     <div class="tarjeta-cuerpo">
-      <h2 class="tarjeta-titulo">
-        {{ emergencia.titulo }}
-      </h2>
-        {{ insignia(
-            lote.estado.value|replace("_", " ")|capitalize,
-            "exito" if lote.estado.value == "adjudicado_total" else "neutra"
-        ) }}
-        
-        <p class="mt-1 text-sm text-gray-500">
-              · Generado {{ lote.creado_en|fecha }}
-        </p>
+      <h2 class="tarjeta-titulo">{{ emergencia.titulo }}</h2>
+      <p class="mt-1 text-sm text-gray-500">
+        {{ emergencia.zona_afectada }}
+        · Gravedad {{ emergencia.nivel_gravedad.value|capitalize }}
+        · Estado {{ emergencia.estado|etiqueta_estado_emergencia }}
+      </p>
+      <p class="mt-3 whitespace-pre-line text-gray-700">{{ emergencia.descripcion }}</p>
     </div>
   </section>
-
-  {% if error_mensaje %}
-  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
-    <p class="font-semibold">No se pudo guardar el lote</p>
-    <p class="mt-1">{{ error_mensaje }}</p>
-  </div>
-  {% endif %}
 
   <form method="post"
         action="{{ url_for('lotes.editar_desde_formulario',
@@ -94,9 +83,10 @@
 
         <div id="items-container" class="space-y-3">
           {% for fila in valores_items %}
-          <div class="fila-item grid grid-cols-12 gap-3 items-start rounded-lg border border-gray-100 p-4">
+          <div class="fila-item rounded-lg border border-gray-100 p-4">
+            <div class="grid gap-4 sm:grid-cols-12">
 
-            <div class="col-span-12 sm:col-span-5">
+            <div class="sm:col-span-5">
               <label class="campo-etiqueta">Ítem</label>
               <select name="items[{{ loop.index0 }}][item_id]"
                       data-campo="item_id"
@@ -114,7 +104,7 @@
               <p class="mt-1 text-xs text-gray-500 ayuda-unidad"></p>
             </div>
 
-            <div class="col-span-6 sm:col-span-3">
+            <div class="sm:col-span-3">
               <label class="campo-etiqueta">Cantidad</label>
               <input type="number"
                      step="1"
@@ -127,7 +117,7 @@
                      placeholder="0">
             </div>
 
-            <div class="col-span-6 sm:col-span-3">
+            <div class="sm:col-span-3">
               <label class="campo-etiqueta">Observaciones</label>
               <input type="text"
                      maxlength="255"
@@ -138,13 +128,14 @@
                      placeholder="Ej: aptas para celíacos">
             </div>
 
-            <div class="col-span-12 sm:col-span-1 flex sm:justify-end sm:pt-5">
+            <div class="flex items-end justify-end sm:col-span-1">
               <button type="button"
-                      class="btn-eliminar-item text-red-500 hover:text-red-700"
+                      class="btn btn-fantasma-peligro btn-icono btn-eliminar-item transition-transform hover:rotate-6"
                       title="Quitar ítem"
                       aria-label="Quitar ítem">
-                ✕
+                {{ icono("eliminar", "size-5") }}
               </button>
+            </div>
             </div>
           </div>
           {% endfor %}
@@ -158,19 +149,20 @@
     </section>
 
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-      <a class="btn btn-secundario"
-         href="{{ url_for('lotes.listar_por_emergencia', emergencia_id=emergencia.id) }}">
+      <a class="btn btn-cancelar"
+         href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">
         Cancelar
       </a>
-      {{ boton_envio("Guardar cambios", texto_cargando="Guardando...", icono_nombre="guardar") }}
+      {{ boton_envio("Guardar cambios", texto_cargando="Guardando...") }}
     </div>
   </form>
 </div>
 
 {# --- Template para filas nuevas (agregadas por JS) --- #}
 <template id="fila-item-template">
-  <div class="fila-item grid grid-cols-12 gap-3 items-start rounded-lg border border-gray-100 p-4">
-    <div class="col-span-12 sm:col-span-5">
+  <div class="fila-item rounded-lg border border-gray-100 p-4">
+    <div class="grid gap-4 sm:grid-cols-12">
+    <div class="sm:col-span-5">
       <label class="campo-etiqueta">Ítem</label>
       <select data-campo="item_id" class="campo-control" required>
         <option value="">— Seleccionar —</option>
@@ -183,7 +175,7 @@
       <p class="mt-1 text-xs text-gray-500 ayuda-unidad"></p>
     </div>
 
-    <div class="col-span-6 sm:col-span-3">
+    <div class="sm:col-span-3">
       <label class="campo-etiqueta">Cantidad</label>
       <input type="number"
              step="1"
@@ -194,7 +186,7 @@
              placeholder="0">
     </div>
 
-    <div class="col-span-6 sm:col-span-3">
+    <div class="sm:col-span-3">
       <label class="campo-etiqueta">Observaciones</label>
       <input type="text"
              maxlength="255"
@@ -203,13 +195,14 @@
              placeholder="Ej: aptas para celíacos">
     </div>
 
-    <div class="col-span-12 sm:col-span-1 flex sm:justify-end sm:pt-5">
+    <div class="flex items-end justify-end sm:col-span-1">
       <button type="button"
-              class="btn-eliminar-item text-red-500 hover:text-red-700"
+              class="btn btn-fantasma-peligro btn-icono btn-eliminar-item transition-transform hover:rotate-6"
               title="Quitar ítem"
               aria-label="Quitar ítem">
-        ✕
+        {{ icono("eliminar", "size-5") }}
       </button>
+    </div>
     </div>
   </div>
 </template>

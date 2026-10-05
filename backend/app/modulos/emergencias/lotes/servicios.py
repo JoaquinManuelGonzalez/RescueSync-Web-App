@@ -30,6 +30,7 @@ from app.modulos.emergencias.modelos import (
     LoteItem,
     LoteNecesidad,
 )
+from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 
 
 def obtener_emergencia(emergencia_id: int) -> Emergencia:
@@ -155,7 +156,11 @@ def crear_lotes(
     )
     db.session.add(lote)
 
+    estado_anterior = emergencia.estado
     emergencia.estado = EstadoEmergencia.en_evaluacion
+    servicios_de_notificaciones.notificar_cambio_estado_emergencia(
+        emergencia, estado_anterior
+    )
 
     db.session.commit()
 

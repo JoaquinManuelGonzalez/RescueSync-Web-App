@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% from "componentes/iconos.html" import icono %}
-{% from "componentes/diseno.html" import encabezado_pagina, insignia %}
+{% from "componentes/diseno.html" import encabezado_pagina, insignia, temporizador_convocatoria %}
 {% from "componentes/formularios.html" import formulario_accion %}
 
 {% block title %}Convocatoria publicada{% endblock %}
@@ -11,6 +11,15 @@
       {{ icono("volver", "size-4") }} Volver a convocatorias
     </a>
   {% call encabezado_pagina('Convocatoria publicada', 'Publicación de oferta de ayuda') %}
+    {% if ong_puede_presentar_oferta %}
+    <a class="btn btn-primario" href="{{ url_for('ofertas.formulario_de_alta', convocatoria_id=convocatoria.id) }}">
+      {{ icono("mas") }} Presentar oferta
+    </a>
+    {% elif oferta_de_ong %}
+    <a class="btn btn-secundario" href="{{ url_for('ofertas.obtener', oferta_id=oferta_de_ong.id) }}">
+      {{ icono("lista") }} Ver mi oferta
+    </a>
+    {% endif %}
   {% endcall %}
 
   <section class="tarjeta">
@@ -23,6 +32,9 @@
       <p><strong>Emergencia:</strong> {{ convocatoria.emergencia.titulo if convocatoria.emergencia else 'Emergencia asociada' }}</p>
       <p><strong>Inicio:</strong> {{ convocatoria.fecha_inicio|fecha }}</p>
       <p><strong>Cierre:</strong> {{ convocatoria.fecha_cierre|fecha }}</p>
+      {% if convocatoria.estado.value == "abierta" %}
+      {{ temporizador_convocatoria(convocatoria.fecha_cierre) }}
+      {% endif %}
       <p><strong>Resumen:</strong> {{ convocatoria.resumen_situacion }}</p>
       {% if convocatoria.observaciones %}
       <p><strong>Observaciones:</strong> {{ convocatoria.observaciones }}</p>

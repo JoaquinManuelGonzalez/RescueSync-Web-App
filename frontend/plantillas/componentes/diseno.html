@@ -64,3 +64,13 @@
   <dd>{% if caller is defined %}{{ caller() }}{% else %}{{ valor if valor not in (none, "") else "—" }}{% endif %}</dd>
 </div>
 {%- endmacro %}
+
+{% macro temporizador_convocatoria(fecha_cierre) -%}
+<span class="inline-flex tabular-nums items-center text-sm font-semibold text-primario"
+     data-temporizador-convocatoria
+     data-fecha-cierre="{{ fecha_cierre.isoformat() }}"
+     role="timer"
+     aria-live="polite">
+  <span data-tiempo-restante>Calculando...</span>
+</span>
+{%- endmacro %}

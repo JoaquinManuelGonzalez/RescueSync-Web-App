@@ -19,6 +19,7 @@ from typing import Any
 
 from flask import Blueprint, current_app, flash, jsonify, render_template, request
 from flask_login import current_user
+from sqlalchemy import or_
 
 from app.core.acceso.autorizacion import requiere_permiso
 from app.core.acceso.permisos import (
@@ -34,13 +35,15 @@ from app.core.errores import (
     SolicitudInvalida,
 )
 from app.core.interfaz.navegacion import EntradaDeMenu
+from app.core.interfaz.paginacion import paginar, parametros_de_paginacion
 from app.core.interfaz.vistas import ERROR, pide_json, redirigir
 from app.core.logging import registrar_evento
 from app.extensiones import csrf, db
 from app.modulos.convocatorias.modelos import Convocatoria
 from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
+from app.modulos.emergencias.modelos import Emergencia
 from app.modulos.ofertas import servicios
-from app.modulos.ofertas.modelos import Oferta
+from app.modulos.ofertas.modelos import EstadoOferta, Oferta, OfertaOrganizacion
 from app.modulos.ofertas.servicios import _formatear_fecha_iso
 from app.modulos.organizaciones.modelos import (
     Inventario,
@@ -77,6 +80,10 @@ def _contexto_de_formulario(convocatoria_id: int, oferta: Oferta | None = None) 
         for linea in oferta.items:
             if linea.organizacion_id != organizacion_actual_id:
                 aportes_por_lote_item[linea.lote_item_id].append(linea)
+    aportes_totales_por_lote_item = {
+        lote_item_id: sum(int(linea.cantidad_ofrecida) for linea in aportes)
+        for lote_item_id, aportes in aportes_por_lote_item.items()
+    }
     item_ids = {lote_item.item_id for lote_item in lotes}
     inventario_items = db.session.execute(
         db.select(InventarioItem)
@@ -89,6 +96,17 @@ def _contexto_de_formulario(convocatoria_id: int, oferta: Oferta | None = None) 
     stock_por_item = {
         inventario_item.item_id: inventario_item.cantidad_disponible
         for inventario_item in inventario_items
+    }
+    cantidad_maxima_por_lote_item = {
+        lote_item.id: max(
+            0,
+            min(
+                int(lote_item.cantidad_solicitada)
+                - aportes_totales_por_lote_item.get(lote_item.id, 0),
+                int(stock_por_item.get(lote_item.item_id, 0)),
+            ),
+        )
+        for lote_item in lotes
     }
     organizaciones_disponibles = db.session.scalars(
         db.select(Organizacion)
@@ -105,6 +123,8 @@ def _contexto_de_formulario(convocatoria_id: int, oferta: Oferta | None = None) 
         "oferta": oferta,
         "cantidades": cantidades,
         "aportes_por_lote_item": dict(aportes_por_lote_item),
+        "aportes_totales_por_lote_item": aportes_totales_por_lote_item,
+        "cantidad_maxima_por_lote_item": cantidad_maxima_por_lote_item,
         "stock_por_item": stock_por_item,
         "organizacion_actual": db.session.get(Organizacion, current_user.organizacion_id),
         "organizaciones_disponibles": organizaciones_disponibles,
@@ -202,9 +222,30 @@ def _filtrar_oferta_para_municipio(oferta: Oferta) -> None:
 def listar():
     """Pantalla de ofertas, opcionalmente filtrada por convocatoria."""
     convocatoria_id = request.args.get("convocatoria_id", type=int)
+    estado = request.args.get("estado") or None
+    texto = request.args.get("texto") or None
     consulta = db.select(Oferta).order_by(Oferta.actualizado_en.desc(), Oferta.id.desc())
     if convocatoria_id:
         consulta = consulta.where(Oferta.convocatoria_id == convocatoria_id)
+    if estado:
+        consulta = consulta.where(Oferta.estado == estado)
+    if texto:
+        busqueda = f"%{texto.strip()}%"
+        consulta = consulta.where(
+            or_(
+                Oferta.convocatoria.has(
+                    Convocatoria.emergencia.has(
+                        or_(
+                            Emergencia.titulo.ilike(busqueda),
+                            Emergencia.zona_afectada.ilike(busqueda),
+                        )
+                    )
+                ),
+                Oferta.organizaciones_consorcio.any(
+                    OfertaOrganizacion.organizacion.has(Organizacion.nombre.ilike(busqueda))
+                ),
+            )
+        )
     if _es_representante_ong():
         consulta = consulta.where(
             Oferta.organizaciones_consorcio.any(
@@ -218,18 +259,25 @@ def listar():
                 Convocatoria.emergencia.has(municipio_id=current_user.organizacion_id)
             )
         )
-    ofertas = list(db.session.execute(consulta).scalars().all())
     if pide_json():
+        ofertas = list(db.session.execute(consulta).scalars().all())
         return jsonify(
             {
                 "convocatoria_id": convocatoria_id,
                 "ofertas": [_serializar_oferta(oferta) for oferta in ofertas],
             }
         )
+    pagina, por_pagina = parametros_de_paginacion()
+    resultado = paginar(consulta, pagina, por_pagina)
     return render_template(
         "ofertas/listado.html",
-        ofertas=ofertas,
+        ofertas=resultado.elementos,
         convocatoria_id=convocatoria_id,
+        pagina=resultado,
+        filtros=request.args,
+        opciones_de_estado=[
+            (estado.value, estado.value.capitalize()) for estado in EstadoOferta
+        ],
     )
 
 
@@ -585,7 +633,7 @@ def rechazar(oferta_id: int):
         usuario_id=current_user.id,
     )
     return redirigir(
-        "ofertas.listar",
+        "convocatorias.obtener",
         "Invitación rechazada.",
         datos_json=_serializar_oferta(oferta),
         convocatoria_id=oferta.convocatoria_id,
@@ -601,7 +649,7 @@ def retirar(oferta_id: int):
         organizacion_id=current_user.organizacion_id,
     )
     return redirigir(
-        "ofertas.listar",
+        "convocatorias.obtener",
         "Oferta retirada.",
         datos_json=_serializar_oferta(oferta),
         convocatoria_id=oferta.convocatoria_id,

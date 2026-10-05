@@ -10,6 +10,7 @@
  *   form[data-confirmar]               pide confirmacion en un modal propio antes de enviar
  *   form[data-envio-con-carga]         deshabilita el boton y muestra el spinner al enviar
  *   select[data-filtra-organizaciones] filtra las organizaciones segun el rol elegido
+ *   [data-temporizador-convocatoria] muestra el tiempo restante de una convocatoria abierta
  *   body[data-minutos-sesion]          recarga al vencer la sesion por inactividad
  *
  * Nada de esto es seguridad: el servidor valida y autoriza todo por su cuenta.
@@ -306,6 +307,44 @@
     window.setTimeout(() => window.location.reload(), (minutos * 60 + 5) * 1000);
   }
 
+  // El servidor sigue siendo la fuente de verdad del estado y del vencimiento. Este contador
+  // solo comunica el tiempo restante con la hora del navegador y no altera la convocatoria.
+  function iniciarTemporizadoresDeConvocatoria() {
+    document.querySelectorAll("[data-temporizador-convocatoria]").forEach((temporizador) => {
+      const salida = temporizador.querySelector("[data-tiempo-restante]");
+      const cierre = Date.parse(temporizador.dataset.fechaCierre);
+      if (!salida || Number.isNaN(cierre)) return;
+
+      const actualizar = () => {
+        const restante = cierre - Date.now();
+        if (restante <= 0) {
+          salida.textContent = "Convocatoria vencida";
+          salida.classList.remove("text-primario");
+          salida.classList.add("text-red-600");
+          return false;
+        }
+
+        const totalSegundos = Math.floor(restante / 1000);
+        const dias = Math.floor(totalSegundos / 86400);
+        const horas = Math.floor((totalSegundos % 86400) / 3600);
+        const minutos = Math.floor((totalSegundos % 3600) / 60);
+        const segundos = totalSegundos % 60;
+        const partes = [];
+        if (dias) partes.push(`${dias}d`);
+        partes.push(`${String(horas).padStart(2, "0")}h`);
+        partes.push(`${String(minutos).padStart(2, "0")}m`);
+        partes.push(`${String(segundos).padStart(2, "0")}s`);
+        salida.textContent = partes.join(" ");
+        return true;
+      };
+
+      actualizar();
+      const intervalo = window.setInterval(() => {
+        if (!actualizar()) window.clearInterval(intervalo);
+      }, 1000);
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     iniciarAlertasDescartables();
     iniciarAlternadoDeContrasenas();
@@ -314,6 +353,7 @@
     iniciarEnviosConCarga();
     iniciarBusquedasAutomaticas();
     iniciarFiltroDeOrganizaciones();
+    iniciarTemporizadoresDeConvocatoria();
     iniciarAvisoDeInactividad();
   });
 })();
