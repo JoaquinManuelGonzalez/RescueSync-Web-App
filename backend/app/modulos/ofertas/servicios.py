@@ -781,12 +781,12 @@ def obtener_ofertas_consolidadas_para_bonita(convocatoria_id: int) -> dict[str, 
     if not convocatoria:
         raise RecursoNoEncontrado(f"Convocatoria con id {convocatoria_id} no encontrada.")
 
-    # Solo ofertas activas (no retiradas ni rechazadas)
+    # Solo ofertas presentadas: las invitaciones pendientes aún no son compromisos.
     consulta = (
         select(Oferta)
         .where(
             Oferta.convocatoria_id == convocatoria_id,
-            Oferta.estado.notin_([EstadoOferta.retirada, EstadoOferta.rechazada]),
+            Oferta.estado == EstadoOferta.presentada,
         )
         .order_by(Oferta.id.asc())
     )
@@ -795,24 +795,68 @@ def obtener_ofertas_consolidadas_para_bonita(convocatoria_id: int) -> dict[str, 
     ofertas_json: list[dict[str, Any]] = []
 
     for oferta in ofertas_activas:
-        lider = oferta.organizacion_lider
-        lider_id = lider.id if lider else None
-        lider_nombre = lider.nombre if lider else "Sin Organización"
         fecha_creacion_iso = _formatear_fecha_iso(oferta.creado_en)
 
-        for linea in oferta.items:
-            item = linea.lote_item.item
-            dato_oferta: dict[str, Any] = {
-                "oferta_id": oferta.id,
-                "ong_id": lider_id,
-                "ong_nombre": lider_nombre,
-                "tipo_recurso": item.categoria.value,
-                "cantidad": float(linea.cantidad_ofrecida),
-                "unidad": item.unidad_medida,
-                "es_consorcio": False,
-                "fecha_creacion": fecha_creacion_iso,
+        organizaciones_json = [
+            {
+                "id": miembro.organizacion_id,
+                "nombre": miembro.organizacion.nombre,
+                "rol": miembro.rol_consorcio,
             }
-            ofertas_json.append(dato_oferta)
+            for miembro in sorted(
+                oferta.organizaciones_consorcio,
+                key=lambda miembro: (
+                    miembro.rol_consorcio.lower() != "lider",
+                    miembro.organizacion_id,
+                ),
+            )
+            if miembro.estado_participacion == "aceptada"
+        ]
+
+        # Mantener la oferta como unidad y consolidar cada necesidad sin perder quién aporta.
+        items_consolidados: dict[int, dict[str, Any]] = {}
+        for linea in oferta.items:
+            lote_item_id = linea.lote_item_id
+            if lote_item_id not in items_consolidados:
+                item = linea.lote_item.item
+                items_consolidados[lote_item_id] = {
+                    "item": item,
+                    "cantidad_total": 0,
+                    "aportes": [],
+                }
+            organizacion = linea.organizacion
+            cantidad = int(linea.cantidad_ofrecida)
+            datos_item = items_consolidados[lote_item_id]
+            datos_item["cantidad_total"] += cantidad
+            datos_item["aportes"].append(
+                {
+                    "organizacion_id": organizacion.id,
+                    "cantidad": cantidad,
+                }
+            )
+
+        items_json = []
+        for lote_item_id, datos in sorted(items_consolidados.items()):
+            item = datos["item"]
+            items_json.append(
+                {
+                    "lote_item_id": lote_item_id,
+                    "tipo_recurso": item.categoria.value,
+                    "cantidad_total": datos["cantidad_total"],
+                    "unidad": item.unidad_medida,
+                    "aportes": sorted(
+                        datos["aportes"], key=lambda aporte: aporte["organizacion_id"]
+                    ),
+                }
+            )
+
+        dato_oferta = {
+            "oferta_id": oferta.id,
+            "organizaciones": organizaciones_json,
+            "fecha_creacion": fecha_creacion_iso,
+            "items": items_json,
+        }
+        ofertas_json.append(dato_oferta)
 
     return {
         "convocatoria_id": convocatoria.id,
