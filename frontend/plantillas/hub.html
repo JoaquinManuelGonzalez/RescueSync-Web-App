@@ -71,7 +71,7 @@
           <strong>{{ item.titulo }}</strong>
           <span>{{ item.zona_afectada }} · {{ item.creado_en|fecha }}</span>
         </span>
-        <span class="dashboard-estado dashboard-estado-{{ item.estado.value }}">{{ item.estado.value|replace("_", " ")|capitalize }}</span>
+        <span class="dashboard-estado dashboard-estado-{{ item.estado.value }}">{{ item.estado|etiqueta_estado_emergencia }}</span>
       </a>
       {%- endif %}
       {%- endfor %}

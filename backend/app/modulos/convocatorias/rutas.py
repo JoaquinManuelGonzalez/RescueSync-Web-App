@@ -4,16 +4,19 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, flash, jsonify, render_template, request
 from flask_login import current_user
+from sqlalchemy import select
 
 from app.core.acceso.autorizacion import requiere_permiso
 from app.core.acceso.permisos import CONVOCATORIAS_CERRAR, CONVOCATORIAS_CREAR, CONVOCATORIAS_LISTAR
 from app.core.errores import ErrorDeAplicacion, RecursoNoEncontrado, SolicitudInvalida
 from app.core.interfaz.navegacion import EntradaDeMenu
+from app.core.interfaz.paginacion import parametros_de_paginacion
 from app.core.interfaz.plantillas import ZONA_HORARIA_DE_LA_INTERFAZ
 from app.core.interfaz.vistas import pide_json, redirigir
 from app.extensiones import db
+from app.modulos.convocatorias import servicios
 from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 from app.modulos.convocatorias.servicios import (
     cerrar_convocatoria,
@@ -21,7 +24,8 @@ from app.modulos.convocatorias.servicios import (
     crear_convocatoria,
 )
 from app.modulos.emergencias import servicios as servicios_emergencias
-from app.modulos.emergencias.modelos import Emergencia, EstadoEmergencia
+from app.modulos.emergencias.modelos import EstadoEmergencia
+from app.modulos.ofertas.modelos import EstadoOferta, Oferta, OfertaOrganizacion
 
 blueprint_convocatorias = Blueprint("convocatorias", __name__)
 
@@ -37,6 +41,28 @@ ENTRADA_DE_MENU = EntradaDeMenu(
 
 def _es_operador_municipal() -> bool:
     return current_user.tiene_rol("operador_municipal")
+
+
+def _oferta_activa_de_ong(convocatoria: Convocatoria) -> Oferta | None:
+    if (
+        not current_user.tiene_rol("representante_ong")
+        or current_user.organizacion_id is None
+    ):
+        return None
+    return db.session.execute(
+        select(Oferta)
+        .join(OfertaOrganizacion, OfertaOrganizacion.oferta_id == Oferta.id)
+        .where(
+            Oferta.convocatoria_id == convocatoria.id,
+            OfertaOrganizacion.organizacion_id == current_user.organizacion_id,
+            Oferta.estado.notin_([EstadoOferta.retirada, EstadoOferta.rechazada]),
+        )
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def _ong_puede_presentar_oferta(convocatoria: Convocatoria) -> bool:
+    return convocatoria.esta_vigente() and _oferta_activa_de_ong(convocatoria) is None
 
 
 def _contexto_de_formulario(emergencia) -> dict:
@@ -55,6 +81,7 @@ def _contexto_de_formulario(emergencia) -> dict:
 
 
 def _formulario_con_error(emergencia, error: ErrorDeAplicacion):
+    flash(error.mensaje, "error")
     if isinstance(error.detalle, dict):
         errores_por_campo = error.detalle
     elif isinstance(error.detalle, list):
@@ -68,7 +95,6 @@ def _formulario_con_error(emergencia, error: ErrorDeAplicacion):
 
     return render_template(
         "convocatorias/formulario.html",
-        error_mensaje=error.mensaje,
         errores_por_campo=errores_por_campo,
         valores=request.form,
         **_contexto_de_formulario(emergencia),
@@ -103,20 +129,24 @@ def _parsear_fecha_cierre(fecha_valor: str | None, hora_valor: str | None) -> da
 def listar():
     """Listado de convocatorias publicadas."""
     cerrar_convocatorias_vencidas()
-    consulta = db.select(Convocatoria).order_by(
-        Convocatoria.fecha_cierre.desc(), Convocatoria.id.desc()
-    )
-    if _es_operador_municipal():
-        # El Municipio sólo ve las convocatorias de sus propias emergencias.
-        consulta = consulta.join(Emergencia).where(
-            Emergencia.municipio_id == current_user.organizacion_id
-        )
-    convocatorias = db.session.execute(consulta).scalars().all()
+    estado = request.args.get("estado") or None
+    texto = request.args.get("texto") or None
+    municipio_id = current_user.organizacion_id if _es_operador_municipal() else None
     es_representante_ong = current_user.tiene_rol("representante_ong")
-    if es_representante_ong:
-        convocatorias = [
-            convocatoria for convocatoria in convocatorias if convocatoria.esta_vigente()
-        ]
+    if pide_json():
+        convocatorias = servicios.listar_convocatorias(
+            estado=estado, texto=texto, municipio_id=municipio_id
+        )
+    else:
+        pagina, por_pagina = parametros_de_paginacion()
+        resultado = servicios.paginar_convocatorias(
+            pagina=pagina,
+            por_pagina=por_pagina,
+            estado=estado,
+            texto=texto,
+            municipio_id=municipio_id,
+        )
+        convocatorias = resultado.elementos
     if pide_json():
         return jsonify({
             "convocatorias": [
@@ -135,6 +165,24 @@ def listar():
         "convocatorias/listado.html",
         convocatorias=convocatorias,
         es_representante_ong=es_representante_ong,
+        convocatorias_con_oferta={
+            convocatoria.id
+            for convocatoria in convocatorias
+            if not _ong_puede_presentar_oferta(convocatoria)
+        },
+        ofertas_de_ong={
+            convocatoria.id: oferta
+            for convocatoria in convocatorias
+            if (oferta := _oferta_activa_de_ong(convocatoria)) is not None
+        },
+        pagina=resultado,
+        filtros=request.args,
+        opciones_de_estado=[
+            ("abierta", "Abierta"),
+            ("cerrada", "Cerrada"),
+            ("adjudicada", "Adjudicada"),
+            ("cancelada", "Cancelada"),
+        ],
     )
 
 
@@ -205,7 +253,12 @@ def obtener(convocatoria_id: int):
                 "observaciones": convocatoria.observaciones,
             }
         )
-    return render_template("convocatorias/detalle.html", convocatoria=convocatoria)
+    return render_template(
+        "convocatorias/detalle.html",
+        convocatoria=convocatoria,
+        ong_puede_presentar_oferta=_ong_puede_presentar_oferta(convocatoria),
+        oferta_de_ong=_oferta_activa_de_ong(convocatoria),
+    )
 
 
 @blueprint_convocatorias.post("/<int:convocatoria_id>/cerrar")

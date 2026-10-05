@@ -24,7 +24,7 @@
         {% call dato("Estado") %}
           {% set es_activa = emergencia.estado.value == "activa" %}
           {{ insignia(
-              emergencia.estado.value|replace("_", " ")|capitalize,
+              emergencia.estado|etiqueta_estado_emergencia,
               "exito" if es_activa else "neutra"
           ) }}
         {% endcall %}

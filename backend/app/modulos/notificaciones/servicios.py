@@ -9,6 +9,33 @@ from app.extensiones import db
 from app.modulos.notificaciones.modelos import Notificacion
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
 
+ETIQUETA_POR_ESTADO_DE_EMERGENCIA = {
+    "registrada": "Registrada",
+    "en_evaluacion": "En revisión",
+    "activa": "Activa",
+    "finalizada": "Finalizada",
+    "cancelada": "Cancelada",
+}
+
+
+def notificar_cambio_estado_emergencia(emergencia, estado_anterior) -> Notificacion:
+    """Avisa al municipio que registró una emergencia sobre su nuevo estado."""
+    anterior = ETIQUETA_POR_ESTADO_DE_EMERGENCIA.get(
+        estado_anterior.value, estado_anterior.value
+    )
+    actual = ETIQUETA_POR_ESTADO_DE_EMERGENCIA.get(
+        emergencia.estado.value, emergencia.estado.value
+    )
+    return crear(
+        organizacion_id=emergencia.municipio_id,
+        titulo="Estado de emergencia actualizado",
+        mensaje=(
+            f"La emergencia «{emergencia.titulo}» cambió de estado: "
+            f"{anterior} → {actual}."
+        ),
+        enlace=f"/emergencias/{emergencia.id}",
+    )
+
 
 def crear(
     *, organizacion_id: int, titulo: str, mensaje: str, enlace: str
@@ -46,8 +73,49 @@ def notificar_convocatoria(convocatoria) -> list[Notificacion]:
         mensaje=(
             f"Se abrió una convocatoria para la emergencia «{convocatoria.emergencia.titulo}»."
         ),
-        enlace=f"/ofertas?convocatoria_id={convocatoria.id}",
+        enlace=f"/convocatorias/{convocatoria.id}",
     )
+
+
+def notificar_cierre_convocatoria(convocatoria) -> list[Notificacion]:
+    """Avisa el cierre al municipio, a las ONG y al centro coordinador."""
+    enlace = f"/convocatorias/{convocatoria.id}"
+    mensaje = (
+        f"Terminó el período de la convocatoria para la emergencia "
+        f"«{convocatoria.emergencia.titulo}». Estado final: "
+        f"{convocatoria.estado.value.capitalize()}."
+    )
+    notificaciones: list[Notificacion] = []
+    organizaciones_notificadas: set[int] = set()
+
+    destinatarios = []
+    if convocatoria.emergencia.municipio_id:
+        destinatarios.append(convocatoria.emergencia.municipio_id)
+    if convocatoria.coordinador.organizacion_id:
+        destinatarios.append(convocatoria.coordinador.organizacion_id)
+    destinatarios.extend(
+        organizacion.id
+        for organizacion in db.session.execute(
+            select(Organizacion).where(
+                Organizacion.tipo == TipoOrganizacion.ong,
+                Organizacion.activo.is_(True),
+            )
+        ).scalars()
+    )
+
+    for organizacion_id in destinatarios:
+        if organizacion_id in organizaciones_notificadas:
+            continue
+        organizaciones_notificadas.add(organizacion_id)
+        notificaciones.append(
+            crear(
+                organizacion_id=organizacion_id,
+                titulo="Convocatoria cerrada",
+                mensaje=mensaje,
+                enlace=enlace,
+            )
+        )
+    return notificaciones
 
 
 def listar_para_usuario(usuario_id: int, *, limite: int | None = None) -> list[Notificacion]:
