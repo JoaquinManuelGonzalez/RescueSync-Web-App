@@ -66,6 +66,7 @@ def espera_ms(intento: int) -> int:
         return 0
     return BACKOFF_BASE_MS * (BACKOFF_FACTOR ** (intento - 2))
 
+
 def ejecutar_solicitud(
     cliente: httpx.Client,
     *,
@@ -126,9 +127,7 @@ def ejecutar_solicitud(
             )
 
             if intento == cantidad_intentos:
-                raise ServicioExternoNoDisponible(
-                    detalle={"componente": componente}
-                )
+                raise ServicioExternoNoDisponible(detalle={"componente": componente})
 
             continue
 
@@ -166,6 +165,4 @@ def ejecutar_solicitud(
 
         return respuesta
 
-    raise ServicioExternoNoDisponible(
-        detalle={"componente": componente}
-    )
+    raise ServicioExternoNoDisponible(detalle={"componente": componente})
