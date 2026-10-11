@@ -57,14 +57,15 @@ def registrar_modulos(app: Flask) -> None:
         rutas_de_organizaciones.blueprint_organizaciones, url_prefix="/organizaciones"
     )
     app.register_blueprint(rutas_de_ofertas.blueprint_ofertas, url_prefix="/ofertas")
-    app.register_blueprint(rutas_de_convocatorias.blueprint_convocatorias, url_prefix="/convocatorias")
+    app.register_blueprint(
+        rutas_de_convocatorias.blueprint_convocatorias, url_prefix="/convocatorias"
+    )
     app.register_blueprint(rutas_de_emergencias.blueprint_emergencias, url_prefix="/emergencias")
     app.register_blueprint(rutas_de_lotes.blueprint_lotes, url_prefix="/lotes")
     app.register_blueprint(
         rutas_de_notificaciones.blueprint_notificaciones, url_prefix="/notificaciones"
     )
     servicios_de_notificaciones.registrar_contexto(app)
-
 
     # Cada pantalla con acceso propio en el menu declara su entrada junto a sus rutas; aca solo
     # se registra. Quien la ve lo decide su permiso (ver app/core/interfaz/navegacion.py).

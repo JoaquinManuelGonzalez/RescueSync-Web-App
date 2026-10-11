@@ -14,9 +14,7 @@ def _token_bonita_configurado() -> str:
     token = os.environ.get("BONITA_CALLBACK_TOKEN", "")
 
     if not token:
-        raise RuntimeError(
-            "BONITA_CALLBACK_TOKEN no está configurado."
-        )
+        raise RuntimeError("BONITA_CALLBACK_TOKEN no está configurado.")
 
     return token
 

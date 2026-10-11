@@ -275,9 +275,7 @@ def listar():
         convocatoria_id=convocatoria_id,
         pagina=resultado,
         filtros=request.args,
-        opciones_de_estado=[
-            (estado.value, estado.value.capitalize()) for estado in EstadoOferta
-        ],
+        opciones_de_estado=[(estado.value, estado.value.capitalize()) for estado in EstadoOferta],
     )
 
 
@@ -482,7 +480,7 @@ def obtener(oferta_id: int):
         for version in servicios.obtener_historial_de_oferta(oferta_id):
             try:
                 items = json.loads(version.items_snapshot)
-            except (TypeError, json.JSONDecodeError):
+            except TypeError, json.JSONDecodeError:
                 items = []
             historial.append(
                 {

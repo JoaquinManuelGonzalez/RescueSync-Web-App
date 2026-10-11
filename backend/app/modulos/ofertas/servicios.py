@@ -231,15 +231,12 @@ def _validar_totales_del_consorcio(
     if oferta is not None:
         for linea in oferta.items:
             if linea.organizacion_id != organizacion_id:
-                aportes_existentes[linea.lote_item_id] = (
-                    aportes_existentes.get(linea.lote_item_id, Decimal("0"))
-                    + Decimal(str(linea.cantidad_ofrecida))
-                )
+                aportes_existentes[linea.lote_item_id] = aportes_existentes.get(
+                    linea.lote_item_id, Decimal("0")
+                ) + Decimal(str(linea.cantidad_ofrecida))
 
     lote_items = db.session.execute(
-        select(LoteItem).where(
-            LoteItem.id.in_([item["lote_item_id"] for item in items_datos])
-        )
+        select(LoteItem).where(LoteItem.id.in_([item["lote_item_id"] for item in items_datos]))
     ).scalars()
     lote_item_por_id = {lote_item.id: lote_item for lote_item in lote_items}
     for item_dato in items_datos:
@@ -275,9 +272,7 @@ def _validar_organizaciones_conjuntas(
     return organizaciones
 
 
-def _validar_organizaciones_sin_oferta(
-    convocatoria_id: int, organizaciones_ids: list[int]
-) -> None:
+def _validar_organizaciones_sin_oferta(convocatoria_id: int, organizaciones_ids: list[int]) -> None:
     """Impide que una organización participe en más de una oferta activa."""
     if not organizaciones_ids:
         return
@@ -430,13 +425,9 @@ def _serializar_items_para_snapshot(oferta: Oferta) -> str:
     return json.dumps(items, ensure_ascii=False)
 
 
-def _guardar_snapshot_version(
-    oferta: Oferta, usuario_id: int | None = None
-) -> OfertaVersion:
+def _guardar_snapshot_version(oferta: Oferta, usuario_id: int | None = None) -> OfertaVersion:
     """Registra una snapshot histórica en OfertaVersion antes de aplicar modificaciones."""
-    estado_str = (
-        oferta.estado.value if hasattr(oferta.estado, "value") else str(oferta.estado)
-    )
+    estado_str = oferta.estado.value if hasattr(oferta.estado, "value") else str(oferta.estado)
     version_hist = OfertaVersion(
         oferta_id=oferta.id,
         version=oferta.version,

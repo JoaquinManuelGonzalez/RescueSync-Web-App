@@ -41,14 +41,9 @@ USUARIOS_DE_DEMOSTRACION: tuple[tuple[str, NombreRol, str | None], ...] = (
         "Centro Coordinador Regional Buenos Aires",
     ),
     ("operador@chascomus.test", NombreRol.OPERADOR_MUNICIPAL, "Municipio de Chascomús"),
-
     ("operador@bahia.test", NombreRol.OPERADOR_MUNICIPAL, "Municipalidad de Bahía Blanca"),
-
     ("operador@laplata.test", NombreRol.OPERADOR_MUNICIPAL, "Municipalidad de La Plata"),
-
     ("operador@pergamino.test", NombreRol.OPERADOR_MUNICIPAL, "Municipalidad de Pergamino"),
-    
-
     ("representante@cruzsolidaria.test", NombreRol.REPRESENTANTE_ONG, "Cruz Solidaria"),
     # Segunda cuenta de la misma ONG: es la que demuestra que varias personas operan en nombre
     # de una organizacion y ven y editan las mismas ofertas (hipotesis de la EPIC-19).

@@ -302,9 +302,10 @@ def test_oferta_conjunta_queda_pendiente_hasta_aceptacion(app, datos_base):
 
         assert aceptada.estado == EstadoOferta.presentada
         assert len(aceptada.items) == 2
-        assert {
-            linea.organizacion_id for linea in aceptada.items
-        } == {datos_base["ong1_id"], datos_base["ong2_id"]}
+        assert {linea.organizacion_id for linea in aceptada.items} == {
+            datos_base["ong1_id"],
+            datos_base["ong2_id"],
+        }
 
 
 def test_oferta_conjunta_no_supera_necesidad_acumulada(app, datos_base):
@@ -335,9 +336,7 @@ def test_oferta_conjunta_no_supera_necesidad_acumulada(app, datos_base):
                 oferta.id,
                 organizacion_id=datos_base["ong2_id"],
                 usuario_id=datos_base["usuario_id"],
-                items=[
-                    {"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1001}
-                ],
+                items=[{"lote_item_id": datos_base["lote_item1_id"], "cantidad_ofrecida": 1001}],
             )
 
         assert exc_info.value.codigo == "OFERTA_CONJUNTA_SUPERA_NECESIDAD"
@@ -725,9 +724,7 @@ def test_ofertas_con_invitacion_pendiente_no_se_envian_a_bonita(app, datos_base)
             organizaciones_ids=[datos_base["ong2_id"]],
         )
 
-        resultado = obtener_ofertas_consolidadas_para_bonita(
-            datos_base["convocatoria_abierta_id"]
-        )
+        resultado = obtener_ofertas_consolidadas_para_bonita(datos_base["convocatoria_abierta_id"])
 
         assert resultado["ofertas"] == []
 
@@ -792,6 +789,7 @@ def test_obtener_ofertas_consolidadas_suma_cantidades_mismo_recurso_en_consorcio
         # Dar inventario de agua también a ong2
         from app.modulos.emergencias.modelos import LoteItem
         from app.modulos.organizaciones.modelos import Inventario, InventarioItem
+
         lote_item1 = db.session.get(LoteItem, datos_base["lote_item1_id"])
         inventario_ong2 = Inventario.query.filter_by(organizacion_id=datos_base["ong2_id"]).first()
         db.session.add(

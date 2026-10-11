@@ -30,11 +30,15 @@ def sembrar_ofertas() -> list[ResultadoSemilla]:
     if organizacion is None:
         raise ValueError("La organización del representante demo no existe.")
 
-    oferta = db.session.execute(
-        select(Oferta)
-        .where(Oferta.convocatoria_id == convocatoria.id, Oferta.usuario_id == usuario.id)
-        .order_by(Oferta.id.asc())
-    ).scalars().first()
+    oferta = (
+        db.session.execute(
+            select(Oferta)
+            .where(Oferta.convocatoria_id == convocatoria.id, Oferta.usuario_id == usuario.id)
+            .order_by(Oferta.id.asc())
+        )
+        .scalars()
+        .first()
+    )
     oferta_creada = oferta is None
     if oferta is None:
         oferta = Oferta(

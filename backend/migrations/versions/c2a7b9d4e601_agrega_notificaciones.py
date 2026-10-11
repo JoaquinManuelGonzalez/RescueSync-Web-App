@@ -19,7 +19,12 @@ def upgrade():
         sa.Column("mensaje", sa.Text(), nullable=False),
         sa.Column("enlace", sa.String(length=500), nullable=False),
         sa.Column("leida", sa.Boolean(), nullable=False),
-        sa.Column("creado_en", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+        sa.Column(
+            "creado_en",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["organizacion_id"], ["organizacion.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )

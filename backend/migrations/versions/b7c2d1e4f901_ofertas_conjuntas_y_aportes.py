@@ -12,18 +12,25 @@ depends_on = None
 
 def upgrade():
     if op.get_bind().dialect.name == "postgresql":
-        op.execute(
-            "ALTER TYPE estado_oferta_enum ADD VALUE IF NOT EXISTS 'pendiente'"
-        )
+        op.execute("ALTER TYPE estado_oferta_enum ADD VALUE IF NOT EXISTS 'pendiente'")
     with op.batch_alter_table("oferta") as batch_op:
         batch_op.alter_column(
             "estado",
             existing_type=sa.Enum(
-                "presentada", "modificada", "retirada", "adjudicada", "rechazada",
+                "presentada",
+                "modificada",
+                "retirada",
+                "adjudicada",
+                "rechazada",
                 name="estado_oferta_enum",
             ),
             type_=sa.Enum(
-                "pendiente", "presentada", "modificada", "retirada", "adjudicada", "rechazada",
+                "pendiente",
+                "presentada",
+                "modificada",
+                "retirada",
+                "adjudicada",
+                "rechazada",
                 name="estado_oferta_enum",
             ),
             existing_nullable=False,

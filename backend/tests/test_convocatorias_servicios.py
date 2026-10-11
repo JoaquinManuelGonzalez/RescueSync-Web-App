@@ -32,9 +32,7 @@ from .conftest import EMAIL_COORDINADOR
 
 
 def test_parsear_fecha_cierre_interpreta_fecha_local_como_hora_de_argentina():
-    assert _parsear_fecha_cierre("2026-09-28", "12:00") == datetime(
-        2026, 9, 28, 15, 0, tzinfo=UTC
-    )
+    assert _parsear_fecha_cierre("2026-09-28", "12:00") == datetime(2026, 9, 28, 15, 0, tzinfo=UTC)
 
 
 def test_parsear_fecha_cierre_rechaza_fecha_que_no_llega_en_formato_iso():
@@ -115,11 +113,15 @@ def test_crear_convocatoria_publica_y_marca_todos_los_lotes(app, datos_convocato
         assert convocatoria.resumen_situacion == "Familias evacuadas por la crecida del río."
         assert convocatoria.fecha_inicio <= datetime.now(UTC).replace(tzinfo=None)
         assert convocatoria.fecha_cierre > convocatoria.fecha_inicio
-        estados = db.session.execute(
-            db.select(LoteNecesidad.estado)
-            .where(LoteNecesidad.id.in_(datos_convocatoria["lote_ids"]))
-            .order_by(LoteNecesidad.id)
-        ).scalars().all()
+        estados = (
+            db.session.execute(
+                db.select(LoteNecesidad.estado)
+                .where(LoteNecesidad.id.in_(datos_convocatoria["lote_ids"]))
+                .order_by(LoteNecesidad.id)
+            )
+            .scalars()
+            .all()
+        )
         assert estados == [EstadoLote.en_convocatoria, EstadoLote.en_convocatoria]
 
 
@@ -132,9 +134,7 @@ def test_crear_convocatoria_publica_y_marca_todos_los_lotes(app, datos_convocato
         ({"fecha_cierre": datetime.now(UTC) - timedelta(minutes=1)}, "fecha_cierre"),
     ],
 )
-def test_crear_convocatoria_rechaza_datos_invalidos(
-    app, datos_convocatoria, sobrescrituras, campo
-):
+def test_crear_convocatoria_rechaza_datos_invalidos(app, datos_convocatoria, sobrescrituras, campo):
     with app.app_context(), pytest.raises(SolicitudInvalida) as error:
         _crear(datos_convocatoria, **sobrescrituras)
 
@@ -225,9 +225,7 @@ def test_crear_convocatoria_exige_lotes_pendientes(app, datos_convocatoria):
             _crear(datos_convocatoria)
 
 
-def test_cerrar_convocatoria_habilita_una_ronda_nueva_con_lotes_nuevos(
-    app, datos_convocatoria
-):
+def test_cerrar_convocatoria_habilita_una_ronda_nueva_con_lotes_nuevos(app, datos_convocatoria):
     with app.app_context():
         convocatoria_anterior = _crear(datos_convocatoria)
         cerrar_convocatoria(convocatoria_anterior.id)
@@ -266,9 +264,7 @@ def test_vencimiento_cierra_convocatoria_y_devuelve_emergencia_a_evaluacion(
         convocatoria.fecha_cierre = datetime.now(UTC) - timedelta(minutes=1)
         db.session.commit()
 
-        cerradas = cerrar_convocatorias_vencidas(
-            emergencia_id=datos_convocatoria["emergencia_id"]
-        )
+        cerradas = cerrar_convocatorias_vencidas(emergencia_id=datos_convocatoria["emergencia_id"])
 
         emergencia = db.session.get(Emergencia, datos_convocatoria["emergencia_id"])
         assert cerradas == 1
@@ -281,9 +277,7 @@ def test_coordinador_puede_cerrar_convocatoria_desde_el_detalle(
 ):
     with app.app_context():
         convocatoria = db.session.scalar(
-            db.select(Convocatoria).where(
-                Convocatoria.observaciones == "SEED_DEMO_OFERTAS"
-            )
+            db.select(Convocatoria).where(Convocatoria.observaciones == "SEED_DEMO_OFERTAS")
         )
         assert convocatoria is not None
         convocatoria_id = convocatoria.id

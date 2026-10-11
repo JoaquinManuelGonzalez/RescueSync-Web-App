@@ -47,6 +47,7 @@ def _contexto_de_formulario() -> dict[str, Any]:
         "tipos_emergencia": list(TipoEmergencia),
     }
 
+
 def _formulario_con_error(error: ErrorDeAplicacion):
     flash(error.mensaje, "error")
     if isinstance(error.detalle, dict):
@@ -136,7 +137,7 @@ def crear_desde_formulario():
             zona_afectada=request.form.get("zona_afectada", ""),
             municipio_id=current_user.organizacion_id,
             usuario_id=current_user.id,
-            tipo_emergencia=request.form.get("tipo_emergencia", "")
+            tipo_emergencia=request.form.get("tipo_emergencia", ""),
         )
     except ErrorDeAplicacion as error:
         if pide_json():

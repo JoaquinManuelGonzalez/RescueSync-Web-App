@@ -162,8 +162,12 @@ def editar(usuario_id: int):
     formulario = construir_formulario(FormularioEdicionDeUsuario)
     validar_o_fallar(formulario)
     usuario = servicios.editar_usuario(usuario_id, ...)
-    return redirigir("usuarios.ver", "Cambios guardados.",
-                     datos_json=servicios.a_diccionario(usuario), usuario_id=usuario.id)
+    return redirigir(
+        "usuarios.ver",
+        "Cambios guardados.",
+        datos_json=servicios.a_diccionario(usuario),
+        usuario_id=usuario.id,
+    )
 ```
 
 - **`redirigir(endpoint, mensaje, ...)`**: después de un POST exitoso, redirect con mensaje flash

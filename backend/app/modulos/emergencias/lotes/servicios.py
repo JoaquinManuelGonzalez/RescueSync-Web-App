@@ -37,9 +37,7 @@ def obtener_emergencia(emergencia_id: int) -> Emergencia:
     cerrar_convocatorias_vencidas(emergencia_id=emergencia_id)
     emergencia = db.session.get(Emergencia, emergencia_id)
     if not emergencia:
-        raise RecursoNoEncontrado(
-            f"No encontramos la emergencia con id {emergencia_id}."
-        )
+        raise RecursoNoEncontrado(f"No encontramos la emergencia con id {emergencia_id}.")
     return emergencia
 
 
@@ -54,11 +52,7 @@ def _validar_emergencia_para_lotes(emergencia: Emergencia) -> None:
 
 def listar_items() -> list[Item]:
     """Catálogo maestro de ítems, ordenado por categoría y nombre."""
-    return list(
-        db.session.scalars(
-            select(Item).order_by(Item.categoria.asc(), Item.nombre.asc())
-        )
-    )
+    return list(db.session.scalars(select(Item).order_by(Item.categoria.asc(), Item.nombre.asc())))
 
 
 def _parsear_cantidad(valor: str | int | float | Decimal | None) -> int:
@@ -85,7 +79,6 @@ def _parsear_cantidad(valor: str | int | float | Decimal | None) -> int:
             detalle={"campo": "cantidad_solicitada"},
         )
     return int(cantidad)
-
 
 
 def crear_lotes(
@@ -158,9 +151,7 @@ def crear_lotes(
 
     estado_anterior = emergencia.estado
     emergencia.estado = EstadoEmergencia.en_evaluacion
-    servicios_de_notificaciones.notificar_cambio_estado_emergencia(
-        emergencia, estado_anterior
-    )
+    servicios_de_notificaciones.notificar_cambio_estado_emergencia(emergencia, estado_anterior)
 
     db.session.commit()
 
@@ -201,7 +192,7 @@ def listar_lotes() -> list[LoteNecesidad]:
 
 def obtener_lote(lote_id: int) -> LoteNecesidad:
     """
-        Recupera un lote con sus ítems cargados.
+    Recupera un lote con sus ítems cargados.
     """
     lote = db.session.scalar(
         select(LoteNecesidad)
@@ -209,18 +200,16 @@ def obtener_lote(lote_id: int) -> LoteNecesidad:
         .options(selectinload(LoteNecesidad.lote_items).selectinload(LoteItem.item))
     )
     if not lote:
-        raise RecursoNoEncontrado(
-            f"No encontramos el lote con id {lote_id}."
-        )
+        raise RecursoNoEncontrado(f"No encontramos el lote con id {lote_id}.")
     return lote
 
 
 def _validar_edicion_permitida(lote: LoteNecesidad) -> None:
     """
-        Reglas de negocio para permitir la edición de un lote:
-        1. La Emergencia debe seguir en un estado editable.
-        2. El Lote debe estar en estado pendiente.
-        3. Lote debe tener su Convocatoria en estado "borrador", o no tener Convocatoria asignada.
+    Reglas de negocio para permitir la edición de un lote:
+    1. La Emergencia debe seguir en un estado editable.
+    2. El Lote debe estar en estado pendiente.
+    3. Lote debe tener su Convocatoria en estado "borrador", o no tener Convocatoria asignada.
     """
 
     # Regla 1
@@ -230,8 +219,7 @@ def _validar_edicion_permitida(lote: LoteNecesidad) -> None:
     ):
         raise ReglaDeNegocioIncumplida(
             "No se pueden editar lotes de una emergencia finalizada o cancelada.",
-            detalle={"emergencia_id": lote.emergencia_id,
-                     "estado": lote.emergencia.estado.value},
+            detalle={"emergencia_id": lote.emergencia_id, "estado": lote.emergencia.estado.value},
         )
 
     # Regla 2
@@ -255,8 +243,7 @@ def _validar_edicion_permitida(lote: LoteNecesidad) -> None:
     # Regla 3
     if lote.convocatoria_id is not None and lote.convocatoria.estado != EstadoConvocatoria.borrador:
         raise ReglaDeNegocioIncumplida(
-            "Existe una convocatoria abierta para esta emergencia; "
-            "no se pueden editar sus lotes.",
+            "Existe una convocatoria abierta para esta emergencia; no se pueden editar sus lotes.",
             detalle={"emergencia_id": lote.emergencia_id},
         )
 
@@ -268,8 +255,8 @@ def editar_lote(
     items: list[dict],
 ) -> LoteNecesidad:
     """
-        Actualiza un lote existente (descripción + ítems) validando ciertas reglas.
-        Reemplaza por completo los LoteItem del lote.(*)
+    Actualiza un lote existente (descripción + ítems) validando ciertas reglas.
+    Reemplaza por completo los LoteItem del lote.(*)
     """
     lote = obtener_lote(lote_id)
     _validar_edicion_permitida(lote)

@@ -28,7 +28,7 @@ EMERGENCIAS: list[dict] = [
         "estado": EstadoEmergencia.registrada,
         "municipio_nombre": "Municipio de Chascomús",
         "usuario_email": "operador@chascomus.test",
-        "tipo_emergencia" : TipoEmergencia.otros,
+        "tipo_emergencia": TipoEmergencia.otros,
         # "bonita_case_id": "111",
     },
     {
@@ -45,7 +45,7 @@ EMERGENCIAS: list[dict] = [
         "estado": EstadoEmergencia.registrada,
         "municipio_nombre": "Municipalidad de Bahía Blanca",
         "usuario_email": "operador@bahia.test",
-        "tipo_emergencia" : TipoEmergencia.inundacion,
+        "tipo_emergencia": TipoEmergencia.inundacion,
         # "bonita_case_id": "112",
     },
     {
@@ -62,9 +62,9 @@ EMERGENCIAS: list[dict] = [
         "estado": EstadoEmergencia.registrada,
         "municipio_nombre": "Municipalidad de La Plata",
         "usuario_email": "operador@laplata.test",
-        "tipo_emergencia" : TipoEmergencia.incendio,
+        "tipo_emergencia": TipoEmergencia.incendio,
         # "bonita_case_id": "113",
-    }
+    },
 ]
 
 

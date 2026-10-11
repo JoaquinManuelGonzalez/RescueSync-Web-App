@@ -164,9 +164,7 @@ def test_crear_oferta_sin_sesion_da_401(cliente_sembrado, cabecera_csrf, datos_o
     assert resp.get_json()["error"]["codigo"] == "NO_AUTENTICADO"
 
 
-def test_ong_puede_seleccionar_convocatoria_vigente(
-    cliente_sembrado, ingresar, datos_ofertas_web
-):
+def test_ong_puede_seleccionar_convocatoria_vigente(cliente_sembrado, ingresar, datos_ofertas_web):
     ingresar(EMAIL_REPRESENTANTE)
 
     respuesta = cliente_sembrado.get(
@@ -211,9 +209,7 @@ def test_listado_de_ofertas_admite_busqueda_por_emergencia(
     assert "Inundación Ribereña" in respuesta.get_data(as_text=True)
 
 
-def test_ong_puede_ver_convocatorias_cerradas(
-    app, cliente_sembrado, ingresar, datos_ofertas_web
-):
+def test_ong_puede_ver_convocatorias_cerradas(app, cliente_sembrado, ingresar, datos_ofertas_web):
     with app.app_context():
         convocatoria_cerrada = Convocatoria(
             emergencia_id=datos_ofertas_web["emergencia_id"],
@@ -617,9 +613,7 @@ def test_integracion_bonita_consolidadas_autenticacion(cliente_sembrado, datos_o
     assert resp_x_token.status_code == 200
 
 
-def test_historial_oferta_ruta(
-    cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
-):
+def test_historial_oferta_ruta(cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web):
     """Verifica que el endpoint GET /ofertas/<id>/historial retorne las versiones anteriores."""
     ingresar(EMAIL_REPRESENTANTE)
 
@@ -720,9 +714,7 @@ def _asignar_emergencia_a_municipio(app, emergencia_id: int, *, propio: bool) ->
 def test_operador_ve_convocatorias_y_ofertas_de_su_municipio(
     app, cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
 ):
-    oferta_id = _crear_oferta_como_ong(
-        cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
-    )
+    oferta_id = _crear_oferta_como_ong(cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web)
     _asignar_emergencia_a_municipio(app, datos_ofertas_web["emergencia_id"], propio=True)
     convocatoria_id = datos_ofertas_web["convocatoria_id"]
 
@@ -742,9 +734,7 @@ def test_operador_ve_convocatorias_y_ofertas_de_su_municipio(
 def test_operador_no_ve_convocatorias_ni_ofertas_de_otro_municipio(
     app, cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
 ):
-    oferta_id = _crear_oferta_como_ong(
-        cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
-    )
+    oferta_id = _crear_oferta_como_ong(cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web)
     _asignar_emergencia_a_municipio(app, datos_ofertas_web["emergencia_id"], propio=False)
     convocatoria_id = datos_ofertas_web["convocatoria_id"]
     emergencia_id = datos_ofertas_web["emergencia_id"]
@@ -769,9 +759,7 @@ def test_operador_no_ve_convocatorias_ni_ofertas_de_otro_municipio(
 def test_coordinador_sigue_viendo_convocatorias_y_ofertas_de_todos_los_municipios(
     app, cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
 ):
-    oferta_id = _crear_oferta_como_ong(
-        cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web
-    )
+    oferta_id = _crear_oferta_como_ong(cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web)
     _asignar_emergencia_a_municipio(app, datos_ofertas_web["emergencia_id"], propio=False)
 
     assert ingresar(EMAIL_COORDINADOR).status_code == 200
