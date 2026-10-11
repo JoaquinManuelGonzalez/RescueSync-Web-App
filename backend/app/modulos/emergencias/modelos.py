@@ -23,6 +23,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql.sqltypes import Boolean
 
 from app.extensiones import db
 
@@ -50,12 +51,14 @@ class EstadoEmergencia(enum.Enum):
     finalizada = "finalizada"
     cancelada = "cancelada"
 
+
 class TipoEmergencia(enum.Enum):
     incendio = "incendio"
     inundacion = "inundacion"
     terremoto = "terremoto"
     epidemia = "epidemia"
     otros = "otros"
+
 
 class TipoNecesidad(enum.Enum):
     """Categorías estándar para los recursos e ítems de ayuda."""
@@ -199,6 +202,8 @@ class Item(db.Model):
         comment="Especificaciones o requerimientos técnicos del ítem.",
     )
 
+    consumible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
     # --- relaciones -----------------------------------------------------------
     lote_items: Mapped[list[LoteItem]] = relationship(
         "LoteItem",
@@ -249,9 +254,7 @@ class LoteNecesidad(db.Model):
 
     # --- relaciones -----------------------------------------------------------
     emergencia: Mapped[Emergencia] = relationship("Emergencia", back_populates="lotes")
-    convocatoria: Mapped[Convocatoria | None] = relationship(
-        "Convocatoria", back_populates="lotes"
-    )
+    convocatoria: Mapped[Convocatoria | None] = relationship("Convocatoria", back_populates="lotes")
     lote_items: Mapped[list[LoteItem]] = relationship(
         "LoteItem",
         back_populates="lote",

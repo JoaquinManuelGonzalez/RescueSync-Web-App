@@ -43,6 +43,26 @@ class EstadoOferta(enum.Enum):
     rechazada = "rechazada"
 
 
+class TipoAsignacion(enum.Enum):
+    """
+    Tipo de asignación del item de una oferta luego de ser validada por el Sistema Nacional.
+    * PENDIENTE: Aún no fue revisada por el Sistema Nacional.
+    * APOYO: Aprobado como lote de apoyo secundario.
+    * PRINCIPAL: Aprobado como lote principal.
+    * RECHAZADA: Rechazada completamente por el Sistema Nacional.
+
+    Nota:
+    "Principal" implica que una ONG tiene stock y certificación para cubrir ese lote.
+    "Apoyo" implica que una ONG tiene stock pero no tiene certificación vigente.
+    "Rechazada" implica que una ONG no tiene stock para ofrecer.
+    """
+
+    pendiente = "pendiente"
+    apoyo = "apoyo"
+    principal = "principal"
+    rechazada = "rechazada"
+
+
 class Oferta(db.Model):
     """Oferta presentada por una o más ONGs (consorcio) para una convocatoria activa."""
 
@@ -217,7 +237,11 @@ class OfertaLinea(db.Model):
         index=True,
         comment="ONG responsable de esta línea dentro de la oferta conjunta.",
     )
-
+    tipo_asignacion: Mapped[TipoAsignacion] = mapped_column(
+        Enum(TipoAsignacion, name="tipo_asignacion_enum"),
+        default=TipoAsignacion.pendiente,
+        nullable=False,
+    )
     cantidad_ofrecida: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -290,7 +314,4 @@ class OfertaVersion(db.Model):
     oferta: Mapped[Oferta] = relationship("Oferta", back_populates="versiones")
 
     def __repr__(self) -> str:
-        return (
-            f"<OfertaVersion id={self.id} oferta_id={self.oferta_id} "
-            f"version={self.version}>"
-        )
+        return f"<OfertaVersion id={self.id} oferta_id={self.oferta_id} version={self.version}>"
