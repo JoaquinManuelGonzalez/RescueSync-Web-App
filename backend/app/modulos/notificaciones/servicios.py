@@ -20,26 +20,17 @@ ETIQUETA_POR_ESTADO_DE_EMERGENCIA = {
 
 def notificar_cambio_estado_emergencia(emergencia, estado_anterior) -> Notificacion:
     """Avisa al municipio que registró una emergencia sobre su nuevo estado."""
-    anterior = ETIQUETA_POR_ESTADO_DE_EMERGENCIA.get(
-        estado_anterior.value, estado_anterior.value
-    )
-    actual = ETIQUETA_POR_ESTADO_DE_EMERGENCIA.get(
-        emergencia.estado.value, emergencia.estado.value
-    )
+    anterior = ETIQUETA_POR_ESTADO_DE_EMERGENCIA.get(estado_anterior.value, estado_anterior.value)
+    actual = ETIQUETA_POR_ESTADO_DE_EMERGENCIA.get(emergencia.estado.value, emergencia.estado.value)
     return crear(
         organizacion_id=emergencia.municipio_id,
         titulo="Estado de emergencia actualizado",
-        mensaje=(
-            f"La emergencia «{emergencia.titulo}» cambió de estado: "
-            f"{anterior} → {actual}."
-        ),
+        mensaje=(f"La emergencia «{emergencia.titulo}» cambió de estado: {anterior} → {actual}."),
         enlace=f"/emergencias/{emergencia.id}",
     )
 
 
-def crear(
-    *, organizacion_id: int, titulo: str, mensaje: str, enlace: str
-) -> Notificacion:
+def crear(*, organizacion_id: int, titulo: str, mensaje: str, enlace: str) -> Notificacion:
     """Crea un aviso compartido por todos los usuarios de una organización."""
     notificacion = Notificacion(
         organizacion_id=organizacion_id,

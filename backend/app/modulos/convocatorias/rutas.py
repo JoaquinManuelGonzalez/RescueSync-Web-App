@@ -44,10 +44,7 @@ def _es_operador_municipal() -> bool:
 
 
 def _oferta_activa_de_ong(convocatoria: Convocatoria) -> Oferta | None:
-    if (
-        not current_user.tiene_rol("representante_ong")
-        or current_user.organizacion_id is None
-    ):
+    if not current_user.tiene_rol("representante_ong") or current_user.organizacion_id is None:
         return None
     return db.session.execute(
         select(Oferta)
@@ -113,9 +110,7 @@ def _parsear_fecha_cierre(fecha_valor: str | None, hora_valor: str | None) -> da
             detalle={"campo": "hora_cierre"},
         )
     try:
-        fecha = datetime.strptime(
-            f"{fecha_valor.strip()} {hora_valor.strip()}", "%Y-%m-%d %H:%M"
-        )
+        fecha = datetime.strptime(f"{fecha_valor.strip()} {hora_valor.strip()}", "%Y-%m-%d %H:%M")
     except ValueError as error:
         raise SolicitudInvalida(
             "Ingresá una fecha y una hora válidas.",
@@ -148,19 +143,21 @@ def listar():
         )
         convocatorias = resultado.elementos
     if pide_json():
-        return jsonify({
-            "convocatorias": [
-                {
-                    "id": convocatoria.id,
-                    "emergencia_id": convocatoria.emergencia_id,
-                    "fecha_inicio": convocatoria.fecha_inicio.isoformat(),
-                    "fecha_cierre": convocatoria.fecha_cierre.isoformat(),
-                    "estado": convocatoria.estado.value,
-                    "resumen_situacion": convocatoria.resumen_situacion,
-                }
-                for convocatoria in convocatorias
-            ]
-        })
+        return jsonify(
+            {
+                "convocatorias": [
+                    {
+                        "id": convocatoria.id,
+                        "emergencia_id": convocatoria.emergencia_id,
+                        "fecha_inicio": convocatoria.fecha_inicio.isoformat(),
+                        "fecha_cierre": convocatoria.fecha_cierre.isoformat(),
+                        "estado": convocatoria.estado.value,
+                        "resumen_situacion": convocatoria.resumen_situacion,
+                    }
+                    for convocatoria in convocatorias
+                ]
+            }
+        )
     return render_template(
         "convocatorias/listado.html",
         convocatorias=convocatorias,

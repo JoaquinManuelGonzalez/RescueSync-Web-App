@@ -13,8 +13,8 @@ from app.core.errores import (
     ReglaDeNegocioIncumplida,
     SolicitudInvalida,
 )
-from app.core.logging import registrar_evento
 from app.core.interfaz.paginacion import Pagina, paginar
+from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 from app.modulos.emergencias.modelos import (
@@ -51,9 +51,7 @@ def listar_convocatorias(
     *, estado: str | None = None, texto: str | None = None, municipio_id: int | None = None
 ) -> list[Convocatoria]:
     """Lista convocatorias aplicando los filtros de la pantalla."""
-    consulta = _consulta_de_convocatorias(
-        estado=estado, texto=texto, municipio_id=municipio_id
-    )
+    consulta = _consulta_de_convocatorias(estado=estado, texto=texto, municipio_id=municipio_id)
     return list(db.session.execute(consulta).scalars())
 
 
@@ -67,9 +65,7 @@ def paginar_convocatorias(
 ) -> Pagina[Convocatoria]:
     """Obtiene una página de convocatorias aplicando los mismos filtros."""
     return paginar(
-        _consulta_de_convocatorias(
-            estado=estado, texto=texto, municipio_id=municipio_id
-        ),
+        _consulta_de_convocatorias(estado=estado, texto=texto, municipio_id=municipio_id),
         pagina,
         por_pagina,
     )
@@ -285,9 +281,7 @@ def crear_convocatoria(
         lote.convocatoria = convocatoria
         lote.estado = EstadoLote.en_convocatoria
     servicios_de_notificaciones.notificar_convocatoria(convocatoria)
-    servicios_de_notificaciones.notificar_cambio_estado_emergencia(
-        emergencia, estado_anterior
-    )
+    servicios_de_notificaciones.notificar_cambio_estado_emergencia(emergencia, estado_anterior)
 
     try:
         db.session.commit()

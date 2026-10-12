@@ -38,6 +38,5 @@ class Notificacion(db.Model):
 
     def __repr__(self) -> str:
         return (
-            f"<Notificacion id={self.id} organizacion_id={self.organizacion_id} "
-            f"leida={self.leida}>"
+            f"<Notificacion id={self.id} organizacion_id={self.organizacion_id} leida={self.leida}>"
         )

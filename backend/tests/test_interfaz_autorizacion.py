@@ -80,9 +80,7 @@ def test_el_hub_muestra_solo_lo_que_el_perfil_puede_usar(
     assert ('href="/organizaciones"' in cuerpo) is es_administrador
 
 
-def test_el_operador_municipal_ve_la_pantalla_de_ofertas(
-    ingresar_por_formulario, navegar
-) -> None:
+def test_el_operador_municipal_ve_la_pantalla_de_ofertas(ingresar_por_formulario, navegar) -> None:
     ingresar_por_formulario(EMAIL_OPERADOR)
 
     cuerpo = _texto(navegar("/inicio"))

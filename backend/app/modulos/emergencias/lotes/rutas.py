@@ -71,11 +71,11 @@ def _contexto_de_formulario_edicion(lote, valores_items=None) -> dict[str, Any]:
 
 def _extraer_items_del_formulario() -> list[dict]:
     """
-        Extrae las filas de ítems desde el form.
+    Extrae las filas de ítems desde el form.
 
-        El template envía arrays con nombres:
-            items[0][item_id], items[0][cantidad_solicitada], items[0][observaciones]
-            items[1][item_id], ...
+    El template envía arrays con nombres:
+        items[0][item_id], items[0][cantidad_solicitada], items[0][observaciones]
+        items[1][item_id], ...
     """
     items: list[dict] = []
     indice = 0
@@ -99,7 +99,7 @@ def _extraer_items_del_formulario() -> list[dict]:
 @requiere_permiso(LOTES_CREAR)
 def formulario_de_alta(emergencia_id: int):
     """
-        Pantalla para cargar los ítems del nuevo lote.
+    Pantalla para cargar los ítems del nuevo lote.
     """
     emergencia = servicios.obtener_emergencia(emergencia_id)
     return render_template(
@@ -114,7 +114,7 @@ def formulario_de_alta(emergencia_id: int):
 @requiere_permiso(LOTES_CREAR)
 def crear_desde_formulario(emergencia_id: int):
     """
-        Persiste los lotes enviados desde el formulario.
+    Persiste los lotes enviados desde el formulario.
     """
     emergencia = servicios.obtener_emergencia(emergencia_id)
     try:
@@ -149,7 +149,7 @@ def crear_desde_formulario(emergencia_id: int):
 @requiere_permiso(LOTES_EDITAR)
 def formulario_de_edicion(emergencia_id: int, lote_id: int):
     """
-        Pantalla para editar un lote que aún no tiene convocatoria asociada.
+    Pantalla para editar un lote que aún no tiene convocatoria asociada.
     """
     lote = servicios.obtener_lote(lote_id)
     if lote.emergencia_id != emergencia_id:
@@ -177,7 +177,7 @@ def formulario_de_edicion(emergencia_id: int, lote_id: int):
 @requiere_permiso(LOTES_EDITAR)
 def editar_desde_formulario(emergencia_id: int, lote_id: int):
     """
-        Persiste los cambios de un lote enviados desde el formulario de edición.
+    Persiste los cambios de un lote enviados desde el formulario de edición.
     """
     lote = servicios.obtener_lote(lote_id)
     if lote.emergencia_id != emergencia_id:

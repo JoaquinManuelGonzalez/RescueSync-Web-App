@@ -80,10 +80,10 @@ Se declara el permiso. Eso es todo:
 from app.core.acceso.autorizacion import requiere_permiso
 from app.core.acceso.permisos import EMERGENCIAS_CREAR
 
+
 @blueprint_emergencias.post("/emergencias")
 @requiere_permiso(EMERGENCIAS_CREAR)
-def crear():
-    ...
+def crear(): ...
 ```
 
 El decorador va **debajo** del de la ruta. Hay tres:

@@ -38,9 +38,7 @@ def test_un_aviso_se_comparte_y_se_marca_leido_por_la_organizacion(
         assert db.session.get(Notificacion, aviso_id).leida is True
 
 
-def test_los_avisos_de_otra_organizacion_no_se_exponen(
-    cliente_sembrado, ingresar, navegar
-) -> None:
+def test_los_avisos_de_otra_organizacion_no_se_exponen(cliente_sembrado, ingresar, navegar) -> None:
     with cliente_sembrado.application.app_context():
         centro = Organizacion.query.filter_by(
             tipo=TipoOrganizacion.centro_coordinador_regional
@@ -96,9 +94,7 @@ def test_una_convocatoria_se_notifica_a_todas_las_ong_activas(app, base_de_datos
         avisos_ong = [aviso for aviso in avisos if aviso.organizacion_id in ong_ids]
         assert {aviso.organizacion_id for aviso in avisos_ong} == ong_ids
         assert all(aviso.titulo == "Nueva convocatoria disponible" for aviso in avisos_ong)
-        assert all(
-            aviso.enlace == f"/convocatorias/{convocatoria.id}" for aviso in avisos_ong
-        )
+        assert all(aviso.enlace == f"/convocatorias/{convocatoria.id}" for aviso in avisos_ong)
 
 
 def test_el_cierre_de_convocatoria_notifica_a_municipio_ong_y_coordinador(
