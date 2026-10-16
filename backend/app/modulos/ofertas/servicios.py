@@ -792,6 +792,7 @@ def obtener_ofertas_consolidadas_para_bonita(convocatoria_id: int) -> dict[str, 
             {
                 "id": miembro.organizacion_id,
                 "nombre": miembro.organizacion.nombre,
+                "identificador_nacional": miembro.organizacion.identificador_nacional,
                 "rol": miembro.rol_consorcio,
             }
             for miembro in sorted(
@@ -821,8 +822,9 @@ def obtener_ofertas_consolidadas_para_bonita(convocatoria_id: int) -> dict[str, 
             datos_item["cantidad_total"] += cantidad
             datos_item["aportes"].append(
                 {
-                    "organizacion_id": organizacion.id,
                     "cantidad": cantidad,
+                    "identificador_nacional": organizacion.identificador_nacional,
+                    "organizacion_id": organizacion.id,
                 }
             )
 
@@ -831,27 +833,31 @@ def obtener_ofertas_consolidadas_para_bonita(convocatoria_id: int) -> dict[str, 
             item = datos["item"]
             items_json.append(
                 {
+                    "aportes": sorted(
+                        datos["aportes"],
+                        key=lambda aporte: aporte["organizacion_id"],
+                    ),
+                    "cantidad_total": datos["cantidad_total"],
+                    "codigo_recurso": item.codigo_recurso,
                     "lote_item_id": lote_item_id,
                     "tipo_recurso": item.categoria.value,
-                    "cantidad_total": datos["cantidad_total"],
                     "unidad": item.unidad_medida,
-                    "aportes": sorted(
-                        datos["aportes"], key=lambda aporte: aporte["organizacion_id"]
-                    ),
                 }
             )
 
         dato_oferta = {
-            "oferta_id": oferta.id,
-            "organizaciones": organizaciones_json,
             "fecha_creacion": fecha_creacion_iso,
             "items": items_json,
+            "oferta_id": oferta.id,
+            "organizaciones": organizaciones_json,
+            "version": oferta.version,
         }
         ofertas_json.append(dato_oferta)
 
     return {
         "convocatoria_id": convocatoria.id,
         "emergencia_id": convocatoria.emergencia_id,
+        "nivel_gravedad": convocatoria.emergencia.nivel_gravedad.value.upper(),
         "ventana_cerrada_en": _formatear_fecha_iso(convocatoria.fecha_cierre),
         "ofertas": ofertas_json,
     }

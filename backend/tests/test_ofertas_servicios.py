@@ -66,11 +66,13 @@ def datos_base(app):
         ong1 = Organizacion(
             nombre="Cruz Solidaria",
             tipo=TipoOrganizacion.ong,
+            identificador_nacional="30-65432198-7",
             activo=True,
         )
         ong2 = Organizacion(
             nombre="Manos Unidas",
             tipo=TipoOrganizacion.ong,
+            identificador_nacional="30-65432199-5",
             activo=True,
         )
         municipio = Organizacion(
@@ -96,11 +98,13 @@ def datos_base(app):
 
         # Item del catálogo y Lote
         item_agua = Item(
+            codigo_recurso="RSR-AGUA_POTABLE",
             nombre="Agua potable",
             categoria=TipoNecesidad.agua,
             unidad_medida="litros",
         )
         item_frazadas = Item(
+            codigo_recurso="RSR-KITS_DE_ABRIGO",
             nombre="Kits de abrigo",
             categoria=TipoNecesidad.abrigo,
             unidad_medida="unidades",
@@ -671,8 +675,17 @@ def test_obtener_ofertas_consolidadas_para_bonita(app, datos_base):
 
         assert resultado["convocatoria_id"] == datos_base["convocatoria_abierta_id"]
         assert resultado["emergencia_id"] == datos_base["emergencia_id"]
+        assert resultado["nivel_gravedad"] == "ALTA"
         assert "ventana_cerrada_en" in resultado
         assert len(resultado["ofertas"]) == 2
+
+        assert list(resultado["ofertas"][0]) == [
+            "fecha_creacion",
+            "items",
+            "oferta_id",
+            "organizaciones",
+            "version",
+        ]
 
         of1 = next(
             oferta
@@ -680,20 +693,28 @@ def test_obtener_ofertas_consolidadas_para_bonita(app, datos_base):
             if oferta["organizaciones"][0]["id"] == datos_base["ong1_id"]
         )
         assert of1["organizaciones"] == [
-            {"id": datos_base["ong1_id"], "nombre": "Cruz Solidaria", "rol": "lider"}
+            {
+                "id": datos_base["ong1_id"],
+                "nombre": "Cruz Solidaria",
+                "identificador_nacional": "30-65432198-7",
+                "rol": "lider",
+            }
         ]
+        assert of1["version"] == 1
         assert of1["items"] == [
             {
-                "lote_item_id": datos_base["lote_item1_id"],
-                "tipo_recurso": "agua",
-                "cantidad_total": 2000,
-                "unidad": "litros",
                 "aportes": [
                     {
-                        "organizacion_id": datos_base["ong1_id"],
                         "cantidad": 2000,
+                        "identificador_nacional": "30-65432198-7",
+                        "organizacion_id": datos_base["ong1_id"],
                     }
                 ],
+                "cantidad_total": 2000,
+                "codigo_recurso": "RSR-AGUA_POTABLE",
+                "lote_item_id": datos_base["lote_item1_id"],
+                "tipo_recurso": "agua",
+                "unidad": "litros",
             }
         ]
         assert "es_consorcio" not in of1
@@ -705,9 +726,16 @@ def test_obtener_ofertas_consolidadas_para_bonita(app, datos_base):
             if oferta["organizaciones"][0]["id"] == datos_base["ong2_id"]
         )
         assert of2["organizaciones"] == [
-            {"id": datos_base["ong2_id"], "nombre": "Manos Unidas", "rol": "lider"}
+            {
+                "id": datos_base["ong2_id"],
+                "nombre": "Manos Unidas",
+                "identificador_nacional": "30-65432199-5",
+                "rol": "lider",
+            }
         ]
+        assert of2["version"] == 1
         assert of2["items"][0]["tipo_recurso"] == "abrigo"
+        assert of2["items"][0]["codigo_recurso"] == "RSR-KITS_DE_ABRIGO"
         assert of2["items"][0]["cantidad_total"] == 350
         assert of2["items"][0]["unidad"] == "unidades"
         assert "es_consorcio" not in of2
@@ -756,28 +784,43 @@ def test_obtener_ofertas_consolidadas_para_bonita_con_consorcio(app, datos_base)
         assert len(ofertas) == 1
         oferta_json = ofertas[0]
         assert oferta_json["oferta_id"] == oferta_conjunta.id
+        assert oferta_json["version"] == oferta_conjunta.version
         assert oferta_json["organizaciones"] == [
-            {"id": datos_base["ong1_id"], "nombre": "Cruz Solidaria", "rol": "lider"},
-            {"id": datos_base["ong2_id"], "nombre": "Manos Unidas", "rol": "aportante"},
+            {
+                "id": datos_base["ong1_id"],
+                "nombre": "Cruz Solidaria",
+                "identificador_nacional": "30-65432198-7",
+                "rol": "lider",
+            },
+            {
+                "id": datos_base["ong2_id"],
+                "nombre": "Manos Unidas",
+                "identificador_nacional": "30-65432199-5",
+                "rol": "aportante",
+            },
         ]
         assert "es_consorcio" not in oferta_json
         assert "consorcio_con" not in oferta_json
         assert len(oferta_json["items"]) == 2
 
         item_agua = next(i for i in oferta_json["items"] if i["tipo_recurso"] == "agua")
+        assert item_agua["codigo_recurso"] == "RSR-AGUA_POTABLE"
         assert item_agua["cantidad_total"] == 1000
         assert item_agua["aportes"] == [
             {
                 "organizacion_id": datos_base["ong1_id"],
+                "identificador_nacional": "30-65432198-7",
                 "cantidad": 1000,
             }
         ]
 
         item_abrigo = next(i for i in oferta_json["items"] if i["tipo_recurso"] == "abrigo")
+        assert item_abrigo["codigo_recurso"] == "RSR-KITS_DE_ABRIGO"
         assert item_abrigo["cantidad_total"] == 200
         assert item_abrigo["aportes"] == [
             {
                 "organizacion_id": datos_base["ong2_id"],
+                "identificador_nacional": "30-65432199-5",
                 "cantidad": 200,
             }
         ]
@@ -829,10 +872,12 @@ def test_obtener_ofertas_consolidadas_suma_cantidades_mismo_recurso_en_consorcio
         assert item_agua["aportes"] == [
             {
                 "organizacion_id": datos_base["ong1_id"],
+                "identificador_nacional": "30-65432198-7",
                 "cantidad": 1000,
             },
             {
                 "organizacion_id": datos_base["ong2_id"],
+                "identificador_nacional": "30-65432199-5",
                 "cantidad": 500,
             },
         ]
