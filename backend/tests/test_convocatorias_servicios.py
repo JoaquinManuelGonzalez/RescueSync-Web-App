@@ -171,6 +171,7 @@ def test_crear_lote_pasa_emergencia_registrada_a_revision(app, datos_convocatori
         emergencia = db.session.get(Emergencia, datos_convocatoria["emergencia_id"])
         emergencia.estado = EstadoEmergencia.registrada
         item = Item(
+            codigo_recurso="RSR-RECURSO_NUEVO_DE_PRUEBA",
             nombre="Recurso nuevo de prueba",
             categoria=TipoNecesidad.agua,
             unidad_medida="litros",
@@ -235,6 +236,7 @@ def test_cerrar_convocatoria_habilita_una_ronda_nueva_con_lotes_nuevos(app, dato
         assert emergencia.estado == EstadoEmergencia.registrada
 
         item_nuevo = Item(
+            codigo_recurso="RSR-AGUA_PARA_NUEVA_RONDA",
             nombre="Agua para nueva ronda",
             categoria=TipoNecesidad.agua,
             unidad_medida="litros",

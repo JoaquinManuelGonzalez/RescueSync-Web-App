@@ -75,11 +75,13 @@ def datos_ofertas_web(app, base_de_datos: None):
 
         # Crear ítems
         item1 = Item(
+            codigo_recurso="RSR-AGUA_POTABLE",
             nombre="Agua potable",
             categoria=TipoNecesidad.agua,
             unidad_medida="litros",
         )
         item2 = Item(
+            codigo_recurso="RSR-KITS_DE_ABRIGO",
             nombre="Kits de abrigo",
             categoria=TipoNecesidad.abrigo,
             unidad_medida="unidades",

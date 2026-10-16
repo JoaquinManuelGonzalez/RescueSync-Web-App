@@ -6,8 +6,19 @@ Notas:
 
 from __future__ import annotations
 
+import re
+import unicodedata
+
 from app.core.semillas import ResultadoSemilla, obtener_o_crear, registrar
 from app.modulos.emergencias.modelos import Item, TipoNecesidad
+
+
+def _codigo_recurso(nombre: str) -> str:
+    """Genera el código inicial estable del catálogo a partir del nombre normalizado."""
+    normalizado = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^A-Z0-9]+", "_", normalizado.upper()).strip("_")
+    return f"RSR-{slug}"
+
 
 # # # # # # # # # # # # Items # # # # # # # # # # # #
 ITEMS: list[tuple[str, TipoNecesidad, str, str | None, bool]] = [
@@ -355,6 +366,7 @@ def sembrar_items() -> list[ResultadoSemilla]:
             Item,
             claves={"nombre": nombre},
             valores={
+                "codigo_recurso": _codigo_recurso(nombre),
                 "categoria": categoria,
                 "unidad_medida": unidad_medida,
                 "descripcion": descripcion,

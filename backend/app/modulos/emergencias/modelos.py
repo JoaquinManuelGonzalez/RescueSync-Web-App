@@ -179,6 +179,12 @@ class Item(db.Model):
     __tablename__ = "item"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    codigo_recurso: Mapped[str] = mapped_column(
+        String(200),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
 
     nombre: Mapped[str] = mapped_column(
         String(150),

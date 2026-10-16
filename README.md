@@ -530,6 +530,18 @@ ciclo de vida, y así lo fijaron el
 [ADR-005](docs/adr/ADR-005-estilo-arquitectonico.md). La aplicación se integra con él
 únicamente por HTTP.
 
+### Código de recurso en las ofertas consolidadas
+
+`GET /ofertas/consolidadas/<convocatoria_id>` conserva la estructura e IDs locales actuales. Para
+integrar, cada organización y aporte incluye `identificador_nacional`, y cada ítem incluye
+`codigo_recurso`. Los IDs locales (`convocatoria_id`, `oferta_id`, `organizacion_id` y
+`lote_item_id`) sirven para trazabilidad en la web; no son claves de las tablas de la API Nacional.
+
+`codigo_recurso` es único y se guarda en el catálogo web. Los códigos iniciales se generan
+normalizando el nombre del recurso y quedan persistidos en la base. Para que la API Nacional pueda
+resolverlos, su catálogo deberá adoptar los mismos códigos para los recursos equivalentes; este
+cambio todavía se realiza solo en la web.
+
 ### Instalación
 
 1. Descargar **Bonita Community** (Studio, que incluye el runtime) desde
