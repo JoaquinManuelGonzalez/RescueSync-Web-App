@@ -723,3 +723,19 @@ def consolidadas_para_bonita(convocatoria_id: int):
     _validar_token_bonita()
     resultado = servicios.obtener_ofertas_consolidadas_para_bonita(convocatoria_id)
     return jsonify(resultado), 200
+
+
+@blueprint_ofertas.post("/evaluaciones")
+@csrf.exempt
+def recibir_evaluacion_desde_bonita():
+    """Registra la evaluación nacional y devuelve la cobertura."""
+    _validar_token_bonita()
+
+    datos = request.get_json(silent=True)
+
+    if not isinstance(datos, dict):
+        raise SolicitudInvalida("Se esperaba un objeto JSON válido.")
+
+    resultado = servicios.registrar_evaluacion_y_calcular_cobertura(datos)
+
+    return jsonify(resultado), 200
