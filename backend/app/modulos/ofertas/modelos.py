@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Enum,
     ForeignKey,
@@ -241,6 +242,12 @@ class OfertaLinea(db.Model):
         Enum(TipoAsignacion, name="tipo_asignacion_enum"),
         default=TipoAsignacion.pendiente,
         nullable=False,
+    )
+    seleccionada: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Indica si el municipio seleccionó esta línea para la adjudicación.",
     )
     cantidad_ofrecida: Mapped[int] = mapped_column(
         Integer,

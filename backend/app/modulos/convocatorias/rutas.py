@@ -59,7 +59,11 @@ def _oferta_activa_de_ong(convocatoria: Convocatoria) -> Oferta | None:
 
 
 def _ong_puede_presentar_oferta(convocatoria: Convocatoria) -> bool:
-    return convocatoria.esta_vigente() and _oferta_activa_de_ong(convocatoria) is None
+    return (
+        current_user.tiene_rol("representante_ong")
+        and convocatoria.esta_vigente()
+        and _oferta_activa_de_ong(convocatoria) is None
+    )
 
 
 def _contexto_de_formulario(emergencia) -> dict:

@@ -182,6 +182,27 @@ def test_ong_puede_seleccionar_convocatoria_vigente(cliente_sembrado, ingresar, 
     assert f"/ofertas/nueva?convocatoria_id={datos_ofertas_web['convocatoria_id']}" in cuerpo
 
 
+def test_coordinador_no_ve_opcion_de_presentar_oferta(
+    cliente_sembrado, ingresar, datos_ofertas_web
+):
+    ingresar(EMAIL_COORDINADOR)
+    ruta_de_oferta = f"/ofertas/nueva?convocatoria_id={datos_ofertas_web['convocatoria_id']}"
+
+    listado = cliente_sembrado.get(
+        "/convocatorias",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+    )
+    detalle = cliente_sembrado.get(
+        f"/convocatorias/{datos_ofertas_web['convocatoria_id']}",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+    )
+
+    assert listado.status_code == 200
+    assert detalle.status_code == 200
+    assert ruta_de_oferta not in listado.get_data(as_text=True)
+    assert ruta_de_oferta not in detalle.get_data(as_text=True)
+
+
 def test_listado_de_ofertas_admite_busqueda_por_emergencia(
     app, cliente_sembrado, ingresar, datos_ofertas_web
 ):

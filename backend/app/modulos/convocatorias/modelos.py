@@ -11,7 +11,7 @@ import enum
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.extensiones import db
@@ -89,6 +89,16 @@ class Convocatoria(db.Model):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
+    )
+    cobertura_completa: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="Indica si el Sistema Nacional cubrió efectivamente todas las necesidades.",
+    )
+    cobertura_evaluada_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     # --- relaciones -----------------------------------------------------------

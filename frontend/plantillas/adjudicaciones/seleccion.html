@@ -1,0 +1,83 @@
+{% extends "layout.html" %}
+{% from "componentes/diseno.html" import encabezado_pagina, insignia %}
+{% from "componentes/iconos.html" import icono %}
+
+{% block title %}Seleccionar ofertas{% endblock %}
+
+{% block content %}
+<div class="pagina space-y-6">
+  <a class="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primario" href="{{ url_for('adjudicaciones.listar') }}">
+    {{ icono("volver", "size-4") }} Volver a selecciones
+  </a>
+  {% call encabezado_pagina("Seleccionar ofertas", convocatoria.emergencia.titulo) %}
+  {% endcall %}
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo">
+      <p class="text-sm text-gray-600">
+        La cobertura fue confirmada por el Sistema Nacional. Seleccioná líneas individuales:
+        cada ítem debe cubrir al menos el 75% de lo solicitado y no superar el 125%.
+      </p>
+    </div>
+  </section>
+  <form method="post" class="space-y-4" data-seleccion-ofertas>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="tarjeta">
+      <div class="tarjeta-cuerpo">
+        <h2 class="tarjeta-titulo">Cobertura de necesidades</h2>
+        <div class="mt-3 space-y-2 text-sm" data-resumen-seleccion>
+          {% for lote in convocatoria.lotes %}
+            {% for lote_item in lote.lote_items %}
+            <p class="flex flex-wrap justify-between gap-3" data-requisito-item="{{ lote_item.id }}"
+               data-cantidad-requerida="{{ lote_item.cantidad_solicitada }}">
+              <span>{{ lote_item.item.nombre }}</span>
+              <span data-estado-requisito>0 / {{ lote_item.cantidad_solicitada }} (75% mínimo)</span>
+            </p>
+            {% endfor %}
+          {% endfor %}
+        </div>
+        <p class="mt-3 text-sm font-medium text-red-700" data-mensaje-seleccion hidden>
+          Seleccioná líneas hasta cumplir el mínimo de cobertura de cada ítem.
+        </p>
+      </div>
+    </div>
+    {% for oferta in ofertas %}
+    <label class="tarjeta block cursor-pointer hover:border-primario">
+      <div class="tarjeta-cuerpo flex gap-4">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 class="font-semibold text-gray-900">
+              {{ oferta.organizacion.nombre if oferta.organizacion else "Organización no informada" }}
+            </h2>
+            {{ insignia("Adjudicada" if oferta.estado.value == "adjudicada" else "Disponible", "exito" if oferta.estado.value == "adjudicada" else "neutra") }}
+          </div>
+          <div class="mt-3 space-y-1 text-sm text-gray-600">
+            {% for linea in oferta.items if linea.tipo_asignacion.value in ["principal", "apoyo"] %}
+            <label class="flex items-center justify-between gap-3 rounded border border-gray-100 px-3 py-2">
+              <span class="flex items-center gap-2">
+                <input type="checkbox" name="linea_id" value="{{ linea.id }}"
+                       data-linea-seleccionable
+                       data-lote-item-id="{{ linea.lote_item_id }}"
+                       data-cantidad-ofrecida="{{ linea.cantidad_ofrecida }}"
+                       {% if linea.seleccionada %}checked{% endif %}>
+                <span>{{ linea.lote_item.item.nombre }} · {{ linea.tipo_asignacion.value|capitalize }}</span>
+              </span>
+              <span class="font-medium">{{ linea.cantidad_ofrecida|int }} {{ linea.lote_item.item.unidad_medida }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </label>
+    {% else %}
+    <p class="text-sm text-gray-500">No hay ofertas habilitadas para seleccionar.</p>
+    {% endfor %}
+    {% if ofertas %}
+    <div class="flex justify-end">
+      <button class="btn btn-primario" type="submit" data-confirmar-seleccion disabled>
+        Confirmar selección
+      </button>
+    </div>
+    {% endif %}
+  </form>
+</div>
+{% endblock %}

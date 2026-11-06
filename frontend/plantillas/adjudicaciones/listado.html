@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+{% from "componentes/diseno.html" import encabezado_pagina, estado_vacio, insignia %}
+{% from "componentes/iconos.html" import icono %}
+
+{% block title %}Selección de ofertas{% endblock %}
+
+{% block content %}
+<div class="pagina">
+  {% call encabezado_pagina("Selección de ofertas", "Emergencias con cobertura completa pendientes de atención.") %}
+  {% endcall %}
+  {% if convocatorias %}
+  <div class="space-y-3">
+    {% for convocatoria in convocatorias %}
+    <article class="tarjeta">
+      <div class="tarjeta-cuerpo flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="tarjeta-titulo">{{ convocatoria.emergencia.titulo }}</h2>
+          <p class="mt-1 text-sm text-gray-500">{{ convocatoria.emergencia.zona_afectada }}</p>
+        </div>
+        {{ insignia("Cobertura completa", "exito") }}
+        <a class="btn btn-primario" href="{{ url_for('adjudicaciones.seleccionar', convocatoria_id=convocatoria.id) }}">
+          {{ icono("ver") }} Revisar ofertas
+        </a>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  {{ estado_vacio("No hay selecciones pendientes", "Cuando una emergencia tenga cobertura completa aparecerá aquí.", "carpeta") }}
+  {% endif %}
+</div>
+{% endblock %}
