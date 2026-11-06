@@ -19,6 +19,9 @@ from app.modulos.usuarios_roles.modelos import Usuario
 TITULO_EMERGENCIA_DEMO = "Temporal severo con voladura de techos en Chascomús"
 DESCRIPCION_LOTE_DEMO = "Recursos iniciales para asistencia y evacuación"
 MARCA_CONVOCATORIA_DEMO = "SEED_DEMO_OFERTAS"
+TITULO_EMERGENCIA_PRUEBA = "PRUEBA - Selección municipal de ofertas en Pergamino"
+DESCRIPCION_LOTE_PRUEBA = "PRUEBA - Recursos para validar selección por línea"
+MARCA_CONVOCATORIA_PRUEBA = "SEED_PRUEBA_SELECCION_SIN_BONITA"
 
 ITEMS_DEL_LOTE: tuple[tuple[str, float], ...] = (
     ("Agua potable envasada", 1000),
@@ -74,4 +77,56 @@ def sembrar_convocatorias() -> list[ResultadoSemilla]:
     lote.convocatoria = convocatoria
     emergencia.estado = EstadoEmergencia.activa
 
-    return [resultado_lote, resultado_items, resultado_convocatoria]
+    emergencia_prueba = Emergencia.query.filter_by(titulo=TITULO_EMERGENCIA_PRUEBA).first()
+    if emergencia_prueba is None:
+        raise ValueError(f"Emergencia de prueba no encontrada: {TITULO_EMERGENCIA_PRUEBA!r}")
+
+    lote_prueba, lote_prueba_creado = obtener_o_crear(
+        LoteNecesidad,
+        claves={"emergencia_id": emergencia_prueba.id, "descripcion": DESCRIPCION_LOTE_PRUEBA},
+        valores={"estado": EstadoLote.en_convocatoria},
+    )
+    resultado_lote_prueba = ResultadoSemilla("lotes_prueba")
+    resultado_lote_prueba.contar(lote_prueba_creado)
+
+    for nombre_item, cantidad in (("Agua potable envasada", 1000), ("Paramédicos", 8)):
+        item = Item.query.filter_by(nombre=nombre_item).first()
+        if item is None:
+            raise ValueError(f"Item de prueba no encontrado: {nombre_item!r}")
+        _, item_creado = obtener_o_crear(
+            LoteItem,
+            claves={"lote_id": lote_prueba.id, "item_id": item.id},
+            valores={"cantidad_solicitada": cantidad},
+        )
+        resultado_lote_prueba.contar(item_creado)
+
+    coordinador = Usuario.query.filter_by(email="coordinador@rescuesync.test").first()
+    if coordinador is None:
+        raise ValueError("Usuario coordinador demo no encontrado.")
+    convocatoria_prueba, convocatoria_prueba_creada = obtener_o_crear(
+        Convocatoria,
+        claves={
+            "emergencia_id": emergencia_prueba.id,
+            "observaciones": MARCA_CONVOCATORIA_PRUEBA,
+        },
+        valores={
+            "coordinador_id": coordinador.id,
+            "fecha_inicio": datetime.now(UTC) - timedelta(days=3),
+            "fecha_cierre": datetime.now(UTC) - timedelta(days=1),
+            "resumen_situacion": emergencia_prueba.descripcion,
+            "estado": EstadoConvocatoria.cerrada,
+            "cobertura_completa": True,
+            "cobertura_evaluada_en": datetime.now(UTC) - timedelta(hours=2),
+        },
+    )
+    lote_prueba.convocatoria = convocatoria_prueba
+    resultado_convocatoria_prueba = ResultadoSemilla("convocatorias_prueba")
+    resultado_convocatoria_prueba.contar(convocatoria_prueba_creada)
+
+    return [
+        resultado_lote,
+        resultado_items,
+        resultado_convocatoria,
+        resultado_lote_prueba,
+        resultado_convocatoria_prueba,
+    ]

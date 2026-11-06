@@ -129,6 +129,7 @@ def importar_seeders() -> None:
     from app.modulos.emergencias import semillas_emergencias as _emergencias  # noqa: F401, I001
     from app.modulos.convocatorias import semillas as _convocatorias  # noqa: F401, I001
     from app.modulos.ofertas import semillas as _ofertas  # noqa: F401, I001
+    from app.modulos.adjudicaciones import semillas as _adjudicaciones  # noqa: F401, I001
     from app.modulos.notificaciones import semillas as _notificaciones  # noqa: F401, I001
 
     return

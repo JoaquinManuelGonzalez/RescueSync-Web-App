@@ -13,9 +13,18 @@
   {% endcall %}
   <section class="tarjeta">
     <div class="tarjeta-cuerpo">
+      {% if solo_lectura %}
+      <p class="mb-2 text-sm font-medium text-amber-700">
+        La selección ya fue confirmada y no puede modificarse.
+      </p>
+      {% endif %}
       <p class="text-sm text-gray-600">
-        La cobertura fue confirmada por el Sistema Nacional. Seleccioná líneas individuales:
+        {% if solo_lectura %}
+        Estas son las líneas seleccionadas para esta convocatoria.
+        {% else %}
+        Seleccioná los ítems que prefieras para completar la cobertura:
         cada ítem debe cubrir al menos el 75% de lo solicitado y no superar el 125%.
+        {% endif %}
       </p>
     </div>
   </section>
@@ -58,6 +67,7 @@
                        data-linea-seleccionable
                        data-lote-item-id="{{ linea.lote_item_id }}"
                        data-cantidad-ofrecida="{{ linea.cantidad_ofrecida }}"
+                       {% if solo_lectura %}disabled{% endif %}
                        {% if linea.seleccionada %}checked{% endif %}>
                 <span>{{ linea.lote_item.item.nombre }} · {{ linea.tipo_asignacion.value|capitalize }}</span>
               </span>
@@ -71,7 +81,7 @@
     {% else %}
     <p class="text-sm text-gray-500">No hay ofertas habilitadas para seleccionar.</p>
     {% endfor %}
-    {% if ofertas %}
+    {% if ofertas and not solo_lectura %}
     <div class="flex justify-end">
       <button class="btn btn-primario" type="submit" data-confirmar-seleccion disabled>
         Confirmar selección

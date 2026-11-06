@@ -48,6 +48,7 @@ def seleccionar(convocatoria_id: int):
         "adjudicaciones/seleccion.html",
         convocatoria=convocatoria,
         ofertas=ofertas,
+        solo_lectura=convocatoria.estado.value == "adjudicada",
     )
 
 

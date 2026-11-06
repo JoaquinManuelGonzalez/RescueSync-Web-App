@@ -15,7 +15,7 @@ from app.core.errores import (
     SolicitudInvalida,
 )
 from app.extensiones import db
-from app.modulos.convocatorias.modelos import Convocatoria
+from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 from app.modulos.emergencias.modelos import Emergencia, EstadoEmergencia
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.ofertas.modelos import EstadoOferta, Oferta, TipoAsignacion
@@ -56,6 +56,7 @@ def listar_convocatorias_pendientes(municipio_id: int) -> list[Convocatoria]:
                 Emergencia.municipio_id == municipio_id,
                 Emergencia.estado == EstadoEmergencia.activa,
                 Convocatoria.cobertura_completa.is_(True),
+                Convocatoria.estado == EstadoConvocatoria.cerrada,
             )
             .options(selectinload(Convocatoria.emergencia))
             .order_by(Convocatoria.cobertura_evaluada_en.desc(), Convocatoria.id.desc())
@@ -76,6 +77,14 @@ def _cobertura_minima(cantidad: int) -> int:
 
 
 def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[int]) -> list[Oferta]:
+    if convocatoria.estado == EstadoConvocatoria.adjudicada:
+        raise ConflictoDeEstado(
+            "La selección de esta convocatoria ya fue confirmada y no puede modificarse."
+        )
+    if convocatoria.estado != EstadoConvocatoria.cerrada:
+        raise ConflictoDeEstado(
+            "La convocatoria no está disponible para confirmar una selección."
+        )
     if not isinstance(linea_ids, list) or any(
         type(linea_id) is not int for linea_id in linea_ids
     ):
@@ -166,5 +175,6 @@ def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[int]) -> list
 
     for oferta, adjudicada in resultados:
         servicios_de_notificaciones.notificar_resultado_adjudicacion(oferta, adjudicada)
+    convocatoria.estado = EstadoConvocatoria.adjudicada
     db.session.commit()
     return [oferta for oferta in ofertas if any(linea.seleccionada for linea in oferta.items)]
