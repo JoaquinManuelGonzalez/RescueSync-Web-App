@@ -21,6 +21,7 @@ def importar_modelos() -> None:
     las relaciones en el orden correcto.
     """
     from app.modulos.convocatorias import modelos as _convocatorias  # noqa: F401
+    from app.modulos.adjudicaciones import modelos as _adjudicaciones  # noqa: F401
     from app.modulos.emergencias import modelos as _emergencias  # noqa: F401
     from app.modulos.notificaciones import modelos as _notificaciones  # noqa: F401
     from app.modulos.ofertas import modelos as _ofertas  # noqa: F401
@@ -39,6 +40,7 @@ def registrar_modulos(app: Flask) -> None:
 
     from app.core.interfaz.navegacion import registrar_entrada
     from app.modulos.convocatorias import rutas as rutas_de_convocatorias
+    from app.modulos.adjudicaciones import rutas as rutas_de_adjudicaciones
     from app.modulos.emergencias import rutas as rutas_de_emergencias
     from app.modulos.emergencias.lotes import rutas as rutas_de_lotes
     from app.modulos.notificaciones import rutas as rutas_de_notificaciones
@@ -58,6 +60,9 @@ def registrar_modulos(app: Flask) -> None:
     )
     app.register_blueprint(rutas_de_ofertas.blueprint_ofertas, url_prefix="/ofertas")
     app.register_blueprint(
+        rutas_de_adjudicaciones.blueprint_adjudicaciones, url_prefix="/adjudicaciones"
+    )
+    app.register_blueprint(
         rutas_de_convocatorias.blueprint_convocatorias, url_prefix="/convocatorias"
     )
     app.register_blueprint(rutas_de_emergencias.blueprint_emergencias, url_prefix="/emergencias")
@@ -74,5 +79,6 @@ def registrar_modulos(app: Flask) -> None:
     registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU_MI_ORGANIZACION)
     registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU_INVENTARIO)
     registrar_entrada(app, rutas_de_ofertas.ENTRADA_DE_MENU)
+    registrar_entrada(app, rutas_de_adjudicaciones.ENTRADA_DE_MENU)
     registrar_entrada(app, rutas_de_convocatorias.ENTRADA_DE_MENU)
     registrar_entrada(app, rutas_de_emergencias.ENTRADA_DE_MENU)

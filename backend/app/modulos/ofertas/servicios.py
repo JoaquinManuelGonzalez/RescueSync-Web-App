@@ -1020,11 +1020,17 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
     for linea, clasificacion in actualizaciones.values():
         linea.tipo_asignacion = clasificacion
 
+    cobertura_completa = all(item["cantidad_faltante"] == 0 for item in detalle)
+    cobertura_se_completo = cobertura_completa and not convocatoria.cobertura_completa
+    convocatoria.cobertura_completa = cobertura_completa
+    convocatoria.cobertura_evaluada_en = datetime.now(UTC)
+    if cobertura_se_completo:
+        servicios_de_notificaciones.notificar_cobertura_completa(convocatoria)
     db.session.commit()
 
     return {
         "emergencia_id": emergencia_id,
         "convocatoria_id": convocatoria_id,
-        "cobertura_completa": all(item["cantidad_faltante"] == 0 for item in detalle),
+        "cobertura_completa": cobertura_completa,
         "lotes": detalle,
     }

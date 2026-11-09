@@ -158,5 +158,21 @@
       {% endif %}
     </div>
   </section>
+
+  {% if puede("adjudicaciones:seleccionar") and emergencia.estado.value == "activa" %}
+  {% for convocatoria in emergencia.convocatorias %}
+    {% if convocatoria.cobertura_completa %}
+    <section class="tarjeta border-primario/30">
+      <div class="tarjeta-cuerpo flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="tarjeta-titulo">Ofertas listas para seleccionar</h2>
+          <p class="mt-1 text-sm text-gray-500">El Sistema Nacional confirmó la cobertura de esta convocatoria.</p>
+        </div>
+        <a class="btn btn-primario" href="{{ url_for('adjudicaciones.seleccionar', convocatoria_id=convocatoria.id) }}">Seleccionar ofertas</a>
+      </div>
+    </section>
+    {% endif %}
+  {% endfor %}
+  {% endif %}
 </div>
 {% endblock %}

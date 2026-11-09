@@ -109,6 +109,43 @@ def notificar_cierre_convocatoria(convocatoria) -> list[Notificacion]:
     return notificaciones
 
 
+def notificar_cobertura_completa(convocatoria) -> Notificacion:
+    """Avisa al municipio que ya puede seleccionar las ofertas evaluadas."""
+    return crear(
+        organizacion_id=convocatoria.emergencia.municipio_id,
+        titulo="Ofertas listas para seleccionar",
+        mensaje=(
+            f"La cobertura de la emergencia «{convocatoria.emergencia.titulo}» fue confirmada. "
+            "Ya podés seleccionar las ofertas de ayuda."
+        ),
+        enlace=f"/adjudicaciones/convocatoria/{convocatoria.id}",
+    )
+
+
+def notificar_resultado_adjudicacion(oferta, adjudicada: bool) -> list[Notificacion]:
+    """Avisa a las organizaciones participantes el resultado de su oferta."""
+    titulo = "Oferta adjudicada" if adjudicada else "Oferta no adjudicada"
+    mensaje = (
+        f"La oferta para la emergencia «{oferta.convocatoria.emergencia.titulo}» "
+        f"fue {'adjudicada' if adjudicada else 'seleccionada por otro oferente'} "
+        "por el municipio."
+    )
+    organizaciones = {
+        miembro.organizacion_id
+        for miembro in oferta.organizaciones_consorcio
+        if miembro.organizacion_id is not None
+    }
+    return [
+        crear(
+            organizacion_id=organizacion_id,
+            titulo=titulo,
+            mensaje=mensaje,
+            enlace=f"/ofertas/{oferta.id}",
+        )
+        for organizacion_id in organizaciones
+    ]
+
+
 def listar_para_usuario(usuario_id: int, *, limite: int | None = None) -> list[Notificacion]:
     """Lista avisos de la organización del usuario, del más reciente al más antiguo."""
     from app.modulos.usuarios_roles.modelos import Usuario
