@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import defaultdict
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -28,7 +29,7 @@ from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import Convocatoria
 from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
-from app.modulos.emergencias.modelos import LoteItem
+from app.modulos.emergencias.modelos import LoteItem, LoteNecesidad
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.ofertas.modelos import (
     EstadoOferta,
@@ -36,6 +37,7 @@ from app.modulos.ofertas.modelos import (
     OfertaLinea,
     OfertaOrganizacion,
     OfertaVersion,
+    TipoAsignacion,
 )
 from app.modulos.organizaciones.modelos import (
     Inventario,
@@ -875,3 +877,160 @@ def obtener_historial_de_oferta(oferta_id: int) -> list[OfertaVersion]:
         .order_by(OfertaVersion.version.asc())
     )
     return list(db.session.execute(consulta).scalars().all())
+
+
+def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
+    """Registra los aportes evaluados y calcula la cobertura de la convocatoria."""
+    convocatoria_id = datos.get("convocatoria_id")
+    evaluacion = datos.get("resultado_evaluacion")
+
+    if (
+        type(convocatoria_id) is not int
+        or not isinstance(evaluacion, dict)
+        or type(evaluacion.get("emergencia_id")) is not int
+        or not isinstance(evaluacion.get("ofertas"), list)
+    ):
+        raise SolicitudInvalida("La evaluación recibida es inválida.")
+
+    emergencia_id = evaluacion["emergencia_id"]
+    convocatoria = db.session.get(Convocatoria, convocatoria_id)
+
+    if convocatoria is None:
+        raise SolicitudInvalida("La convocatoria no existe.")
+
+    if convocatoria.emergencia_id != emergencia_id:
+        raise SolicitudInvalida("La convocatoria no pertenece a la emergencia indicada.")
+
+    lote_items = db.session.scalars(
+        db.select(LoteItem)
+        .join(LoteNecesidad)
+        .where(
+            LoteNecesidad.convocatoria_id == convocatoria_id,
+            LoteNecesidad.emergencia_id == emergencia_id,
+        )
+    ).all()
+
+    if not lote_items:
+        raise SolicitudInvalida("La convocatoria no tiene necesidades registradas.")
+
+    ids_lote = {item.id for item in lote_items}
+
+    ofertas = db.session.scalars(
+        db.select(Oferta).where(
+            Oferta.convocatoria_id == convocatoria_id,
+            Oferta.estado == EstadoOferta.presentada,
+        )
+    ).all()
+
+    ofertas_por_id = {oferta.id: oferta for oferta in ofertas}
+    ids_recibidos = set()
+    actualizaciones = {}
+    cantidades_habilitadas = defaultdict(int)
+
+    for oferta_evaluada in evaluacion["ofertas"]:
+        if not isinstance(oferta_evaluada, dict):
+            raise SolicitudInvalida("Una oferta evaluada es inválida.")
+
+        oferta_id = oferta_evaluada.get("oferta_id")
+        if oferta_id not in ofertas_por_id or oferta_id in ids_recibidos:
+            raise SolicitudInvalida("La evaluación contiene ofertas desconocidas o duplicadas.")
+
+        ids_recibidos.add(oferta_id)
+        oferta = ofertas_por_id[oferta_id]
+
+        items = oferta_evaluada.get("items")
+        if not isinstance(items, list):
+            raise SolicitudInvalida("La oferta evaluada no contiene ítems válidos.")
+
+        lineas_por_clave = {}
+        for linea in oferta.items:
+            clave = (linea.lote_item_id, linea.organizacion_id)
+            if clave in lineas_por_clave:
+                raise SolicitudInvalida("Existen aportes duplicados en la oferta original.")
+            lineas_por_clave[clave] = linea
+
+        claves_recibidas = set()
+
+        for item in items:
+            if not isinstance(item, dict):
+                raise SolicitudInvalida("Ítem evaluado inválido.")
+
+            lote_item_id = item.get("lote_item_id")
+            aportes = item.get("aportes")
+
+            if lote_item_id not in ids_lote or not isinstance(aportes, list):
+                raise SolicitudInvalida("Ítem ajeno o aportes inválidos.")
+
+            for aporte in aportes:
+                if not isinstance(aporte, dict):
+                    raise SolicitudInvalida("Aporte evaluado inválido.")
+
+                clave = (lote_item_id, aporte.get("organizacion_id"))
+                linea = lineas_por_clave.get(clave)
+
+                if linea is None or clave in claves_recibidas:
+                    raise SolicitudInvalida("Aporte inexistente o duplicado en la evaluación.")
+
+                if (
+                    type(aporte.get("cantidad")) is not int
+                    or aporte["cantidad"] != linea.cantidad_ofrecida
+                ):
+                    raise SolicitudInvalida("La cantidad evaluada no coincide con la ofrecida.")
+
+                try:
+                    clasificacion = TipoAsignacion(aporte["clasificacion"])
+                except (KeyError, ValueError, TypeError) as error:
+                    raise SolicitudInvalida(
+                        "Clasificación del Sistema Nacional inválida."
+                    ) from error
+
+                if clasificacion == TipoAsignacion.pendiente:
+                    raise SolicitudInvalida("El Sistema Nacional devolvió un aporte pendiente.")
+
+                claves_recibidas.add(clave)
+                actualizaciones[linea.id] = (linea, clasificacion)
+
+                if clasificacion in (
+                    TipoAsignacion.principal,
+                    TipoAsignacion.apoyo,
+                ):
+                    cantidades_habilitadas[lote_item_id] += linea.cantidad_ofrecida
+
+        if claves_recibidas != set(lineas_por_clave):
+            raise SolicitudInvalida("La evaluación no contiene todos los aportes de la oferta.")
+
+    if ids_recibidos != set(ofertas_por_id):
+        raise SolicitudInvalida("La evaluación no contiene todas las ofertas presentadas.")
+
+    detalle = []
+
+    for item in lote_items:
+        requerida = int(item.cantidad_solicitada)
+        habilitada = cantidades_habilitadas[item.id]
+
+        detalle.append(
+            {
+                "lote_item_id": item.id,
+                "cantidad_requerida": requerida,
+                "cantidad_habilitada": habilitada,
+                "cantidad_faltante": max(0, requerida - habilitada),
+            }
+        )
+
+    for linea, clasificacion in actualizaciones.values():
+        linea.tipo_asignacion = clasificacion
+
+    cobertura_completa = all(item["cantidad_faltante"] == 0 for item in detalle)
+    cobertura_se_completo = cobertura_completa and not convocatoria.cobertura_completa
+    convocatoria.cobertura_completa = cobertura_completa
+    convocatoria.cobertura_evaluada_en = datetime.now(UTC)
+    if cobertura_se_completo:
+        servicios_de_notificaciones.notificar_cobertura_completa(convocatoria)
+    db.session.commit()
+
+    return {
+        "emergencia_id": emergencia_id,
+        "convocatoria_id": convocatoria_id,
+        "cobertura_completa": cobertura_completa,
+        "lotes": detalle,
+    }

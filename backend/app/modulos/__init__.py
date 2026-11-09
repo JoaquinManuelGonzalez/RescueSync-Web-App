@@ -20,14 +20,14 @@ def importar_modelos() -> None:
     El orden importa: los modulos sin FK van primero para que SQLAlchemy resuelva
     las relaciones en el orden correcto.
     """
+    from app.modulos.adjudicaciones import modelos as _adjudicaciones  # noqa: F401
     from app.modulos.convocatorias import modelos as _convocatorias  # noqa: F401
+    from app.modulos.ejecucion_cierre import modelos as _ejecucion_cierre  # noqa: F401
     from app.modulos.emergencias import modelos as _emergencias  # noqa: F401
     from app.modulos.notificaciones import modelos as _notificaciones  # noqa: F401
     from app.modulos.ofertas import modelos as _ofertas  # noqa: F401
     from app.modulos.organizaciones import modelos as _organizaciones  # noqa: F401
     from app.modulos.usuarios_roles import modelos as _usuarios_roles  # noqa: F401
-    from app.modulos.ejecucion_cierre import modelos as _ejecucion_cierre  # noqa: F401
-    # from app.modulos.adjudicaciones import modelos as _adjudicaciones  # noqa: F401
 
 
 def registrar_modulos(app: Flask) -> None:
@@ -39,6 +39,7 @@ def registrar_modulos(app: Flask) -> None:
     importar_modelos()
 
     from app.core.interfaz.navegacion import registrar_entrada
+    from app.modulos.adjudicaciones import rutas as rutas_de_adjudicaciones
     from app.modulos.convocatorias import rutas as rutas_de_convocatorias
     from app.modulos.ejecucion_cierre import rutas as rutas_de_ejecucion
     from app.modulos.emergencias import rutas as rutas_de_emergencias
@@ -60,6 +61,9 @@ def registrar_modulos(app: Flask) -> None:
     )
     app.register_blueprint(rutas_de_ofertas.blueprint_ofertas, url_prefix="/ofertas")
     app.register_blueprint(
+        rutas_de_adjudicaciones.blueprint_adjudicaciones, url_prefix="/adjudicaciones"
+    )
+    app.register_blueprint(
         rutas_de_convocatorias.blueprint_convocatorias, url_prefix="/convocatorias"
     )
     app.register_blueprint(rutas_de_emergencias.blueprint_emergencias, url_prefix="/emergencias")
@@ -77,7 +81,7 @@ def registrar_modulos(app: Flask) -> None:
     registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU_MI_ORGANIZACION)
     registrar_entrada(app, rutas_de_organizaciones.ENTRADA_DE_MENU_INVENTARIO)
     registrar_entrada(app, rutas_de_ofertas.ENTRADA_DE_MENU)
+    registrar_entrada(app, rutas_de_adjudicaciones.ENTRADA_DE_MENU)
     registrar_entrada(app, rutas_de_convocatorias.ENTRADA_DE_MENU)
     registrar_entrada(app, rutas_de_emergencias.ENTRADA_DE_MENU)
     registrar_entrada(app, rutas_de_ejecucion.ENTRADA_DE_MENU)
-

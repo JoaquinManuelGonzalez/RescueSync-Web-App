@@ -13,6 +13,7 @@ from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
 
 TITULO_EMERGENCIA_DEMO = "Temporal severo con voladura de techos en Chascomús"
 MARCA_CONVOCATORIA_DEMO = "SEED_DEMO_OFERTAS"
+MARCA_CONVOCATORIA_PRUEBA = "SEED_PRUEBA_SELECCION_SIN_BONITA"
 NOMBRE_CENTRO_COORDINADOR = "Centro Coordinador Regional Buenos Aires"
 
 
@@ -52,6 +53,22 @@ def sembrar_notificaciones() -> list[ResultadoSemilla]:
             titulo="Nueva convocatoria disponible",
             mensaje=mensaje_convocatoria,
             enlace=f"/convocatorias/{convocatoria.id}",
+        )
+        resultado.contar(fue_creada)
+
+    convocatoria_prueba = Convocatoria.query.filter_by(
+        observaciones=MARCA_CONVOCATORIA_PRUEBA
+    ).first()
+    if convocatoria_prueba is not None:
+        municipio = convocatoria_prueba.emergencia.municipio
+        _, fue_creada = _obtener_o_actualizar(
+            organizacion_id=municipio.id,
+            titulo="PRUEBA - Ofertas listas para seleccionar",
+            mensaje=(
+                "Caso de prueba sin Bonita: la cobertura fue confirmada y el municipio "
+                "puede seleccionar líneas de oferta."
+            ),
+            enlace=f"/adjudicaciones/convocatoria/{convocatoria_prueba.id}",
         )
         resultado.contar(fue_creada)
 

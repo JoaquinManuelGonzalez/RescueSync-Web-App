@@ -7,7 +7,10 @@ from sqlalchemy import func, select
 from app.core.acceso.permisos import CATALOGO_DE_PERMISOS, PERMISOS_POR_ROL, NombreRol
 from app.core.semillas import SEEDERS, importar_seeders
 from app.extensiones import db
+from app.modulos.convocatorias.modelos import Convocatoria
+from app.modulos.emergencias.modelos import Emergencia
 from app.modulos.notificaciones.modelos import Notificacion
+from app.modulos.ofertas.modelos import Oferta, TipoAsignacion
 from app.modulos.organizaciones.modelos import Inventario, InventarioItem, Organizacion
 from app.modulos.usuarios_roles.modelos import Permiso, Rol, Usuario
 
@@ -31,7 +34,30 @@ def test_la_semilla_carga_el_catalogo_completo(app, base_de_datos: None) -> None
         assert _contar(Inventario) == 5
         assert _contar(InventarioItem) == 53
         assert _contar(Usuario) == 11
-        assert _contar(Notificacion) == 6
+        assert _contar(Notificacion) == 7
+
+
+def test_la_semilla_incluye_el_caso_de_prueba_de_seleccion_sin_bonita(
+    app, base_de_datos: None
+) -> None:
+    with app.app_context():
+        emergencia = Emergencia.query.filter_by(
+            titulo="PRUEBA - Selección municipal de ofertas en Pergamino"
+        ).one()
+        convocatoria = Convocatoria.query.filter_by(
+            observaciones="SEED_PRUEBA_SELECCION_SIN_BONITA"
+        ).one()
+
+        assert emergencia.bonita_case_id is None
+        assert convocatoria.cobertura_completa is True
+        ofertas = Oferta.query.filter_by(convocatoria_id=convocatoria.id).all()
+        lineas = [linea for oferta in ofertas for linea in oferta.items]
+        assert len(ofertas) == 2
+        assert len(lineas) == 4
+        assert {linea.tipo_asignacion for linea in lineas} == {
+            TipoAsignacion.principal,
+            TipoAsignacion.apoyo,
+        }
 
 
 def test_volver_a_sembrar_no_duplica_nada(app, base_de_datos: None) -> None:
