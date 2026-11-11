@@ -11,6 +11,8 @@ from app.core.errores import ErrorDeAplicacion
 from app.core.interfaz.navegacion import EntradaDeMenu
 from app.core.interfaz.vistas import ERROR, redirigir
 from app.modulos.adjudicaciones import servicios
+from app.core.integraciones.bonita.proceso import confirmar_seleccion_ofertas
+from app.core.integraciones.bonita.sesion import BONITA_USER
 
 blueprint_adjudicaciones = Blueprint("adjudicaciones", __name__)
 ENTRADA_DE_MENU = EntradaDeMenu(
@@ -61,6 +63,17 @@ def confirmar(convocatoria_id: int):
     try:
         linea_ids = [int(valor) for valor in request.form.getlist("linea_id")]
         servicios.seleccionar_lineas(convocatoria, linea_ids)
+
+        case_id, compromisos_json = servicios.obtener_datos_integracion_bonita(
+            convocatoria
+        )
+
+        confirmar_seleccion_ofertas(
+            username=BONITA_USER,
+            case_id=case_id,
+            adjudicacion_id=convocatoria.id,
+            compromisos_json=compromisos_json,
+        )
     except (ValueError, ErrorDeAplicacion) as error:
         flash(
             error.mensaje

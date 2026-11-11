@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from decimal import ROUND_CEILING, Decimal
+import json
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -178,3 +179,73 @@ def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[int]) -> list
     convocatoria.estado = EstadoConvocatoria.adjudicada
     db.session.commit()
     return [oferta for oferta in ofertas if any(linea.seleccionada for linea in oferta.items)]
+
+def construir_compromisos_json(convocatoria: Convocatoria) -> str:
+    """Construye el JSON de compromisos para el Sistema Nacional."""
+
+    aportes_agrupados = {}
+
+    for oferta in convocatoria.ofertas:
+        for linea in oferta.items:
+            if not linea.seleccionada:
+                continue
+
+            organizacion = linea.organizacion
+            recurso = linea.lote_item.item
+
+            identificador = organizacion.identificador_nacional
+
+            if not identificador:
+                raise ReglaDeNegocioIncumplida(
+                    "Una ONG seleccionada no tiene identificador nacional."
+                )
+
+            clave = (identificador, recurso.codigo_recurso)
+
+            if clave not in aportes_agrupados:
+                aportes_agrupados[clave] = {
+                    "identificador_nacional": identificador,
+                    "codigo_recurso": recurso.codigo_recurso,
+                    "cantidad": 0,
+                    "tipo_asignacion": linea.tipo_asignacion.value,
+                }
+            elif (
+                aportes_agrupados[clave]["tipo_asignacion"]
+                != linea.tipo_asignacion.value
+            ):
+                raise ReglaDeNegocioIncumplida(
+                    "Un mismo recurso de una ONG tiene tipos de asignación diferentes."
+                )
+
+            aportes_agrupados[clave]["cantidad"] += linea.cantidad_ofrecida
+
+    if not aportes_agrupados:
+        raise ReglaDeNegocioIncumplida(
+            "No hay líneas seleccionadas para generar compromisos."
+        )
+
+    emergencia = convocatoria.emergencia
+
+    compromisos = {
+        "emergencia_externa_id": str(emergencia.id),
+        "nivel_gravedad": emergencia.nivel_gravedad.name.upper(),
+        "aportes": list(aportes_agrupados.values()),
+    }
+
+    return json.dumps(compromisos, ensure_ascii=False)
+
+def obtener_datos_integracion_bonita(
+    convocatoria: Convocatoria,
+) -> tuple[str, str]:
+    """Obtiene los datos necesarios para completar la tarea en Bonita."""
+
+    case_id = convocatoria.emergencia.bonita_case_id
+
+    if not case_id:
+        raise ReglaDeNegocioIncumplida(
+            "La emergencia no tiene un proceso asociado en Bonita."
+        )
+
+    compromisos_json = construir_compromisos_json(convocatoria)
+
+    return case_id, compromisos_json

@@ -106,7 +106,14 @@ def ejecutar_solicitud_bonita(
         if exc.detalle.get("codigo_estado") != 401:
             raise
 
+        # Descartar la sesión vencida.
         invalidar_sesion(username)
+
+        # No repetir automáticamente operaciones no idempotentes.
+        if not idempotente:
+            raise
+
+        # Renovar la sesión y reintentar operaciones idempotentes.
         cliente = obtener_cliente(username)
 
         return ejecutar_solicitud(
