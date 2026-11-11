@@ -721,6 +721,9 @@ def consolidadas_para_bonita(convocatoria_id: int):
     Se autentica exclusivamente con BONITA_CALLBACK_TOKEN y no requiere sesión de usuario.
     """
     _validar_token_bonita()
+    convocatoria = db.session.get(Convocatoria, convocatoria_id)
+    if convocatoria is not None:
+        cerrar_convocatorias_vencidas(emergencia_id=convocatoria.emergencia_id)
     resultado = servicios.obtener_ofertas_consolidadas_para_bonita(convocatoria_id)
     return jsonify(resultado), 200
 
