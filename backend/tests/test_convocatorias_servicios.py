@@ -258,9 +258,7 @@ def test_cerrar_convocatoria_habilita_una_ronda_nueva_con_lotes_nuevos(app, dato
         )
 
 
-def test_vencimiento_cierra_convocatoria_y_devuelve_emergencia_a_evaluacion(
-    app, datos_convocatoria
-):
+def test_vencimiento_cierra_convocatoria_y_espera_evaluacion_de_cobertura(app, datos_convocatoria):
     with app.app_context():
         convocatoria = _crear(datos_convocatoria)
         convocatoria.fecha_cierre = datetime.now(UTC) - timedelta(minutes=1)
@@ -271,7 +269,7 @@ def test_vencimiento_cierra_convocatoria_y_devuelve_emergencia_a_evaluacion(
         emergencia = db.session.get(Emergencia, datos_convocatoria["emergencia_id"])
         assert cerradas == 1
         assert convocatoria.estado == EstadoConvocatoria.cerrada
-        assert emergencia.estado == EstadoEmergencia.registrada
+        assert emergencia.estado == EstadoEmergencia.activa
 
 
 def test_coordinador_puede_cerrar_convocatoria_desde_el_detalle(
