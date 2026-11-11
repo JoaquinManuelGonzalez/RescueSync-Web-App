@@ -40,6 +40,47 @@
         @apply flex items-center justify-end gap-1;
     }
 
+    @media (width >= 48rem) {
+        .pagina-ejecucion .tabla {
+            table-layout: fixed;
+        }
+
+        .pagina-ejecucion .tabla-encabezado,
+        .pagina-ejecucion .tabla-celda {
+            padding-inline: 0.75rem;
+        }
+
+        .pagina-ejecucion .tabla-encabezado:nth-child(1),
+        .pagina-ejecucion .tabla-celda:nth-child(1) {
+            width: 16%;
+        }
+
+        .pagina-ejecucion .tabla-encabezado:nth-child(2),
+        .pagina-ejecucion .tabla-celda:nth-child(2) {
+            width: 15%;
+        }
+
+        .pagina-ejecucion .tabla-encabezado:nth-child(3),
+        .pagina-ejecucion .tabla-celda:nth-child(3) {
+            width: 22%;
+        }
+
+        .pagina-ejecucion .tabla-encabezado:nth-child(4),
+        .pagina-ejecucion .tabla-celda:nth-child(4) {
+            width: 14%;
+        }
+
+        .pagina-ejecucion .tabla-encabezado:nth-child(5),
+        .pagina-ejecucion .tabla-celda:nth-child(5) {
+            width: 13%;
+        }
+
+        .pagina-ejecucion .tabla-encabezado:nth-child(6),
+        .pagina-ejecucion .tabla-celda:nth-child(6) {
+            width: 20%;
+        }
+    }
+
     /* Por debajo del breakpoint md de Tailwind (48rem): cada fila es una tarjeta. */
     @media (width < 48rem) {
         .tabla,
