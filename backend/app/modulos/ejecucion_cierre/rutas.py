@@ -43,6 +43,10 @@ def listar_tareas():
     tareas_en_progreso = sum(1 for t in tareas if t.estado == EstadoTareaEjecucion.en_progreso)
     tareas_pendientes = sum(1 for t in tareas if t.estado == EstadoTareaEjecucion.cierre_pendiente)
     tareas_finalizadas = sum(1 for t in tareas if t.estado == EstadoTareaEjecucion.finalizada)
+    estados_finalizacion = {
+        emergencia_id: servicios.obtener_estado_finalizacion_emergencia(emergencia_id)
+        for emergencia_id in {t.emergencia_id for t in tareas}
+    }
 
     return render_template(
         "ejecucion_cierre/panel_tareas.html",
@@ -52,6 +56,7 @@ def listar_tareas():
         tareas_en_progreso=tareas_en_progreso,
         tareas_pendientes=tareas_pendientes,
         tareas_finalizadas=tareas_finalizadas,
+        estados_finalizacion=estados_finalizacion,
     )
 
 
@@ -59,7 +64,7 @@ def listar_tareas():
 @login_required
 @requiere_permiso(EJECUCION_MARCAR_ACTIVIDAD)
 def finalizar_tarea(tarea_id: int):
-    """Marca una tarea de la ONG como terminada y notifica a Bonita."""
+    """Registra localmente que la ONG terminó una tarea."""
     organizacion_id = getattr(current_user, "organizacion_id", None)
     if not organizacion_id:
         flash("Tu usuario no tiene una organización asignada.", "error")
@@ -77,15 +82,20 @@ def finalizar_tarea(tarea_id: int):
             tarea_id=tarea_id,
             organizacion_id=organizacion_id,
             usuario_id=current_user.id,
-            username=current_user.email,
             observaciones=formulario.observaciones.data,
         )
-        if tarea.estado == EstadoTareaEjecucion.finalizada:
-            flash("Se confirmó la finalización de la tarea.", "exito")
+        estado_cierre = servicios.obtener_estado_finalizacion_emergencia(tarea.emergencia_id)
+        if estado_cierre["todas_finalizadas"]:
+            flash(
+                "Todas las ONGs finalizaron sus actividades. El cierre queda listo para "
+                "registrarse mediante la integración con Bonita y el Sistema Nacional.",
+                "exito",
+            )
         else:
             flash(
-                "La solicitud quedó pendiente de confirmación. Revisá el estado más tarde.",
-                "advertencia",
+                "Se registró la finalización de esta actividad. La liberación espera a que "
+                "todas las ONGs completen sus tareas.",
+                "exito",
             )
     except ErrorDeAplicacion as error:
         flash(error.mensaje, "error")

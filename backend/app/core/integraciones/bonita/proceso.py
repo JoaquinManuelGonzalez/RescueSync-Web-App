@@ -9,7 +9,7 @@ from app.core.integraciones.bonita.api import (
 )
 
 NOMBRE_TAREA_PUBLICAR = "Gestionar emergencia y publicar convocatoria"
-NOMBRE_TAREA_FINALIZAR = "Ejecutar y finalizar actividades"
+NOMBRE_TAREA_FINALIZAR = "Esperar finalizacion de tareas"
 
 
 def iniciar_gestion(
@@ -57,10 +57,9 @@ def publicar_convocatoria(
 def finalizar_actividad_ong(
     username: str,
     case_id: str,
-    identificador_ong: str,
-    observaciones: str | None = None,
+    ofertas_finalizadas_input: str,
 ) -> None:
-    """Ejecuta en Bonita la tarea humana 'Ejecutar y finalizar actividades' asignada a la ONG."""
+    """Completa en Bonita la finalización de una ONG para una emergencia."""
     task_id = buscar_tarea_humana(
         username,
         case_id,
@@ -75,10 +74,8 @@ def finalizar_actividad_ong(
         usuario_id,
     )
 
-    # Según el proceso BPMN, la tarea humana no requiere inputs de contrato
     ejecutar_tarea(
         username,
         task_id,
-        {},
+        {"ofertasFinalizadasInput": ofertas_finalizadas_input},
     )
-

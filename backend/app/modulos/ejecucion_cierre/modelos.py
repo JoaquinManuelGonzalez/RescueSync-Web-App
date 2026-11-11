@@ -1,7 +1,6 @@
 """Modelos del módulo de ejecución y cierre de RescueSync.
 
-Implementa la etapa de seguimiento de ejecución de las ONGs adjudicadas y
-la notificación de finalización para la liberación de recursos (Etapa 7).
+Implementa el seguimiento local de ejecución de las ONGs adjudicadas (Etapa 7).
 """
 
 from __future__ import annotations

@@ -7,7 +7,7 @@
 {% block title %}Mis Tareas - Seguimiento y Cierre{% endblock %}
 
 {% block content %}
-<div class="pagina space-y-6">
+<div class="pagina pagina-ejecucion space-y-6">
   {% call encabezado_pagina(
       "Mis Tareas de Ejecución",
       "Seguimiento y finalización de los compromisos de ayuda adjudicados a tu organización."
@@ -80,10 +80,12 @@
 
       {% call celda("Recursos Aportados") %}
         <ul class="text-xs space-y-1 text-gray-700">
-          {% for item in tarea.oferta.items if item.organizacion_id == tarea.organizacion_id %}
+          {% for item in tarea.oferta.items if item.organizacion_id == tarea.organizacion_id and item.seleccionada %}
           <li class="flex items-center gap-1.5">
-            <span class="font-semibold text-gray-900">{{ item.cantidad_ofrecida }}</span>
-            <span>{{ item.lote_item.item.nombre if item.lote_item and item.lote_item.item else 'Recurso' }}</span>
+            <span class="shrink-0 whitespace-nowrap font-semibold text-gray-900">
+              {{ item.cantidad_ofrecida }} {{ item.lote_item.item.unidad_medida if item.lote_item and item.lote_item.item else '' }}
+            </span>
+            <span class="min-w-0">{{ item.lote_item.item.nombre if item.lote_item and item.lote_item.item else 'Recurso' }}</span>
             {% if item.tipo_asignacion and item.tipo_asignacion.value != 'pendiente' %}
             <span class="insignia insignia-{{ 'exito' if item.tipo_asignacion.value == 'principal' else 'info' }} text-[10px] py-0 px-1">
               {{ item.tipo_asignacion.value|capitalize }}
@@ -91,7 +93,7 @@
             {% endif %}
           </li>
           {% else %}
-          <li class="text-gray-400 italic">Líneas de la oferta conjunta</li>
+          <li class="text-gray-400 italic">No se encontraron recursos adjudicados.</li>
           {% endfor %}
         </ul>
       {% endcall %}
@@ -105,6 +107,14 @@
           {{ insignia("Finalizada", "exito") }}
         {% else %}
           {{ insignia(tarea.estado.value|capitalize, "neutra") }}
+        {% endif %}
+        {% set estado_global = estados_finalizacion[tarea.emergencia_id] %}
+        <p class="mt-1 text-xs text-gray-500">
+          {{ estado_global.organizaciones_finalizadas }} de
+          {{ estado_global.organizaciones_participantes }} ONGs finalizaron
+        </p>
+        {% if estado_global.todas_finalizadas %}
+        <p class="text-xs text-emerald-700">Listo para integración; recursos aún no liberados</p>
         {% endif %}
       {% endcall %}
 
@@ -121,14 +131,14 @@
 
       {% call celda() %}
         <div class="tabla-acciones">
-          {% if tarea.estado.value == 'en_progreso' %}
+          {% if tarea.estado.value in ['en_progreso', 'cierre_pendiente'] %}
           <button
             type="button"
-            class="btn btn-primario text-xs py-1.5 px-3 flex items-center gap-1.5"
+            class="btn btn-primario shrink-0 whitespace-nowrap text-xs py-1.5 px-3 flex items-center gap-1.5"
             onclick="document.getElementById('modal-finalizar-{{ tarea.id }}').showModal()"
           >
             {{ icono("activar", "size-4") }}
-            <span>Solicitar cierre</span>
+            <span>Marcar finalizada</span>
           </button>
 
           <!-- Modal de Confirmación y Cierre -->
@@ -140,7 +150,7 @@
                     {{ icono("exito", "size-6") }}
                   </span>
                   <div>
-                    <h3 class="text-lg font-bold text-gray-900">Solicitar cierre de tarea</h3>
+                    <h3 class="text-lg font-bold text-gray-900">Finalizar actividad</h3>
                     <p class="text-xs text-gray-500">Emergencia: {{ tarea.emergencia.titulo }}</p>
                   </div>
                 </div>
@@ -154,8 +164,8 @@
               </div>
 
               <p class="text-sm text-gray-600">
-                Confirmá que tu organización completó las actividades asignadas para esta emergencia.
-                La tarea quedará pendiente hasta que se confirme el cierre.
+              Confirmá que tu organización completó esta actividad. La integración con Bonita
+              podrá solicitar la liberación cuando todas las ONGs terminen sus tareas.
               </p>
 
               <form method="post" action="{{ url_for('ejecucion.finalizar_tarea', tarea_id=tarea.id) }}" class="space-y-4">
@@ -172,7 +182,7 @@
                   >
                     Cancelar
                   </button>
-                  {{ boton_envio("Enviar solicitud", icono_nombre="exito") }}
+                  {{ boton_envio("Confirmar finalización", icono_nombre="exito") }}
                 </div>
               </form>
             </div>
