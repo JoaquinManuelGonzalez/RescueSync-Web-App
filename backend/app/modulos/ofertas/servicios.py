@@ -29,7 +29,12 @@ from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import Convocatoria
 from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
-from app.modulos.emergencias.modelos import LoteItem, LoteNecesidad
+from app.modulos.emergencias.modelos import (
+    Emergencia,
+    EstadoEmergencia,
+    LoteItem,
+    LoteNecesidad,
+)
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.ofertas.modelos import (
     EstadoOferta,
@@ -1024,6 +1029,16 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
     cobertura_se_completo = cobertura_completa and not convocatoria.cobertura_completa
     convocatoria.cobertura_completa = cobertura_completa
     convocatoria.cobertura_evaluada_en = datetime.now(UTC)
+    emergencia = db.session.get(Emergencia, emergencia_id)
+    estado_anterior = emergencia.estado
+    if emergencia.estado in (EstadoEmergencia.activa, EstadoEmergencia.registrada):
+        emergencia.estado = (
+            EstadoEmergencia.activa if cobertura_completa else EstadoEmergencia.registrada
+        )
+        if emergencia.estado != estado_anterior:
+            servicios_de_notificaciones.notificar_cambio_estado_emergencia(
+                emergencia, estado_anterior
+            )
     if cobertura_se_completo:
         servicios_de_notificaciones.notificar_cobertura_completa(convocatoria)
     db.session.commit()
