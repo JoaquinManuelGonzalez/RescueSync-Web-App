@@ -9,6 +9,7 @@ from app.core.integraciones.bonita.api import (
 )
 
 NOMBRE_TAREA_PUBLICAR = "Gestionar emergencia y publicar convocatoria"
+NOMBRE_TAREA_FINALIZAR = "Esperar finalizacion de tareas"
 
 
 def iniciar_gestion(
@@ -50,4 +51,31 @@ def publicar_convocatoria(
             "timerInput": fecha_cierre.isoformat(),
             "convocatoriaIdInput": str(convocatoria_id),
         },
+    )
+
+
+def finalizar_actividad_ong(
+    username: str,
+    case_id: str,
+    ofertas_finalizadas_input: str,
+) -> None:
+    """Completa en Bonita la finalización de una ONG para una emergencia."""
+    task_id = buscar_tarea_humana(
+        username,
+        case_id,
+        NOMBRE_TAREA_FINALIZAR,
+    )
+
+    usuario_id = obtener_usuario_actual_id(username)
+
+    asignar_tarea(
+        username,
+        task_id,
+        usuario_id,
+    )
+
+    ejecutar_tarea(
+        username,
+        task_id,
+        {"ofertasFinalizadasInput": ofertas_finalizadas_input},
     )

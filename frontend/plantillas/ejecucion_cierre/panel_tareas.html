@@ -1,0 +1,214 @@
+{% extends "layout.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/diseno.html" import encabezado_pagina, estado_vacio, insignia %}
+{% from "componentes/formularios.html" import csrf, campo, casilla, boton_envio %}
+{% from "componentes/tablas.html" import tabla, celda %}
+
+{% block title %}Mis Tareas - Seguimiento y Cierre{% endblock %}
+
+{% block content %}
+<div class="pagina pagina-ejecucion space-y-6">
+  {% call encabezado_pagina(
+      "Mis Tareas de Ejecución",
+      "Seguimiento y finalización de los compromisos de ayuda adjudicados a tu organización."
+  ) %}
+  {% endcall %}
+
+  <!-- Métricas Rápidas / KPIs -->
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="tarjeta flex items-center p-4 bg-white border border-gray-200 rounded-xl shadow-xs">
+      <div class="p-3 mr-4 text-blue-600 bg-blue-100 rounded-lg">
+        {{ icono("lista", "size-6") }}
+      </div>
+      <div>
+        <p class="text-sm font-medium text-gray-600">Total de Tareas</p>
+        <p class="text-2xl font-bold text-gray-900">{{ total_tareas }}</p>
+      </div>
+    </div>
+    <div class="tarjeta flex items-center p-4 bg-white border border-gray-200 rounded-xl shadow-xs">
+      <div class="p-3 mr-4 text-amber-600 bg-amber-100 rounded-lg">
+        {{ icono("activar", "size-6") }}
+      </div>
+      <div>
+        <p class="text-sm font-medium text-gray-600">En Ejecución</p>
+        <p class="text-2xl font-bold text-amber-600">{{ tareas_en_progreso }}</p>
+      </div>
+    </div>
+    <div class="tarjeta flex items-center p-4 bg-white border border-gray-200 rounded-xl shadow-xs">
+      <div class="p-3 mr-4 text-blue-600 bg-blue-100 rounded-lg">
+        {{ icono("info", "size-6") }}
+      </div>
+      <div>
+        <p class="text-sm font-medium text-gray-600">Cierre pendiente</p>
+        <p class="text-2xl font-bold text-blue-600">{{ tareas_pendientes }}</p>
+      </div>
+    </div>
+    <div class="tarjeta flex items-center p-4 bg-white border border-gray-200 rounded-xl shadow-xs">
+      <div class="p-3 mr-4 text-emerald-600 bg-emerald-100 rounded-lg">
+        {{ icono("exito", "size-6") }}
+      </div>
+      <div>
+        <p class="text-sm font-medium text-gray-600">Finalizadas</p>
+        <p class="text-2xl font-bold text-emerald-600">{{ tareas_finalizadas }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Listado de Tareas -->
+  {% if tareas %}
+  {% call tabla(["Emergencia", "Zona / Municipio", "Recursos Aportados", "Estado", "Fechas", "Acciones"]) %}
+    {% for tarea in tareas %}
+    <tr class="tabla-fila">
+      {% call celda("Emergencia") %}
+        <div class="space-y-1">
+          <p class="font-semibold text-gray-900">{{ tarea.emergencia.titulo }}</p>
+          {% set gravedad = tarea.emergencia.nivel_gravedad.value if tarea.emergencia.nivel_gravedad else 'media' %}
+          <p class="text-xs text-gray-500">
+            Gravedad:
+            <span class="insignia insignia-{{ 'error' if gravedad in ['alta', 'critica'] else ('advertencia' if gravedad == 'media' else 'neutra') }}">
+              {{ gravedad|capitalize }}
+            </span>
+          </p>
+          <p class="text-xs text-gray-500">Oferta de ayuda #{{ tarea.oferta_id }}</p>
+        </div>
+      {% endcall %}
+
+      {% call celda("Zona / Municipio") %}
+        <p class="text-sm font-medium text-gray-800">Zona afectada: {{ tarea.emergencia.zona_afectada }}</p>
+        <p class="text-xs text-gray-500">{{ tarea.emergencia.municipio.nombre if tarea.emergencia.municipio else 'Municipio' }}</p>
+      {% endcall %}
+
+      {% call celda("Recursos Aportados") %}
+        <ul class="text-xs space-y-1 text-gray-700">
+          {% for item in tarea.oferta.items if item.organizacion_id == tarea.organizacion_id and item.seleccionada %}
+          <li class="flex items-center gap-1.5">
+            <span class="shrink-0 whitespace-nowrap font-semibold text-gray-900">
+              {{ item.cantidad_ofrecida }} {{ item.lote_item.item.unidad_medida if item.lote_item and item.lote_item.item else '' }}
+            </span>
+            <span class="min-w-0">{{ item.lote_item.item.nombre if item.lote_item and item.lote_item.item else 'Recurso' }}</span>
+            {% if item.tipo_asignacion and item.tipo_asignacion.value != 'pendiente' %}
+            <span class="insignia insignia-{{ 'exito' if item.tipo_asignacion.value == 'principal' else 'info' }} text-[10px] py-0 px-1">
+              {{ item.tipo_asignacion.value|capitalize }}
+            </span>
+            {% endif %}
+          </li>
+          {% else %}
+          <li class="text-gray-400 italic">No se encontraron recursos adjudicados.</li>
+          {% endfor %}
+        </ul>
+      {% endcall %}
+
+      {% call celda("Estado") %}
+        {% if tarea.estado.value == 'en_progreso' %}
+          {{ insignia("En ejecución", "advertencia") }}
+        {% elif tarea.estado.value == 'cierre_pendiente' %}
+          {{ insignia("Cierre pendiente", "info") }}
+        {% elif tarea.estado.value == 'finalizada' %}
+          {{ insignia("Finalizada", "exito") }}
+        {% else %}
+          {{ insignia(tarea.estado.value|capitalize, "neutra") }}
+        {% endif %}
+        {% set estado_global = estados_finalizacion[tarea.emergencia_id] %}
+        <p class="mt-1 text-xs text-gray-500">
+          {{ estado_global.organizaciones_finalizadas }} de
+          {{ estado_global.organizaciones_participantes }} ONGs finalizaron
+        </p>
+        {% if estado_global.todas_finalizadas %}
+        <p class="text-xs text-emerald-700">Listo para integración; recursos aún no liberados</p>
+        {% endif %}
+      {% endcall %}
+
+      {% call celda("Fechas") %}
+        <p class="text-xs text-gray-600">
+          <span class="font-medium">Inicio:</span> {{ tarea.fecha_inicio|fecha if tarea.fecha_inicio else '-' }}
+        </p>
+        {% if tarea.fecha_fin %}
+        <p class="text-xs text-emerald-700">
+          <span class="font-medium">Fin:</span> {{ tarea.fecha_fin|fecha }}
+        </p>
+        {% endif %}
+      {% endcall %}
+
+      {% call celda() %}
+        <div class="tabla-acciones">
+          {% if tarea.estado.value in ['en_progreso', 'cierre_pendiente'] %}
+          <button
+            type="button"
+            class="btn btn-primario shrink-0 whitespace-nowrap text-xs py-1.5 px-3 flex items-center gap-1.5"
+            onclick="document.getElementById('modal-finalizar-{{ tarea.id }}').showModal()"
+          >
+            {{ icono("activar", "size-4") }}
+            <span>Marcar finalizada</span>
+          </button>
+
+          <!-- Modal de Confirmación y Cierre -->
+          <dialog id="modal-finalizar-{{ tarea.id }}" class="modal backdrop:bg-gray-900/40 rounded-2xl p-0 shadow-2xl max-w-lg w-full border border-gray-100">
+            <div class="p-6 space-y-5 bg-white rounded-2xl">
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-3">
+                  <span class="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                    {{ icono("exito", "size-6") }}
+                  </span>
+                  <div>
+                    <h3 class="text-lg font-bold text-gray-900">Finalizar actividad</h3>
+                    <p class="text-xs text-gray-500">Emergencia: {{ tarea.emergencia.titulo }}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="text-gray-400 hover:text-gray-600 p-1"
+                  onclick="document.getElementById('modal-finalizar-{{ tarea.id }}').close()"
+                >
+                  {{ icono("cerrar", "size-5") }}
+                </button>
+              </div>
+
+              <p class="text-sm text-gray-600">
+              Confirmá que tu organización completó esta actividad. La integración con Bonita
+              podrá solicitar la liberación cuando todas las ONGs terminen sus tareas.
+              </p>
+
+              <form method="post" action="{{ url_for('ejecucion.finalizar_tarea', tarea_id=tarea.id) }}" class="space-y-4">
+                {{ csrf() }}
+                
+                {{ campo(formulario.observaciones, ayuda="Detallá cualquier novedad o informe final sobre el despliegue.") }}
+                {{ casilla(formulario.confirmacion) }}
+
+                <div class="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    class="btn btn-fantasma text-sm"
+                    onclick="document.getElementById('modal-finalizar-{{ tarea.id }}').close()"
+                  >
+                    Cancelar
+                  </button>
+                  {{ boton_envio("Confirmar finalización", icono_nombre="exito") }}
+                </div>
+              </form>
+            </div>
+          </dialog>
+          {% elif tarea.estado.value == 'cierre_pendiente' %}
+          <div class="flex items-center gap-1 text-xs text-blue-700 font-medium">
+            {{ icono("info", "size-4") }}
+            <span>Pendiente de confirmación</span>
+          </div>
+          {% else %}
+          <div class="flex items-center gap-1 text-xs text-emerald-700 font-medium">
+            {{ icono("exito", "size-4") }}
+            <span>Completada</span>
+          </div>
+          {% endif %}
+        </div>
+      {% endcall %}
+    </tr>
+    {% endfor %}
+  {% endcall %}
+  {% else %}
+  {{ estado_vacio(
+      "No tenés tareas asignadas en este momento",
+      "Cuando el Centro Coordinador y el Municipio adjudiquen una oferta de tu ONG, las tareas aparecerán aquí para su seguimiento.",
+      "lista"
+  ) }}
+  {% endif %}
+</div>
+{% endblock %}
