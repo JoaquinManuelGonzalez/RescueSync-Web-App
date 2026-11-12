@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import json
+
 from flask import Blueprint, flash, redirect, render_template, url_for
 from flask_login import current_user, login_required
 
 from app.core.acceso.autorizacion import requiere_permiso
 from app.core.acceso.permisos import EJECUCION_MARCAR_ACTIVIDAD
 from app.core.errores import ErrorDeAplicacion
+from app.core.integraciones.bonita.proceso import finalizar_actividad_ong
+from app.core.integraciones.bonita.sesion import BONITA_USER
 from app.core.interfaz.navegacion import EntradaDeMenu
+from app.extensiones import db
 from app.modulos.ejecucion_cierre import servicios
 from app.modulos.ejecucion_cierre.formularios import FormularioFinalizarTarea
 from app.modulos.ejecucion_cierre.modelos import EstadoTareaEjecucion
+from app.modulos.emergencias.modelos import Emergencia, EstadoEmergencia
 
 blueprint_ejecucion = Blueprint("ejecucion", __name__)
 
@@ -85,10 +91,24 @@ def finalizar_tarea(tarea_id: int):
             observaciones=formulario.observaciones.data,
         )
         estado_cierre = servicios.obtener_estado_finalizacion_emergencia(tarea.emergencia_id)
+
         if estado_cierre["todas_finalizadas"]:
+            emergencia = db.session.get(Emergencia, tarea.emergencia_id)
+
+            if not emergencia or not emergencia.bonita_case_id:
+                raise RuntimeError("La emergencia no tiene un proceso asociado en Bonita.")
+
+            finalizar_actividad_ong(
+                username=BONITA_USER,
+                case_id=emergencia.bonita_case_id,
+                ofertas_finalizadas_input=json.dumps({"todas_finalizadas": True}),
+            )
+
+            emergencia.estado = EstadoEmergencia.finalizada
+            db.session.commit()
+
             flash(
-                "Todas las ONGs finalizaron sus actividades. El cierre queda listo para "
-                "registrarse mediante la integración con Bonita y el Sistema Nacional.",
+                "Todas las ONG finalizaron sus actividades. Se notificó la finalización a Bonita.",
                 "exito",
             )
         else:

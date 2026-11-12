@@ -57,14 +57,20 @@ def confirmar(convocatoria_id: int):
         linea_ids = [int(valor) for valor in request.form.getlist("linea_id")]
         servicios.seleccionar_lineas(convocatoria, linea_ids)
 
-        case_id, compromisos_json = servicios.obtener_datos_integracion_bonita(convocatoria)
+        (
+            case_id,
+            compromisos_json,
+            ongs_no_seleccionadas_json,
+        ) = servicios.obtener_datos_integracion_bonita(convocatoria)
 
         confirmar_seleccion_ofertas(
             username=BONITA_USER,
             case_id=case_id,
             adjudicacion_id=convocatoria.id,
             compromisos_json=compromisos_json,
+            ongs_no_seleccionadas_json=ongs_no_seleccionadas_json,
         )
+
     except (ValueError, ErrorDeAplicacion) as error:
         flash(
             error.mensaje
