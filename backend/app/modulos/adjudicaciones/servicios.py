@@ -223,7 +223,7 @@ def construir_compromisos_json(convocatoria: Convocatoria) -> str:
 
 def obtener_datos_integracion_bonita(
     convocatoria: Convocatoria,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """Obtiene los datos necesarios para completar la tarea en Bonita."""
 
     case_id = convocatoria.emergencia.bonita_case_id
@@ -233,4 +233,25 @@ def obtener_datos_integracion_bonita(
 
     compromisos_json = construir_compromisos_json(convocatoria)
 
-    return case_id, compromisos_json
+    ongs_no_seleccionadas_json = construir_ongs_no_seleccionadas_json(convocatoria)
+
+    return case_id, compromisos_json, ongs_no_seleccionadas_json
+
+
+def construir_ongs_no_seleccionadas_json(convocatoria: Convocatoria) -> str:
+    """Obtiene los identificadores nacionales de las ONG rechazadas."""
+    identificadores = set()
+
+    for oferta in convocatoria.ofertas:
+        if oferta.estado != EstadoOferta.rechazada:
+            continue
+
+        for linea in oferta.items:
+            identificador = linea.organizacion.identificador_nacional
+
+            if not identificador:
+                raise ReglaDeNegocioIncumplida("Una ONG rechazada no tiene identificador nacional.")
+
+            identificadores.add(identificador)
+
+    return json.dumps(sorted(identificadores), ensure_ascii=False)
