@@ -7,6 +7,7 @@ en un solo lugar.
     {{ usuario.rol_principal|etiqueta_rol }}           -> Operador Municipal
     {{ organizacion.tipo|etiqueta_tipo_organizacion }} -> Municipio
     {{ emergencia.estado|etiqueta_estado_emergencia }} -> En revisión
+    {{ emergencia.nivel_gravedad|etiqueta_gravedad }}  -> Crítica
     {{ permiso|descripcion_permiso }}                  -> Registrar una emergencia nueva.
     {{ usuario.ultimo_acceso_en|fecha }}               -> 21/09/2026 14:05
 """
@@ -42,6 +43,13 @@ ETIQUETA_POR_ESTADO_DE_EMERGENCIA = {
     "cancelada": "Cancelada",
 }
 
+ETIQUETA_POR_NIVEL_DE_GRAVEDAD = {
+    "baja": "Baja",
+    "media": "Media",
+    "alta": "Alta",
+    "critica": "Crítica",
+}
+
 
 def etiqueta_rol(valor: Any) -> str:
     if not valor:
@@ -64,6 +72,13 @@ def etiqueta_estado_emergencia(valor: Any) -> str:
         return SIN_DATO
     clave = getattr(valor, "value", valor)
     return ETIQUETA_POR_ESTADO_DE_EMERGENCIA.get(str(clave), str(clave))
+
+
+def etiqueta_gravedad(valor: Any) -> str:
+    if not valor:
+        return SIN_DATO
+    clave = getattr(valor, "value", valor)
+    return ETIQUETA_POR_NIVEL_DE_GRAVEDAD.get(str(clave), str(clave))
 
 
 def descripcion_permiso(codigo: Any) -> str:
@@ -95,5 +110,6 @@ def registrar_filtros(app: Flask) -> None:
     app.jinja_env.filters["etiqueta_rol"] = etiqueta_rol
     app.jinja_env.filters["etiqueta_tipo_organizacion"] = etiqueta_tipo_organizacion
     app.jinja_env.filters["etiqueta_estado_emergencia"] = etiqueta_estado_emergencia
+    app.jinja_env.filters["etiqueta_gravedad"] = etiqueta_gravedad
     app.jinja_env.filters["descripcion_permiso"] = descripcion_permiso
     app.jinja_env.filters["fecha"] = fecha

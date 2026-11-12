@@ -185,3 +185,112 @@ def navegar(cliente_sembrado) -> Callable[..., Any]:
         return cliente_sembrado.get(url, headers=CABECERA_NAVEGADOR, **kwargs)
 
     return _navegar
+
+
+# --- Datos de dominio a medida ----------------------------------------------------
+
+
+@pytest.fixture
+def crear_emergencias(app, base_de_datos: None) -> Callable[..., list[int]]:
+    """Registra emergencias con fecha de registro, estado y gravedad elegidos por el test.
+
+    Recibe tuplas `(creado_en, estado)` o `(creado_en, estado, gravedad)`, con `creado_en` en
+    UTC; sin gravedad, es media. Devuelve los ids en el mismo orden. Conviene usar fechas que
+    ninguna semilla toque (por ejemplo, 2025) para que los conteos del test sean exactos.
+    """
+    from sqlalchemy import select
+
+    from app.extensiones import db
+    from app.modulos.emergencias.modelos import Emergencia, NivelGravedad, TipoEmergencia
+    from app.modulos.usuarios_roles.modelos import Usuario
+
+    def _crear(*registros) -> list[int]:
+        with app.app_context():
+            operador = db.session.execute(
+                select(Usuario).filter_by(email=EMAIL_OPERADOR)
+            ).scalar_one()
+            emergencias = []
+            for indice, (creado_en, estado, *resto) in enumerate(registros):
+                gravedad = resto[0] if resto else NivelGravedad.media
+                emergencia = Emergencia(
+                    titulo=f"Emergencia de prueba {creado_en.isoformat()} #{indice}",
+                    descripcion="Emergencia creada por un test.",
+                    nivel_gravedad=gravedad,
+                    zona_afectada="Zona de prueba",
+                    estado=estado,
+                    tipo_emergencia=TipoEmergencia.otros,
+                    municipio_id=operador.organizacion_id,
+                    usuario_id=operador.id,
+                    creado_en=creado_en,
+                )
+                db.session.add(emergencia)
+                emergencias.append(emergencia)
+            db.session.commit()
+            return [emergencia.id for emergencia in emergencias]
+
+    return _crear
+
+
+@pytest.fixture
+def cargar_necesidades(app, base_de_datos: None) -> Callable[..., None]:
+    """Carga a una emergencia un lote con sus items y lo que el Sistema Nacional habilito.
+
+    Recibe el id de la emergencia y tuplas `(requerida, ofrecida)` o
+    `(requerida, ofrecida, clasificacion)`, una por item del lote; sin clasificacion, la linea
+    queda como `principal` (habilitada). Con `ofrecida` en 0 el item no recibe ofertas. Arma una
+    convocatoria y una oferta presentada de la ONG del representante para colgar las lineas.
+    """
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from app.extensiones import db
+    from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
+    from app.modulos.emergencias.modelos import EstadoLote, Item, LoteItem, LoteNecesidad
+    from app.modulos.ofertas.modelos import EstadoOferta, Oferta, OfertaLinea, TipoAsignacion
+    from app.modulos.usuarios_roles.modelos import Usuario
+
+    def _cargar(emergencia_id: int, *items, estado_del_lote=EstadoLote.adjudicado_total) -> None:
+        with app.app_context():
+            coordinador = db.session.execute(
+                select(Usuario).filter_by(email=EMAIL_COORDINADOR)
+            ).scalar_one()
+            representante = db.session.execute(
+                select(Usuario).filter_by(email=EMAIL_REPRESENTANTE)
+            ).scalar_one()
+            catalogo = db.session.execute(select(Item).order_by(Item.id)).scalars().all()
+
+            convocatoria = Convocatoria(
+                emergencia_id=emergencia_id,
+                coordinador_id=coordinador.id,
+                fecha_inicio=datetime(2025, 1, 1, tzinfo=UTC),
+                fecha_cierre=datetime(2025, 1, 2, tzinfo=UTC),
+                resumen_situacion="Convocatoria creada por un test.",
+                estado=EstadoConvocatoria.adjudicada,
+            )
+            lote = LoteNecesidad(
+                emergencia_id=emergencia_id, convocatoria=convocatoria, estado=estado_del_lote
+            )
+            oferta = Oferta(
+                convocatoria=convocatoria,
+                usuario_id=representante.id,
+                estado=EstadoOferta.presentada,
+            )
+            db.session.add_all([convocatoria, lote, oferta])
+
+            for item, (requerida, ofrecida, *resto) in zip(catalogo, items, strict=False):
+                lote_item = LoteItem(lote=lote, item_id=item.id, cantidad_solicitada=requerida)
+                db.session.add(lote_item)
+                if ofrecida:
+                    db.session.add(
+                        OfertaLinea(
+                            oferta=oferta,
+                            lote_item=lote_item,
+                            organizacion_id=representante.organizacion_id,
+                            cantidad_ofrecida=ofrecida,
+                            tipo_asignacion=resto[0] if resto else TipoAsignacion.principal,
+                        )
+                    )
+            db.session.commit()
+
+    return _cargar

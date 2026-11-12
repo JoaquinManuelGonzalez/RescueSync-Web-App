@@ -41,6 +41,7 @@ def registrar_modulos(app: Flask) -> None:
     from app.modulos.convocatorias import rutas as rutas_de_convocatorias
     from app.modulos.emergencias import rutas as rutas_de_emergencias
     from app.modulos.emergencias.lotes import rutas as rutas_de_lotes
+    from app.modulos.indicadores import rutas as rutas_de_indicadores
     from app.modulos.notificaciones import rutas as rutas_de_notificaciones
     from app.modulos.notificaciones import servicios as servicios_de_notificaciones
     from app.modulos.ofertas import rutas as rutas_de_ofertas
@@ -65,6 +66,8 @@ def registrar_modulos(app: Flask) -> None:
     app.register_blueprint(
         rutas_de_notificaciones.blueprint_notificaciones, url_prefix="/notificaciones"
     )
+    # El modulo se llama `indicadores` (docs/arquitectura/componentes.md); la URL, la del perfil.
+    app.register_blueprint(rutas_de_indicadores.blueprint_indicadores, url_prefix="/auditoria")
     servicios_de_notificaciones.registrar_contexto(app)
 
     # Cada pantalla con acceso propio en el menu declara su entrada junto a sus rutas; aca solo
@@ -76,3 +79,4 @@ def registrar_modulos(app: Flask) -> None:
     registrar_entrada(app, rutas_de_ofertas.ENTRADA_DE_MENU)
     registrar_entrada(app, rutas_de_convocatorias.ENTRADA_DE_MENU)
     registrar_entrada(app, rutas_de_emergencias.ENTRADA_DE_MENU)
+    registrar_entrada(app, rutas_de_indicadores.ENTRADA_DE_MENU)

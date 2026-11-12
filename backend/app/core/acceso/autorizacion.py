@@ -98,7 +98,10 @@ def requiere_autenticacion[F: Callable[..., Any]](funcion: F) -> F:
     return envoltorio  # type: ignore[return-value]
 
 
-def requiere_permiso[F: Callable[..., Any]](*codigos_permiso: str) -> Callable[[F], F]:
+def requiere_permiso[F: Callable[..., Any]](
+    *codigos_permiso: str,
+    al_denegar: type[PermisoDenegado] = PermisoDenegado,
+) -> Callable[[F], F]:
     """Exige que el usuario tenga **todos** los permisos indicados.
 
     Lo normal es declarar uno solo. Se aceptan varios para el caso de una ruta que combina
@@ -107,6 +110,10 @@ def requiere_permiso[F: Callable[..., Any]](*codigos_permiso: str) -> Callable[[
     Sin sesion devuelve 401 NO_AUTENTICADO; con sesion pero sin el permiso, 403
     PERMISO_DENEGADO. La distincion importa: el 401 le dice al usuario que inicie sesion, el
     403 que no insista con esa cuenta.
+
+    `al_denegar` elige la subclase de `PermisoDenegado` que se lanza. El codigo y el estado
+    HTTP no cambian; lo que cambia es la respuesta al navegador. Por ejemplo,
+    `SeccionAjenaAlRol` lo devuelve a su portal en lugar de mostrarle la pagina 403.
     """
 
     def decorador(funcion: F) -> F:
@@ -120,7 +127,7 @@ def requiere_permiso[F: Callable[..., Any]](*codigos_permiso: str) -> Callable[[
             ]
             if faltantes:
                 _registrar_denegacion("sin_permiso", ", ".join(faltantes))
-                raise PermisoDenegado(MENSAJE_SIN_PERMISO)
+                raise al_denegar(MENSAJE_SIN_PERMISO)
 
             return funcion(*args, **kwargs)
 

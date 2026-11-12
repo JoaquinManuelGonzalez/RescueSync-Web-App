@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from app.core.semillas import ResultadoSemilla, obtener_o_crear, registrar
 from app.modulos.emergencias.modelos import (
     Emergencia,
@@ -67,13 +69,117 @@ EMERGENCIAS: list[dict] = [
     },
 ]
 
+# Emergencias ya resueltas, con fecha de registro fija, para que el panel de auditoria tenga
+# historia que mostrar: el filtro de octubre de 2026 y las tarjetas de finalizadas y canceladas.
+# Solo se usan estados que no exigen lotes ni convocatorias para ser coherentes.
+EMERGENCIAS_HISTORICAS: list[dict] = [
+    {
+        "titulo": "Granizo sobre la zona hortícola de La Plata",
+        "descripcion": (
+            "Una tormenta de granizo dañó invernaderos y cultivos del cinturón hortícola. "
+            "Familias productoras necesitaron nylon, herramientas y alimentos."
+        ),
+        "nivel_gravedad": NivelGravedad.media,
+        "zona_afectada": "Cinturón hortícola de Abasto y Olmos, partido de La Plata",
+        "estado": EstadoEmergencia.finalizada,
+        "municipio_nombre": "Municipalidad de La Plata",
+        "usuario_email": "operador@laplata.test",
+        "tipo_emergencia": TipoEmergencia.otros,
+        "creado_en": datetime(2026, 8, 18, 14, 30, tzinfo=UTC),
+    },
+    {
+        "titulo": "Desborde de la laguna de Chascomús",
+        "descripcion": (
+            "La crecida de la laguna anegó la costanera y barrios bajos. "
+            "Se evacuaron 40 familias y se requirieron colchones, agua y abrigo."
+        ),
+        "nivel_gravedad": NivelGravedad.alta,
+        "zona_afectada": "Costanera y barrios ribereños de Chascomús",
+        "estado": EstadoEmergencia.finalizada,
+        "municipio_nombre": "Municipio de Chascomús",
+        "usuario_email": "operador@chascomus.test",
+        "tipo_emergencia": TipoEmergencia.inundacion,
+        "creado_en": datetime(2026, 9, 7, 11, 0, tzinfo=UTC),
+    },
+    {
+        "titulo": "Alerta por fuga de gas en el puerto de Bahía Blanca",
+        "descripcion": (
+            "Se reportó una posible fuga de gas en el área portuaria. "
+            "La inspección descartó el riesgo y la alerta se dio de baja."
+        ),
+        "nivel_gravedad": NivelGravedad.alta,
+        "zona_afectada": "Puerto de Ingeniero White, Bahía Blanca",
+        "estado": EstadoEmergencia.cancelada,
+        "municipio_nombre": "Municipalidad de Bahía Blanca",
+        "usuario_email": "operador@bahia.test",
+        "tipo_emergencia": TipoEmergencia.otros,
+        "creado_en": datetime(2026, 9, 24, 18, 15, tzinfo=UTC),
+    },
+    {
+        "titulo": "Incendio de pastizales en el periurbano de La Plata",
+        "descripcion": (
+            "El fuego avanzó sobre pastizales linderos a viviendas rurales. "
+            "Se pidieron refuerzos de agua, insumos médicos y kits de higiene."
+        ),
+        "nivel_gravedad": NivelGravedad.media,
+        "zona_afectada": "Lisandro Olmos y Etcheverry, partido de La Plata",
+        "estado": EstadoEmergencia.finalizada,
+        "municipio_nombre": "Municipalidad de La Plata",
+        "usuario_email": "operador@laplata.test",
+        "tipo_emergencia": TipoEmergencia.incendio,
+        "creado_en": datetime(2026, 10, 4, 16, 45, tzinfo=UTC),
+    },
+    {
+        "titulo": "Anegamiento de calles por lluvias en Chascomús",
+        "descripcion": (
+            "Lluvias persistentes anegaron calles de tierra y aislaron a vecinos de la zona rural. "
+            "Se necesitaron alimentos no perecederos y agua potable."
+        ),
+        "nivel_gravedad": NivelGravedad.baja,
+        "zona_afectada": "Zona rural de Chascomús",
+        "estado": EstadoEmergencia.finalizada,
+        "municipio_nombre": "Municipio de Chascomús",
+        "usuario_email": "operador@chascomus.test",
+        "tipo_emergencia": TipoEmergencia.inundacion,
+        "creado_en": datetime(2026, 10, 11, 9, 20, tzinfo=UTC),
+    },
+    {
+        "titulo": "Brote de gastroenteritis en barrios de Bahía Blanca",
+        "descripcion": (
+            "Se notificaron casos de gastroenteritis asociados al agua de red. "
+            "Los análisis descartaron la contaminación y la emergencia se canceló."
+        ),
+        "nivel_gravedad": NivelGravedad.media,
+        "zona_afectada": "Barrios Noroeste y Villa Rosas, Bahía Blanca",
+        "estado": EstadoEmergencia.cancelada,
+        "municipio_nombre": "Municipalidad de Bahía Blanca",
+        "usuario_email": "operador@bahia.test",
+        "tipo_emergencia": TipoEmergencia.epidemia,
+        "creado_en": datetime(2026, 10, 19, 13, 10, tzinfo=UTC),
+    },
+    {
+        "titulo": "Vientos fuertes con caída de árboles en Bahía Blanca",
+        "descripcion": (
+            "Ráfagas de más de 90 km/h derribaron árboles y tendido eléctrico. "
+            "Hay viviendas con daños en techos y sectores sin suministro."
+        ),
+        "nivel_gravedad": NivelGravedad.alta,
+        "zona_afectada": "Centro y barrio Universitario, Bahía Blanca",
+        "estado": EstadoEmergencia.registrada,
+        "municipio_nombre": "Municipalidad de Bahía Blanca",
+        "usuario_email": "operador@bahia.test",
+        "tipo_emergencia": TipoEmergencia.otros,
+        "creado_en": datetime(2026, 10, 27, 20, 5, tzinfo=UTC),
+    },
+]
+
 
 @registrar("emergencias")
 def sembrar_emergencias() -> list[ResultadoSemilla]:
 
     resultado = ResultadoSemilla("emergencias")
 
-    for datos in EMERGENCIAS:
+    for datos in [*EMERGENCIAS, *EMERGENCIAS_HISTORICAS]:
         municipio = Organizacion.query.filter_by(nombre=datos["municipio_nombre"]).first()
         if municipio is None:
             raise ValueError(
@@ -88,19 +194,24 @@ def sembrar_emergencias() -> list[ResultadoSemilla]:
                 f"Revisar si está declarado en usuarios_roles/semillas.py::USUARIOS?"
             )
 
+        valores = {
+            "descripcion": datos["descripcion"],
+            "nivel_gravedad": datos["nivel_gravedad"],
+            "tipo_emergencia": datos["tipo_emergencia"],
+            "zona_afectada": datos["zona_afectada"],
+            "estado": datos["estado"],
+            # "bonita_case_id": ...
+            "municipio_id": municipio.id,
+            "usuario_id": usuario.id,
+        }
+        # Sin fecha propia la emergencia queda registrada "ahora", por el server_default.
+        if "creado_en" in datos:
+            valores["creado_en"] = datos["creado_en"]
+
         _, creada = obtener_o_crear(
             Emergencia,
             claves={"titulo": datos["titulo"]},
-            valores={
-                "descripcion": datos["descripcion"],
-                "nivel_gravedad": datos["nivel_gravedad"],
-                "tipo_emergencia": datos["tipo_emergencia"],
-                "zona_afectada": datos["zona_afectada"],
-                "estado": datos["estado"],
-                # "bonita_case_id": ...
-                "municipio_id": municipio.id,
-                "usuario_id": usuario.id,
-            },
+            valores=valores,
         )
         resultado.contar(creada)
 

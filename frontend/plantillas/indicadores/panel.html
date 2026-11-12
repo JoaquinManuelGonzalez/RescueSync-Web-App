@@ -1,0 +1,23 @@
+{% extends "indicadores/base.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/indicadores.html" import tarjeta_indicador %}
+
+{% block title %}Panel de auditoría{% endblock %}
+
+{#- Seccion "Resumen" del panel de auditoria: las cuatro cifras de cabecera del periodo. -#}
+{% block seccion %}
+{%- set registradas = resumen.emergencias_registradas %}
+<section class="space-y-4" aria-labelledby="resumen-titulo">
+  <h2 id="resumen-titulo" class="sr-only">Resumen del período</h2>
+  <div class="kpi-grilla animar-escalonado">
+    {{ tarjeta_indicador("Emergencias registradas", registradas, "advertencia", "primario", detalle="Dadas de alta en el período.") }}
+    {{ tarjeta_indicador("Emergencias activas", resumen.emergencias_activas, "reloj", "info", detalle="En curso: sin finalizar ni cancelar.", total=registradas) }}
+    {{ tarjeta_indicador("Emergencias finalizadas", resumen.emergencias_finalizadas, "exito", "exito", detalle="Con el proceso cerrado.", total=registradas) }}
+    {{ tarjeta_indicador("ONGs con adjudicación", resumen.ongs_con_adjudicacion, "organizaciones", "advertencia", detalle="Con al menos una adjudicación.", pendiente="Se calcula cuando se registren adjudicaciones.") }}
+  </div>
+
+  {%- if registradas == 0 %}
+  <p class="kpi-nota">{{ icono("info", "size-5") }} No hay emergencias registradas en este período. Probá con un rango más amplio.</p>
+  {%- endif %}
+</section>
+{% endblock %}

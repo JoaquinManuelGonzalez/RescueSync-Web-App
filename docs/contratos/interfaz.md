@@ -55,6 +55,7 @@ Tomadas de las clases que ya usaban los templates del equipo (`bg-primario`,
 | Destacados | `.hero`, `.hero-titulo`, `.hero-texto`, `.hero-etiquetas`, `.hero-etiqueta`; `.rasgo` (+ `-icono`, `-titulo`, `-texto`); `.cifra` (+ `-valor`, `-texto`); `.animar-escalonado` (los hijos entran en cascada) |
 | Accesos | `.accesos-grilla`, `.acceso`, `.acceso-icono`, `.acceso-cuerpo`, `.acceso-titulo`, `.acceso-texto`, `.acceso-flecha` |
 | Bienvenida | `.bienvenida`, `.bienvenida-presentacion`, `.bienvenida-marca`, `.bienvenida-logo`, `.bienvenida-rasgos`, `.bienvenida-cifras`, `.bienvenida-acceso`, `.bienvenida-acceso-titulo`, `.bienvenida-acceso-texto`, `.bienvenida-nota` |
+| Indicadores (panel de auditoría) | `.periodo-cabecera` (+ `-icono`, `-titulo`, `-texto`), `.periodo-atajos`, `.periodo-atajo`, `.periodo-atajo-activo`, `.periodo-filtro`, `.periodo-filtro-accion`, `.periodo-resumen`; `.kpi-grilla`, `.kpi` + tono `.kpi-primario`, `-info`, `-exito`, `-advertencia`; `.kpi-cabecera`, `.kpi-etiqueta`, `.kpi-icono`, `.kpi-valor`, `.kpi-valor-sin-dato`, `.kpi-pie`, `.kpi-detalle`, `.kpi-porcentaje`, `.kpi-barra`, `.kpi-barra-relleno`, `.kpi-nota`; `.panel-pestanas`, `.panel-pestana`, `.panel-pestana-activa`; `.seccion-cabecera`, `.seccion-titulo`, `.seccion-texto`; `.filtro-segmentado`, `.filtro-segmento`, `.filtro-segmento-activo`, `.gravedad-punto` + `-baja`, `-media`, `-alta`, `-critica`; `.graficos-grilla` (+ `-ancha`, `-angosta`), `.grafico-tarjeta`, `.grafico-cabecera`, `.grafico-titulo`, `.grafico-descripcion`, `.grafico-cuerpo`, `.grafico-lienzo`, `.grafico-centro` (+ `-cifra`, `-texto`), `.grafico-respaldo`, `.grafico-vacio` (+ `-icono`), `.grafico-leyenda` (+ `-item`, `-marca`, `-texto`, `-valor`), `.grafico-tono-exito`, `.grafico-tono-advertencia`, `.grafico-nota`; `.cobertura-barra` (+ `-fila`, `-relleno`, `-valor`) |
 
 **Las tablas no tienen scroll horizontal.** En pantallas anchas el texto largo se parte dentro
 de su celda; por debajo de `md` cada fila se apila como una tarjeta y cada dato muestra su
@@ -70,6 +71,7 @@ título (el `data-etiqueta` que pone el macro `celda()`). Todo listado va pagina
 | `alertas.html` | `alerta(categoria, mensaje, titulo)` — aviso fijo dentro de una pantalla |
 | `diseno.html` | `encabezado_pagina(...)`, `estado_vacio(...)`, `insignia(...)`, `insignia_estado(...)`, `insignia_estado_cuenta(...)`, `dato(...)` |
 | `destacados.html` | `icono_destacado(nombre, clase)` (como `icono()`, con algunos trazos extra), `rasgo(...)`, `cifra(...)`, `tarjeta_acceso(entrada, icono_nombre)` — los usan la bienvenida y el panel de inicio |
+| `indicadores.html` | `tarjeta_indicador(etiqueta, valor, icono_nombre, tono, detalle, total, pendiente)` — cifra del panel de auditoría; con `total` muestra el porcentaje y una barra, y con `valor` en `none` muestra "sin datos" (nunca un 0); `tarjeta_grafico(id, titulo, descripcion, definicion, filas, vacio, resumen, centro)` — gráfico de Chart.js (ver ADR-010) con una tabla de los mismos datos para lectores de pantalla y para cuando no hay JavaScript |
 
 `campo()` resuelve etiqueta, control, ayuda, errores de validación y accesibilidad. Un
 `PasswordField` sale con el botón para mostrar u ocultar la contraseña; con `requisitos=true`
@@ -108,6 +110,14 @@ Lo carga `layout.html` en todas las pantallas. Los templates que ya traen su pro
 | `form[data-envio-con-carga]` | Al enviar deshabilita el `[data-boton-envio]` y muestra el spinner |
 | `select[data-filtra-organizaciones]` + `data-campo-rol` | Muestra solo las organizaciones del tipo que exige el rol elegido |
 | `body[data-minutos-sesion]` | Recarga la pantalla al vencer la sesión por inactividad |
+
+Las pantallas con un comportamiento propio cargan su script al final de su bloque `content`:
+
+| Script | Atributo | Efecto |
+|---|---|---|
+| `estaticos/js/indicadores.js` | `form[data-filtro-periodo]` + `data-mensaje-invertido` | Antes de enviar, avisa si la fecha "desde" es posterior a la "hasta" (el mismo mensaje que el servidor) y sincroniza los `min`/`max` de las dos fechas |
+| `estaticos/js/indicadores.js` | `[data-filtro-de-seccion]` (sus enlaces) + `[data-panel-actualizable="nombre"]` | Aplica el filtro de la sección sin recargar: trae la pantalla del enlace, reemplaza solo las regiones actualizables, vuelve a dibujar los gráficos y cambia la URL. Si algo falla, sigue el enlace |
+| `estaticos/js/graficos.js` (+ `vendor/chart-4.4.9.umd.js`) | `[data-grafico-contenedor]` con `script[data-grafico]` | Dibuja el gráfico de la definición JSON con los colores y la tipografía del sitio, y deja la tabla de respaldo solo para lectores de pantalla. Expone `RescueSync.graficos.iniciar(raiz)` / `destruir(raiz)` |
 
 Nada de esto es seguridad: el servidor valida y autoriza todo por su cuenta.
 

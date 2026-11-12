@@ -13,8 +13,10 @@ from flask import jsonify
 
 from app.core.acceso.autorizacion import requiere_autenticacion, requiere_permiso, requiere_rol
 from app.core.acceso.permisos import EMERGENCIAS_CREAR, PERMISOS_POR_ROL, NombreRol
+from app.core.errores import SeccionAjenaAlRol
 
 from .conftest import (
+    CABECERA_NAVEGADOR,
     EMAIL_ADMINISTRADOR,
     EMAIL_AUDITOR,
     EMAIL_COORDINADOR,
@@ -48,6 +50,11 @@ def rutas_de_prueba(app):
     @app.get("/pantalla-de-auditoria")
     @requiere_rol(NombreRol.AUDITOR)
     def _pantalla_de_auditoria():
+        return jsonify({"ok": True})
+
+    @app.get("/seccion-de-emergencias")
+    @requiere_permiso(EMERGENCIAS_CREAR, al_denegar=SeccionAjenaAlRol)
+    def _seccion_de_emergencias():
         return jsonify({"ok": True})
 
     return app
@@ -139,6 +146,30 @@ def test_requiere_rol_solo_deja_pasar_al_rol_indicado(
 
     ingresar(EMAIL_ADMINISTRADOR)
     assert cliente_sembrado.get("/pantalla-de-auditoria").status_code == 403
+
+
+def test_una_seccion_ajena_devuelve_al_navegador_a_su_portal(
+    rutas_de_prueba, cliente_sembrado, ingresar
+) -> None:
+    """Con `al_denegar=SeccionAjenaAlRol` no hay pagina 403: el navegador vuelve a /inicio."""
+    ingresar(EMAIL_AUDITOR)
+
+    respuesta = cliente_sembrado.get("/seccion-de-emergencias", headers=CABECERA_NAVEGADOR)
+
+    assert respuesta.status_code == 302
+    assert respuesta.headers["Location"].endswith("/inicio")
+
+
+def test_una_seccion_ajena_sigue_siendo_un_403_para_el_cliente_json(
+    rutas_de_prueba, cliente_sembrado, ingresar
+) -> None:
+    ingresar(EMAIL_AUDITOR)
+    respuesta = cliente_sembrado.get("/seccion-de-emergencias")
+    assert respuesta.status_code == 403
+    assert _codigo(respuesta) == "PERMISO_DENEGADO"
+
+    ingresar(EMAIL_OPERADOR)
+    assert cliente_sembrado.get("/seccion-de-emergencias").status_code == 200
 
 
 # --- La matriz de minimo privilegio -------------------------------------------

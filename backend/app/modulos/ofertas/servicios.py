@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import Select, func, select
 
 from app.core.errores import (
     ConflictoDeEstado,
@@ -45,6 +45,12 @@ from app.modulos.organizaciones.modelos import (
     Organizacion,
     TipoOrganizacion,
 )
+
+# Clasificaciones del Sistema Nacional que habilitan un aporte: lo que cubre la necesidad.
+ASIGNACIONES_HABILITADAS = (TipoAsignacion.principal, TipoAsignacion.apoyo)
+
+# Ofertas que ya no comprometen nada: sus lineas no cubren necesidades aunque esten habilitadas.
+ESTADOS_DE_OFERTA_SIN_COMPROMISO = (EstadoOferta.retirada, EstadoOferta.rechazada)
 
 
 def _formatear_fecha_iso(fecha: datetime | None) -> str | None:
@@ -990,10 +996,7 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
                 claves_recibidas.add(clave)
                 actualizaciones[linea.id] = (linea, clasificacion)
 
-                if clasificacion in (
-                    TipoAsignacion.principal,
-                    TipoAsignacion.apoyo,
-                ):
+                if clasificacion in ASIGNACIONES_HABILITADAS:
                     cantidades_habilitadas[lote_item_id] += linea.cantidad_ofrecida
 
         if claves_recibidas != set(lineas_por_clave):
@@ -1028,3 +1031,28 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
         "cobertura_completa": all(item["cantidad_faltante"] == 0 for item in detalle),
         "lotes": detalle,
     }
+
+
+# --- Lectura agregada (panel de auditoria) ---------------------------------------
+
+
+def consultar_unidades_habilitadas(*, lote_item_ids: Select[tuple[int]]) -> Select[tuple[int, int]]:
+    """Subconsulta con las unidades habilitadas por el Sistema Nacional para cada item de lote.
+
+    Columnas: `lote_item_id` y `cantidad_habilitada`, la suma de lo ofrecido en las lineas
+    clasificadas como principal o apoyo, de ofertas que siguen en pie. Un item sin aportes
+    habilitados no aparece. Es un `Select` para combinarla en una sola consulta.
+    """
+    return (
+        select(
+            OfertaLinea.lote_item_id.label("lote_item_id"),
+            func.sum(OfertaLinea.cantidad_ofrecida).label("cantidad_habilitada"),
+        )
+        .join(Oferta, OfertaLinea.oferta_id == Oferta.id)
+        .where(
+            OfertaLinea.lote_item_id.in_(lote_item_ids),
+            OfertaLinea.tipo_asignacion.in_(ASIGNACIONES_HABILITADAS),
+            Oferta.estado.not_in(ESTADOS_DE_OFERTA_SIN_COMPROMISO),
+        )
+        .group_by(OfertaLinea.lote_item_id)
+    )

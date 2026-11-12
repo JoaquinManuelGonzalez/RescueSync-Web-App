@@ -249,7 +249,7 @@ de lectura (`indicadores`) que implementa el dashboard.
 | `ofertas` | Carga de ofertas de ayuda por parte de las ONGs dentro de la ventana vigente, y exposición del endpoint consolidado que consume Bonita (integración 4) | `ofertas_de_ayuda` |
 | `adjudicacion` | Registro de la decisión de adjudicación del Centro Coordinador Regional y su comunicación a la API Nacional | `adjudicaciones` |
 | `ejecucion_cierre` | Seguimiento de la ejecución de cada ONG adjudicada y cierre del proyecto con liberación de recursos | `ejecuciones`, `bitacora_de_cierre` |
-| `indicadores` | Dashboard de métricas y reportes para el perfil Auditor/Directivo: gráficos interactivos y exportación de datos, combinando métricas propias con tiempos de etapa obtenidos de Bonita | Ninguna propia: es de solo lectura sobre las tablas de los demás módulos, siempre a través de sus servicios |
+| `indicadores` | Dashboard de métricas y reportes para el perfil Auditor/Directivo: gráficos interactivos y exportación de datos, combinando métricas propias con tiempos de etapa obtenidos de Bonita. Sus rutas viven bajo `/auditoria`, una por sección (pestaña). La cobertura de las emergencias se lee de `adjudicaciones.servicios`, que mientras no exista el modelo `Adjudicacion` toma las unidades habilitadas por el Sistema Nacional en su evaluación | Ninguna propia: es de solo lectura sobre las tablas de los demás módulos, siempre a través de sus servicios |
 
 ### Árbol de carpetas
 

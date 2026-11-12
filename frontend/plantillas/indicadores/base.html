@@ -1,0 +1,89 @@
+{% extends "layout.html" %}
+{% from "componentes/diseno.html" import encabezado_pagina %}
+{% from "componentes/formularios.html" import campo, boton_envio %}
+{% from "componentes/iconos.html" import icono %}
+
+{#- Esqueleto comun de las secciones del panel de auditoria (app/modulos/indicadores/rutas.py).
+
+    Arma el encabezado, las pestañas de las secciones (`pestanas`) y el periodo, que comparten
+    todas. Cada seccion extiende esta plantilla y llena el bloque `seccion`; si tiene un script
+    propio, lo suma en `scripts_de_la_seccion`.
+
+    `filtros_de_la_seccion` son los filtros propios de la seccion ya aplicados (por ejemplo, la
+    gravedad): el formulario de periodo y sus atajos los conservan.
+
+    Las regiones con `data-panel-actualizable` las reemplaza indicadores.js cuando un filtro de
+    la seccion se aplica sin recargar la pagina. -#}
+{% block content %}
+{%- set atributos_de_fecha = {"max": hoy.isoformat(), "lang": "es-AR"} %}
+<div class="pagina space-y-6">
+
+  {% call encabezado_pagina("Panel de auditoría", "Resumen de la actividad de la red de respuesta a emergencias.") %}
+  <span class="insignia insignia-neutra gap-1.5">{{ icono("ver", "size-4") }} Solo lectura</span>
+  {% endcall %}
+
+  <nav class="panel-pestanas" aria-label="Secciones del panel">
+    {%- for pestana in pestanas %}
+    {%- set activa = request.endpoint == pestana.endpoint %}
+    <a class="panel-pestana{{ ' panel-pestana-activa' if activa }}" href="{{ url_for(pestana.endpoint) }}"
+       {%- if activa %} aria-current="page"{% endif %}>
+      {{ icono(pestana.icono, "size-4") }}
+      <span>{{ pestana.titulo }}</span>
+    </a>
+    {%- endfor %}
+  </nav>
+
+  <section class="tarjeta" aria-labelledby="periodo-titulo">
+    <div class="tarjeta-cuerpo space-y-5">
+      <div class="periodo-cabecera">
+        <span class="periodo-cabecera-icono">{{ icono("calendario") }}</span>
+        <div>
+          <h2 id="periodo-titulo" class="periodo-cabecera-titulo">Período de análisis</h2>
+          <p class="periodo-cabecera-texto">Las cifras del panel se calculan sobre las emergencias registradas en este rango.</p>
+        </div>
+      </div>
+
+      <nav class="periodo-atajos" aria-label="Períodos frecuentes" data-panel-actualizable="atajos">
+        {%- for atajo in atajos %}
+        {%- set activo = atajo.periodo == periodo %}
+        <a class="periodo-atajo{{ ' periodo-atajo-activo' if activo }}"
+           href="{{ url_for(request.endpoint, desde=atajo.periodo.desde.isoformat(), hasta=atajo.periodo.hasta.isoformat(), **filtros_de_la_seccion) }}"
+           {%- if activo %} aria-current="true"{% endif %}>{{ atajo.etiqueta }}</a>
+        {%- endfor %}
+      </nav>
+
+      {#- novalidate: la regla del periodo la avisa indicadores.js con el mismo texto que el
+          servidor, en vez del globo del navegador. -#}
+      <form method="get" action="{{ url_for(request.endpoint) }}" class="periodo-filtro" novalidate
+            data-filtro-periodo data-mensaje-invertido="{{ mensaje_periodo_invertido }}" data-envio-con-carga>
+        {{ campo(formulario.desde, atributos=atributos_de_fecha) }}
+        {{ campo(formulario.hasta, atributos=atributos_de_fecha) }}
+        <div class="periodo-filtro-accion">
+          {{ boton_envio("Aplicar", "Aplicando…") }}
+        </div>
+        <div hidden data-panel-actualizable="filtros-ocultos">
+          {%- for nombre, valor in filtros_de_la_seccion.items() %}
+          <input type="hidden" name="{{ nombre }}" value="{{ valor }}">
+          {%- endfor %}
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <p class="periodo-resumen" aria-live="polite">
+    {{ icono("calendario", "size-4") }}
+    <span>
+      Emergencias registradas del <strong>{{ periodo.desde.strftime("%d/%m/%Y") }}</strong> al <strong>{{ periodo.hasta.strftime("%d/%m/%Y") }}</strong>
+      <span aria-hidden="true">·</span> {{ periodo.dias }} {{ "día" if periodo.dias == 1 else "días" }}
+      {%- if formulario.errors %}
+      <span aria-hidden="true">·</span> El filtro no se aplicó: se mantiene el período anterior.
+      {%- endif %}
+    </span>
+  </p>
+
+  {% block seccion %}{% endblock %}
+
+</div>
+<script src="{{ url_for('static', filename='js/indicadores.js') }}" defer></script>
+{% block scripts_de_la_seccion %}{% endblock %}
+{% endblock %}

@@ -94,6 +94,23 @@ El decorador va **debajo** del de la ruta. Hay tres:
 | `@requiere_autenticacion` | Para lo que cualquier usuario autenticado puede hacer con su propia cuenta |
 | `@requiere_rol(NombreRol.AUDITOR)` | Excepcional: para lo que es intrínsecamente de un perfil y no de una acción. Acepta varios roles y exige **alguno** |
 
+#### Secciones enteras de un perfil: `al_denegar`
+
+`@requiere_permiso` acepta `al_denegar`, la subclase de `PermisoDenegado` que se lanza cuando
+falta el permiso. El código (`PERMISO_DENEGADO`) y el estado (403) no cambian; lo que cambia
+es la respuesta al navegador. Con `SeccionAjenaAlRol` (`app/core/errores.py`), en vez de la
+página 403 el navegador vuelve a su portal (`/inicio`) con un aviso:
+
+```python
+@blueprint_indicadores.get("")
+@requiere_permiso(INDICADORES_VER, al_denegar=SeccionAjenaAlRol)
+def panel(): ...
+```
+
+Va en las secciones que pertenecen enteras a otro perfil, como el panel de auditoría
+(`/auditoria`): una persona que llega ahí con otro rol no tiene nada que hacer en esa pantalla, y
+devolverla a su portal es más útil que mostrarle un error.
+
 ### Si la pantalla tiene una tarjeta en el hub
 
 Si la pantalla tiene su tarjeta en el panel de inicio (`hub.html`), el módulo declara
@@ -221,6 +238,7 @@ navegador, el mismo error traducido a una pantalla (ver `errores.md` sección 2.
 |---|---|---|---|
 | Sin sesión, o sesión vencida por inactividad | 401 | `NO_AUTENTICADO` | Redirect al ingreso con el aviso y `?next=` a la pantalla pedida |
 | Con sesión, sin el permiso exigido | 403 | `PERMISO_DENEGADO` | Página 403 con el id de correlación |
+| Con sesión, en una sección ajena a su rol (`al_denegar=SeccionAjenaAlRol`, sección 3) | 403 | `PERMISO_DENEGADO` | Redirect a su portal (`/inicio`) con el aviso |
 | Cuenta bloqueada por intentos fallidos | 403 | `PERMISO_DENEGADO` | La pantalla de ingreso, con el aviso de bloqueo y su duración |
 | Cuenta desactivada (con la contraseña correcta) | 403 | `PERMISO_DENEGADO` | La pantalla de ingreso, con el aviso de cuenta desactivada |
 | Credenciales incorrectas | 401 | `NO_AUTENTICADO` | La pantalla de ingreso, con el mensaje genérico y el email cargado |
