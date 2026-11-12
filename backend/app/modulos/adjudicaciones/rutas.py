@@ -8,11 +8,11 @@ from flask_login import current_user
 from app.core.acceso.autorizacion import requiere_permiso
 from app.core.acceso.permisos import ADJUDICACIONES_SELECCIONAR
 from app.core.errores import ErrorDeAplicacion
+from app.core.integraciones.bonita.proceso import confirmar_seleccion_ofertas
+from app.core.integraciones.bonita.sesion import BONITA_USER
 from app.core.interfaz.navegacion import EntradaDeMenu
 from app.core.interfaz.vistas import ERROR, redirigir
 from app.modulos.adjudicaciones import servicios
-from app.core.integraciones.bonita.proceso import confirmar_seleccion_ofertas
-from app.core.integraciones.bonita.sesion import BONITA_USER
 
 blueprint_adjudicaciones = Blueprint("adjudicaciones", __name__)
 ENTRADA_DE_MENU = EntradaDeMenu(
@@ -35,16 +35,11 @@ def listar():
 @blueprint_adjudicaciones.get("/convocatoria/<int:convocatoria_id>")
 @requiere_permiso(ADJUDICACIONES_SELECCIONAR)
 def seleccionar(convocatoria_id: int):
-    convocatoria = servicios.obtener_convocatoria(
-        convocatoria_id, current_user.organizacion_id
-    )
+    convocatoria = servicios.obtener_convocatoria(convocatoria_id, current_user.organizacion_id)
     ofertas = [
         oferta
         for oferta in convocatoria.ofertas
-        if any(
-            linea.tipo_asignacion.value in ("principal", "apoyo")
-            for linea in oferta.items
-        )
+        if any(linea.tipo_asignacion.value in ("principal", "apoyo") for linea in oferta.items)
     ]
     return render_template(
         "adjudicaciones/seleccion.html",
@@ -57,16 +52,12 @@ def seleccionar(convocatoria_id: int):
 @blueprint_adjudicaciones.post("/convocatoria/<int:convocatoria_id>")
 @requiere_permiso(ADJUDICACIONES_SELECCIONAR)
 def confirmar(convocatoria_id: int):
-    convocatoria = servicios.obtener_convocatoria(
-        convocatoria_id, current_user.organizacion_id
-    )
+    convocatoria = servicios.obtener_convocatoria(convocatoria_id, current_user.organizacion_id)
     try:
         linea_ids = [int(valor) for valor in request.form.getlist("linea_id")]
         servicios.seleccionar_lineas(convocatoria, linea_ids)
 
-        case_id, compromisos_json = servicios.obtener_datos_integracion_bonita(
-            convocatoria
-        )
+        case_id, compromisos_json = servicios.obtener_datos_integracion_bonita(convocatoria)
 
         confirmar_seleccion_ofertas(
             username=BONITA_USER,

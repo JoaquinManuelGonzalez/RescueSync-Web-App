@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from decimal import ROUND_CEILING, Decimal
-import json
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -66,15 +66,11 @@ def listar_convocatorias_pendientes(municipio_id: int) -> list[Convocatoria]:
 
 
 def _limite_con_margen(cantidad: int) -> int:
-    return int(
-        (Decimal(cantidad) * Decimal("1.25")).to_integral_value(rounding=ROUND_CEILING)
-    )
+    return int((Decimal(cantidad) * Decimal("1.25")).to_integral_value(rounding=ROUND_CEILING))
 
 
 def _cobertura_minima(cantidad: int) -> int:
-    return int(
-        (Decimal(cantidad) * Decimal("0.75")).to_integral_value(rounding=ROUND_CEILING)
-    )
+    return int((Decimal(cantidad) * Decimal("0.75")).to_integral_value(rounding=ROUND_CEILING))
 
 
 def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[int]) -> list[Oferta]:
@@ -83,12 +79,8 @@ def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[int]) -> list
             "La selección de esta convocatoria ya fue confirmada y no puede modificarse."
         )
     if convocatoria.estado != EstadoConvocatoria.cerrada:
-        raise ConflictoDeEstado(
-            "La convocatoria no está disponible para confirmar una selección."
-        )
-    if not isinstance(linea_ids, list) or any(
-        type(linea_id) is not int for linea_id in linea_ids
-    ):
+        raise ConflictoDeEstado("La convocatoria no está disponible para confirmar una selección.")
+    if not isinstance(linea_ids, list) or any(type(linea_id) is not int for linea_id in linea_ids):
         raise SolicitudInvalida("La selección contiene líneas inválidas.")
     if not linea_ids:
         raise SolicitudInvalida("Seleccioná al menos una línea de oferta.")
@@ -106,9 +98,7 @@ def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[int]) -> list
     if len(set(linea_ids)) != len(linea_ids) or any(
         linea_id not in lineas_por_id for linea_id in linea_ids
     ):
-        raise SolicitudInvalida(
-            "La selección contiene líneas que no pertenecen a la convocatoria."
-        )
+        raise SolicitudInvalida("La selección contiene líneas que no pertenecen a la convocatoria.")
 
     linea_ids_seleccionadas = set(linea_ids)
     lineas_seleccionadas = [lineas_por_id[linea_id] for linea_id in linea_ids]
@@ -180,6 +170,7 @@ def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[int]) -> list
     db.session.commit()
     return [oferta for oferta in ofertas if any(linea.seleccionada for linea in oferta.items)]
 
+
 def construir_compromisos_json(convocatoria: Convocatoria) -> str:
     """Construye el JSON de compromisos para el Sistema Nacional."""
 
@@ -209,10 +200,7 @@ def construir_compromisos_json(convocatoria: Convocatoria) -> str:
                     "cantidad": 0,
                     "tipo_asignacion": linea.tipo_asignacion.value,
                 }
-            elif (
-                aportes_agrupados[clave]["tipo_asignacion"]
-                != linea.tipo_asignacion.value
-            ):
+            elif aportes_agrupados[clave]["tipo_asignacion"] != linea.tipo_asignacion.value:
                 raise ReglaDeNegocioIncumplida(
                     "Un mismo recurso de una ONG tiene tipos de asignación diferentes."
                 )
@@ -220,9 +208,7 @@ def construir_compromisos_json(convocatoria: Convocatoria) -> str:
             aportes_agrupados[clave]["cantidad"] += linea.cantidad_ofrecida
 
     if not aportes_agrupados:
-        raise ReglaDeNegocioIncumplida(
-            "No hay líneas seleccionadas para generar compromisos."
-        )
+        raise ReglaDeNegocioIncumplida("No hay líneas seleccionadas para generar compromisos.")
 
     emergencia = convocatoria.emergencia
 
@@ -234,6 +220,7 @@ def construir_compromisos_json(convocatoria: Convocatoria) -> str:
 
     return json.dumps(compromisos, ensure_ascii=False)
 
+
 def obtener_datos_integracion_bonita(
     convocatoria: Convocatoria,
 ) -> tuple[str, str]:
@@ -242,9 +229,7 @@ def obtener_datos_integracion_bonita(
     case_id = convocatoria.emergencia.bonita_case_id
 
     if not case_id:
-        raise ReglaDeNegocioIncumplida(
-            "La emergencia no tiene un proceso asociado en Bonita."
-        )
+        raise ReglaDeNegocioIncumplida("La emergencia no tiene un proceso asociado en Bonita.")
 
     compromisos_json = construir_compromisos_json(convocatoria)
 
