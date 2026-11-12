@@ -9,6 +9,7 @@ from app.core.integraciones.bonita.api import (
 )
 
 NOMBRE_TAREA_PUBLICAR = "Gestionar emergencia y publicar convocatoria"
+NOMBRE_TAREA_SELECCIONAR = "Seleccionar ofertas"
 NOMBRE_TAREA_FINALIZAR = "Esperar finalizacion de tareas"
 
 
@@ -50,6 +51,32 @@ def publicar_convocatoria(
         {
             "timerInput": fecha_cierre.isoformat(),
             "convocatoriaIdInput": str(convocatoria_id),
+        },
+    )
+
+
+def confirmar_seleccion_ofertas(
+    username: str,
+    case_id: str,
+    adjudicacion_id: int,
+    compromisos_json: str,
+) -> None:
+    task_id = buscar_tarea_humana(
+        username,
+        case_id,
+        NOMBRE_TAREA_SELECCIONAR,
+    )
+
+    usuario_id = obtener_usuario_actual_id(username)
+
+    asignar_tarea(username, task_id, usuario_id)
+
+    ejecutar_tarea(
+        username,
+        task_id,
+        {
+            "adjudicacionIdInput": str(adjudicacion_id),
+            "compromisosInput": compromisos_json,
         },
     )
 
