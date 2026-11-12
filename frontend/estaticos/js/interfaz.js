@@ -115,6 +115,51 @@
     });
   }
 
+  // La habilitacion visual no reemplaza la validacion del servidor: solo evita envios
+  // incompletos mientras se seleccionan las lineas.
+  function iniciarSeleccionDeOfertas() {
+    document.querySelectorAll("form[data-seleccion-ofertas]").forEach((formulario) => {
+      const lineas = [...formulario.querySelectorAll("[data-linea-seleccionable]")];
+      const boton = formulario.querySelector("[data-confirmar-seleccion]");
+      const mensaje = formulario.querySelector("[data-mensaje-seleccion]");
+      if (!boton) return;
+
+      const actualizar = () => {
+        const cantidades = new Map();
+        lineas.forEach((linea) => {
+          if (!linea.checked) return;
+          const itemId = linea.dataset.loteItemId;
+          cantidades.set(
+            itemId,
+            (cantidades.get(itemId) || 0) + Number(linea.dataset.cantidadOfrecida),
+          );
+        });
+
+        let cumple = true;
+        formulario.querySelectorAll("[data-requisito-item]").forEach((requisito) => {
+          const requerida = Number(requisito.dataset.cantidadRequerida);
+          const seleccionada = cantidades.get(requisito.dataset.requisitoItem) || 0;
+          const valido = seleccionada * 4 >= requerida * 3 && seleccionada * 4 <= requerida * 5;
+          cumple = cumple && valido;
+
+          const estado = requisito.querySelector("[data-estado-requisito]");
+          if (estado) {
+            estado.textContent = `${seleccionada} / ${requerida} (75% mínimo · 125% máximo)`;
+            estado.classList.toggle("text-green-700", valido);
+            estado.classList.toggle("text-red-700", !valido);
+          }
+        });
+
+        boton.disabled = !cumple;
+        boton.setAttribute("aria-disabled", String(!cumple));
+        if (mensaje) mensaje.hidden = cumple;
+      };
+
+      lineas.forEach((linea) => linea.addEventListener("change", actualizar));
+      actualizar();
+    });
+  }
+
   // --- Formularios ---------------------------------------------------------------
 
   // Modal de confirmacion propio (estilos en src/componentes/modal.css). Se arma una sola vez
@@ -349,6 +394,7 @@
     iniciarAlertasDescartables();
     iniciarAlternadoDeContrasenas();
     iniciarRequisitosDeContrasena();
+    iniciarSeleccionDeOfertas();
     iniciarConfirmaciones();
     iniciarEnviosConCarga();
     iniciarBusquedasAutomaticas();

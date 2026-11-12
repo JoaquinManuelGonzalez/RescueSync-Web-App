@@ -95,7 +95,7 @@ def _normalizar_fecha(fecha: datetime | None) -> datetime:
 
 
 def cerrar_convocatorias_vencidas(*, emergencia_id: int | None = None) -> int:
-    """Cierra convocatorias vencidas y devuelve sus emergencias a evaluación."""
+    """Cierra convocatorias vencidas sin adelantar la decisión de cobertura."""
     ahora = datetime.now(UTC)
     consulta = select(Convocatoria).where(
         Convocatoria.estado == EstadoConvocatoria.abierta,
@@ -107,30 +107,9 @@ def cerrar_convocatorias_vencidas(*, emergencia_id: int | None = None) -> int:
     if not vencidas:
         return 0
 
-    emergencias_afectadas = set()
     for convocatoria in vencidas:
         convocatoria.estado = EstadoConvocatoria.cerrada
         servicios_de_notificaciones.notificar_cierre_convocatoria(convocatoria)
-        emergencias_afectadas.add(convocatoria.emergencia_id)
-
-    for id_emergencia in emergencias_afectadas:
-        sigue_abierta = db.session.execute(
-            select(Convocatoria.id).where(
-                Convocatoria.emergencia_id == id_emergencia,
-                Convocatoria.estado == EstadoConvocatoria.abierta,
-                Convocatoria.fecha_cierre > ahora,
-            )
-        ).scalar_one_or_none()
-        if sigue_abierta is None:
-            emergencia = db.session.execute(
-                select(Emergencia).where(Emergencia.id == id_emergencia).with_for_update()
-            ).scalar_one_or_none()
-            if emergencia and emergencia.estado == EstadoEmergencia.activa:
-                estado_anterior = emergencia.estado
-                emergencia.estado = EstadoEmergencia.registrada
-                servicios_de_notificaciones.notificar_cambio_estado_emergencia(
-                    emergencia, estado_anterior
-                )
 
     db.session.commit()
     return len(vencidas)

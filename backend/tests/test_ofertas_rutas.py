@@ -17,6 +17,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app.extensiones import db
+from app.modulos.adjudicaciones.servicios import obtener_convocatoria
 from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 from app.modulos.emergencias.modelos import (
     Emergencia,
@@ -28,7 +29,7 @@ from app.modulos.emergencias.modelos import (
     NivelGravedad,
     TipoNecesidad,
 )
-from app.modulos.ofertas.modelos import EstadoOferta, Oferta, OfertaOrganizacion
+from app.modulos.ofertas.modelos import EstadoOferta, Oferta, OfertaLinea, OfertaOrganizacion
 from app.modulos.organizaciones.modelos import InventarioItem, Organizacion, TipoOrganizacion
 from app.modulos.usuarios_roles.modelos import Usuario
 
@@ -182,6 +183,27 @@ def test_ong_puede_seleccionar_convocatoria_vigente(cliente_sembrado, ingresar, 
     assert f"/ofertas/nueva?convocatoria_id={datos_ofertas_web['convocatoria_id']}" in cuerpo
 
 
+def test_coordinador_no_ve_opcion_de_presentar_oferta(
+    cliente_sembrado, ingresar, datos_ofertas_web
+):
+    ingresar(EMAIL_COORDINADOR)
+    ruta_de_oferta = f"/ofertas/nueva?convocatoria_id={datos_ofertas_web['convocatoria_id']}"
+
+    listado = cliente_sembrado.get(
+        "/convocatorias",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+    )
+    detalle = cliente_sembrado.get(
+        f"/convocatorias/{datos_ofertas_web['convocatoria_id']}",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+    )
+
+    assert listado.status_code == 200
+    assert detalle.status_code == 200
+    assert ruta_de_oferta not in listado.get_data(as_text=True)
+    assert ruta_de_oferta not in detalle.get_data(as_text=True)
+
+
 def test_listado_de_ofertas_admite_busqueda_por_emergencia(
     app, cliente_sembrado, ingresar, datos_ofertas_web
 ):
@@ -256,7 +278,7 @@ def test_formulario_de_oferta_no_se_muestra_si_la_convocatoria_vencio(
         convocatoria = db.session.get(Convocatoria, datos_ofertas_web["convocatoria_id"])
         emergencia = db.session.get(Emergencia, datos_ofertas_web["emergencia_id"])
         assert convocatoria.estado == EstadoConvocatoria.cerrada
-        assert emergencia.estado == EstadoEmergencia.registrada
+        assert emergencia.estado == EstadoEmergencia.activa
 
 
 def test_crear_oferta_con_rol_sin_permiso_da_403(
@@ -613,6 +635,164 @@ def test_integracion_bonita_consolidadas_autenticacion(cliente_sembrado, datos_o
         headers={"X-Bonita-Token": "token-de-prueba"},
     )
     assert resp_x_token.status_code == 200
+
+
+def test_cierre_de_bonita_actualiza_convocatoria_y_cobertura_habilita_seleccion(
+    app, cliente_sembrado, datos_ofertas_web
+):
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, datos_ofertas_web["convocatoria_id"])
+        convocatoria.fecha_cierre = datetime.now(UTC) - timedelta(minutes=1)
+        oferta = Oferta(
+            convocatoria_id=convocatoria.id,
+            usuario_id=datos_ofertas_web["usuario_id"],
+            estado=EstadoOferta.presentada,
+        )
+        db.session.add(oferta)
+        db.session.flush()
+        lineas = [
+            OfertaLinea(
+                oferta_id=oferta.id,
+                lote_item_id=datos_ofertas_web["lote_item1_id"],
+                organizacion_id=datos_ofertas_web["ong_id"],
+                cantidad_ofrecida=2000,
+            ),
+            OfertaLinea(
+                oferta_id=oferta.id,
+                lote_item_id=datos_ofertas_web["lote_item2_id"],
+                organizacion_id=datos_ofertas_web["ong_id"],
+                cantidad_ofrecida=500,
+            ),
+        ]
+        db.session.add_all(lineas)
+        db.session.commit()
+        oferta_id = oferta.id
+        convocatoria_id = convocatoria.id
+        emergencia_id = convocatoria.emergencia_id
+
+    respuesta = cliente_sembrado.get(
+        f"/ofertas/consolidadas/{convocatoria_id}",
+        headers={"Authorization": "Bearer token-de-prueba"},
+    )
+
+    assert respuesta.status_code == 200
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, convocatoria_id)
+        emergencia = db.session.get(Emergencia, emergencia_id)
+        assert convocatoria.estado == EstadoConvocatoria.cerrada
+        assert emergencia.estado == EstadoEmergencia.activa
+
+    evaluacion = {
+        "convocatoria_id": convocatoria_id,
+        "resultado_evaluacion": {
+            "emergencia_id": emergencia_id,
+            "ofertas": [
+                {
+                    "oferta_id": oferta_id,
+                    "items": [
+                        {
+                            "lote_item_id": datos_ofertas_web["lote_item1_id"],
+                            "aportes": [
+                                {
+                                    "organizacion_id": datos_ofertas_web["ong_id"],
+                                    "cantidad": 2000,
+                                    "clasificacion": "principal",
+                                }
+                            ],
+                        },
+                        {
+                            "lote_item_id": datos_ofertas_web["lote_item2_id"],
+                            "aportes": [
+                                {
+                                    "organizacion_id": datos_ofertas_web["ong_id"],
+                                    "cantidad": 500,
+                                    "clasificacion": "principal",
+                                }
+                            ],
+                        },
+                    ],
+                }
+            ],
+        },
+    }
+    respuesta_evaluacion = cliente_sembrado.post(
+        "/ofertas/evaluaciones",
+        json=evaluacion,
+        headers={"Authorization": "Bearer token-de-prueba"},
+    )
+
+    assert respuesta_evaluacion.status_code == 200
+    assert respuesta_evaluacion.get_json()["cobertura_completa"] is True
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, convocatoria_id)
+        emergencia = db.session.get(Emergencia, emergencia_id)
+        assert convocatoria.estado == EstadoConvocatoria.cerrada
+        assert convocatoria.cobertura_completa is True
+        assert emergencia.estado == EstadoEmergencia.activa
+        assert obtener_convocatoria(convocatoria_id, emergencia.municipio_id) is convocatoria
+
+
+def test_evaluacion_con_cobertura_incompleta_habilita_nueva_ronda(
+    app, cliente_sembrado, datos_ofertas_web
+):
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, datos_ofertas_web["convocatoria_id"])
+        convocatoria.estado = EstadoConvocatoria.cerrada
+        emergencia = db.session.get(Emergencia, datos_ofertas_web["emergencia_id"])
+        emergencia.estado = EstadoEmergencia.activa
+        oferta = Oferta(
+            convocatoria_id=convocatoria.id,
+            usuario_id=datos_ofertas_web["usuario_id"],
+            estado=EstadoOferta.presentada,
+        )
+        db.session.add(oferta)
+        db.session.flush()
+        db.session.add(
+            OfertaLinea(
+                oferta_id=oferta.id,
+                lote_item_id=datos_ofertas_web["lote_item1_id"],
+                organizacion_id=datos_ofertas_web["ong_id"],
+                cantidad_ofrecida=1000,
+            )
+        )
+        db.session.commit()
+        oferta_id = oferta.id
+        convocatoria_id = convocatoria.id
+        emergencia_id = emergencia.id
+
+    respuesta = cliente_sembrado.post(
+        "/ofertas/evaluaciones",
+        json={
+            "convocatoria_id": convocatoria_id,
+            "resultado_evaluacion": {
+                "emergencia_id": emergencia_id,
+                "ofertas": [
+                    {
+                        "oferta_id": oferta_id,
+                        "items": [
+                            {
+                                "lote_item_id": datos_ofertas_web["lote_item1_id"],
+                                "aportes": [
+                                    {
+                                        "organizacion_id": datos_ofertas_web["ong_id"],
+                                        "cantidad": 1000,
+                                        "clasificacion": "principal",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        headers={"Authorization": "Bearer token-de-prueba"},
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.get_json()["cobertura_completa"] is False
+    with app.app_context():
+        emergencia = db.session.get(Emergencia, emergencia_id)
+        assert emergencia.estado == EstadoEmergencia.registrada
 
 
 def test_historial_oferta_ruta(cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web):

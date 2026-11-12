@@ -183,6 +183,10 @@ Puntos que se deben tener presentes al implementar y al evaluar esta integració
   la oferta. Así Bonita puede validar y reservar las contribuciones sin confundir ítems con
   ofertas ni repetir datos de organizaciones. Las invitaciones pendientes y las ofertas en estado
   final no se envían.
+- **Sincronización del estado local.** Al recibir esta consulta autenticada, el backend cierra las
+  convocatorias cuya fecha límite venció. La emergencia se mantiene activa mientras Bonita informa
+  el resultado de cobertura: con cobertura completa queda disponible para la selección municipal;
+  con cobertura incompleta vuelve a registrada para permitir preparar otra ronda.
 
 ### Ejemplo de respuesta del endpoint
 

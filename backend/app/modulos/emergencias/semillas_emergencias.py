@@ -67,6 +67,20 @@ EMERGENCIAS: list[dict] = [
         "tipo_emergencia": TipoEmergencia.incendio,
         # "bonita_case_id": "113",
     },
+    {
+        "titulo": "PRUEBA - Selección municipal de ofertas en Pergamino",
+        "descripcion": (
+            "Caso de prueba para validar la selección por línea de oferta, "
+            "el margen del 25% y la cobertura mínima del 75%."
+        ),
+        "nivel_gravedad": NivelGravedad.media,
+        "zona_afectada": "Barrios periféricos de Pergamino",
+        "estado": EstadoEmergencia.activa,
+        "municipio_nombre": "Municipalidad de Pergamino",
+        "usuario_email": "operador@pergamino.test",
+        "tipo_emergencia": TipoEmergencia.otros,
+        # Caso local de prueba: no tiene bonita_case_id ni integración con Bonita.
+    },
 ]
 
 # Emergencias ya resueltas, con fecha de registro fija, para que el panel de auditoria tenga
