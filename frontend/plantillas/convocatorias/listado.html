@@ -31,6 +31,19 @@
       {% endcall %}
       {% call celda("Estado") %}
         {{ insignia(convocatoria.estado.value|capitalize, "exito" if convocatoria.estado.value == "abierta" else "neutra") }}
+        {% if convocatoria.estado.value == "cerrada"
+          and convocatoria.cobertura_evaluada_en
+          and not convocatoria.cobertura_completa
+          and convocatoria.decision_cobertura == "pendiente"
+          and puede("cobertura_insuficiente:gestionar") %}
+        <a
+          class="mt-2 inline-flex"
+          href="{{ url_for('convocatorias.cobertura_insuficiente', convocatoria_id=convocatoria.id) }}"
+          aria-label="Abrir la decisión de cobertura insuficiente"
+        >
+          {{ insignia("Decisión de cobertura pendiente", "advertencia") }}
+        </a>
+        {% endif %}
       {% endcall %}
       {% call celda("Cierre") %}
         <p class="text-sm text-gray-600">{{ convocatoria.fecha_cierre|fecha }}</p>

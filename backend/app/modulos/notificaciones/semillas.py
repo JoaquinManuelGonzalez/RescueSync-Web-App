@@ -1,4 +1,4 @@
-"""Datos semilla de notificaciones vinculadas al flujo demo."""
+"""Datos semilla de notificaciones vinculadas a los flujos demo y de prueba."""
 
 from __future__ import annotations
 
@@ -14,12 +14,13 @@ from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
 TITULO_EMERGENCIA_DEMO = "Temporal severo con voladura de techos en Chascomús"
 MARCA_CONVOCATORIA_DEMO = "SEED_DEMO_OFERTAS"
 MARCA_CONVOCATORIA_PRUEBA = "SEED_PRUEBA_SELECCION_SIN_BONITA"
+MARCA_CONVOCATORIA_COBERTURA_INSUFICIENTE = "SEED_PRUEBA_COBERTURA_INSUFICIENTE"
 NOMBRE_CENTRO_COORDINADOR = "Centro Coordinador Regional Buenos Aires"
 
 
 @registrar("notificaciones")
 def sembrar_notificaciones() -> list[ResultadoSemilla]:
-    """Crea avisos demo para la emergencia y convocatoria sembradas."""
+    """Crea avisos demo y de prueba para emergencias y convocatorias sembradas."""
     emergencia = Emergencia.query.filter_by(titulo=TITULO_EMERGENCIA_DEMO).first()
     convocatoria = Convocatoria.query.filter_by(observaciones=MARCA_CONVOCATORIA_DEMO).first()
     centro = Organizacion.query.filter_by(nombre=NOMBRE_CENTRO_COORDINADOR).first()
@@ -71,6 +72,23 @@ def sembrar_notificaciones() -> list[ResultadoSemilla]:
             enlace=f"/adjudicaciones/convocatoria/{convocatoria_prueba.id}",
         )
         resultado.contar(fue_creada)
+
+    convocatoria_cobertura = Convocatoria.query.filter_by(
+        observaciones=MARCA_CONVOCATORIA_COBERTURA_INSUFICIENTE
+    ).first()
+    if convocatoria_cobertura is None:
+        raise ValueError("Convocatoria de cobertura insuficiente no encontrada.")
+    _, fue_creada = _obtener_o_actualizar(
+        organizacion_id=centro.id,
+        titulo="Cobertura insuficiente: decisión pendiente",
+        mensaje=(
+            f"La convocatoria para «{convocatoria_cobertura.emergencia.titulo}» "
+            f"alcanzó el {convocatoria_cobertura.porcentaje_cobertura:.2f}% de cobertura. "
+            "Revisá las ofertas y decidí si aceptar la cobertura parcial o reabrirla."
+        ),
+        enlace=(f"/convocatorias/{convocatoria_cobertura.id}/cobertura-insuficiente"),
+    )
+    resultado.contar(fue_creada)
 
     return [resultado]
 

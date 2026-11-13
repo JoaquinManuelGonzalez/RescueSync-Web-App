@@ -6,7 +6,7 @@ import json
 from collections import defaultdict
 from decimal import ROUND_CEILING, Decimal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from app.core.errores import (
@@ -16,7 +16,11 @@ from app.core.errores import (
     SolicitudInvalida,
 )
 from app.extensiones import db
-from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
+from app.modulos.convocatorias.modelos import (
+    Convocatoria,
+    DecisionCobertura,
+    EstadoConvocatoria,
+)
 from app.modulos.emergencias.modelos import Emergencia, EstadoEmergencia
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.ofertas.modelos import EstadoOferta, Oferta, TipoAsignacion
@@ -40,7 +44,10 @@ def obtener_convocatoria(convocatoria_id: int, municipio_id: int) -> Convocatori
             "La emergencia ya no está pendiente de atención.",
             codigo="EMERGENCIA_NO_PENDIENTE",
         )
-    if not convocatoria.cobertura_completa:
+    if not (
+        convocatoria.cobertura_completa
+        or convocatoria.decision_cobertura == DecisionCobertura.aceptada_parcialmente
+    ):
         raise ReglaDeNegocioIncumplida(
             "La selección solo está disponible cuando la cobertura fue completada.",
             codigo="COBERTURA_INCOMPLETA",
@@ -56,7 +63,11 @@ def listar_convocatorias_pendientes(municipio_id: int) -> list[Convocatoria]:
             .where(
                 Emergencia.municipio_id == municipio_id,
                 Emergencia.estado == EstadoEmergencia.activa,
-                Convocatoria.cobertura_completa.is_(True),
+                or_(
+                    Convocatoria.cobertura_completa.is_(True),
+                    Convocatoria.decision_cobertura
+                    == DecisionCobertura.aceptada_parcialmente.value,
+                ),
                 Convocatoria.estado == EstadoConvocatoria.cerrada,
             )
             .options(selectinload(Convocatoria.emergencia))

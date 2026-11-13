@@ -18,7 +18,11 @@ import pytest
 
 from app.extensiones import db
 from app.modulos.adjudicaciones.servicios import obtener_convocatoria
-from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
+from app.modulos.convocatorias.modelos import (
+    Convocatoria,
+    DecisionCobertura,
+    EstadoConvocatoria,
+)
 from app.modulos.emergencias.modelos import (
     Emergencia,
     EstadoEmergencia,
@@ -29,6 +33,7 @@ from app.modulos.emergencias.modelos import (
     NivelGravedad,
     TipoNecesidad,
 )
+from app.modulos.notificaciones.modelos import Notificacion
 from app.modulos.ofertas.modelos import EstadoOferta, Oferta, OfertaLinea, OfertaOrganizacion
 from app.modulos.organizaciones.modelos import InventarioItem, Organizacion, TipoOrganizacion
 from app.modulos.usuarios_roles.modelos import Usuario
@@ -180,6 +185,7 @@ def test_ong_puede_seleccionar_convocatoria_vigente(cliente_sembrado, ingresar, 
     assert "Inundación Ribereña" in cuerpo
     assert "Agua potable" in cuerpo
     assert "Presentar oferta" in cuerpo
+    assert "Decisión de cobertura pendiente" not in cuerpo
     assert f"/ofertas/nueva?convocatoria_id={datos_ofertas_web['convocatoria_id']}" in cuerpo
 
 
@@ -202,6 +208,25 @@ def test_coordinador_no_ve_opcion_de_presentar_oferta(
     assert detalle.status_code == 200
     assert ruta_de_oferta not in listado.get_data(as_text=True)
     assert ruta_de_oferta not in detalle.get_data(as_text=True)
+
+
+def test_coordinador_ve_decision_de_cobertura_pendiente_en_listado(app, cliente_sembrado, ingresar):
+    with app.app_context():
+        convocatoria = Convocatoria.query.filter_by(
+            observaciones="SEED_PRUEBA_COBERTURA_INSUFICIENTE"
+        ).one()
+        enlace_panel = f"/convocatorias/{convocatoria.id}/cobertura-insuficiente"
+
+    ingresar(EMAIL_COORDINADOR)
+    listado = cliente_sembrado.get(
+        "/convocatorias",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+    )
+    contenido = listado.get_data(as_text=True)
+
+    assert listado.status_code == 200
+    assert "Decisión de cobertura pendiente" in contenido
+    assert enlace_panel in contenido
 
 
 def test_listado_de_ofertas_admite_busqueda_por_emergencia(
@@ -793,6 +818,262 @@ def test_evaluacion_con_cobertura_incompleta_habilita_nueva_ronda(
     with app.app_context():
         emergencia = db.session.get(Emergencia, emergencia_id)
         assert emergencia.estado == EstadoEmergencia.registrada
+
+
+def _evaluar_cobertura(
+    app,
+    cliente_sembrado,
+    datos_ofertas_web,
+    cantidades: tuple[int, int],
+    cantidades_solicitadas: tuple[int, int] | None = None,
+):
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, datos_ofertas_web["convocatoria_id"])
+        convocatoria.estado = EstadoConvocatoria.cerrada
+        lote_item_ids = (
+            datos_ofertas_web["lote_item1_id"],
+            datos_ofertas_web["lote_item2_id"],
+        )
+        if cantidades_solicitadas is not None:
+            for lote_item_id, cantidad_solicitada in zip(
+                lote_item_ids, cantidades_solicitadas, strict=True
+            ):
+                db.session.get(LoteItem, lote_item_id).cantidad_solicitada = cantidad_solicitada
+        coordinador = db.session.execute(
+            db.select(Usuario).where(Usuario.email == EMAIL_COORDINADOR)
+        ).scalar_one()
+        convocatoria.coordinador_id = coordinador.id
+        convocatoria.emergencia.estado = EstadoEmergencia.activa
+
+        oferta = Oferta(
+            convocatoria_id=convocatoria.id,
+            usuario_id=datos_ofertas_web["usuario_id"],
+            estado=EstadoOferta.presentada,
+        )
+        db.session.add(oferta)
+        db.session.flush()
+        lineas = [
+            OfertaLinea(
+                oferta_id=oferta.id,
+                lote_item_id=lote_item_id,
+                organizacion_id=datos_ofertas_web["ong_id"],
+                cantidad_ofrecida=cantidad,
+            )
+            for lote_item_id, cantidad in zip(lote_item_ids, cantidades, strict=True)
+        ]
+        db.session.add_all(lineas)
+        db.session.commit()
+        convocatoria_id = convocatoria.id
+        emergencia_id = convocatoria.emergencia_id
+        oferta_id = oferta.id
+
+    evaluacion = {
+        "convocatoria_id": convocatoria_id,
+        "resultado_evaluacion": {
+            "emergencia_id": emergencia_id,
+            "ofertas": [
+                {
+                    "oferta_id": oferta_id,
+                    "items": [
+                        {
+                            "lote_item_id": lote_item_id,
+                            "aportes": [
+                                {
+                                    "organizacion_id": datos_ofertas_web["ong_id"],
+                                    "cantidad": cantidad,
+                                    "clasificacion": "principal",
+                                }
+                            ],
+                        }
+                        for lote_item_id, cantidad in zip(lote_item_ids, cantidades, strict=True)
+                    ],
+                }
+            ],
+        },
+    }
+    respuesta = cliente_sembrado.post(
+        "/ofertas/evaluaciones",
+        json=evaluacion,
+        headers={"Authorization": "Bearer token-de-prueba"},
+    )
+    assert respuesta.status_code == 200
+    return convocatoria_id, emergencia_id
+
+
+def test_aceptar_cobertura_parcial_habilita_panel_y_notifica_al_municipio(
+    app,
+    cliente_sembrado,
+    datos_ofertas_web,
+    ingresar,
+    enviar_formulario,
+):
+    convocatoria_id, emergencia_id = _evaluar_cobertura(
+        app, cliente_sembrado, datos_ofertas_web, (1500, 375)
+    )
+
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, convocatoria_id)
+        assert convocatoria.cobertura_completa is False
+        assert convocatoria.porcentaje_cobertura == 75
+        coordinador = db.session.execute(
+            db.select(Usuario).where(Usuario.email == EMAIL_COORDINADOR)
+        ).scalar_one()
+        aviso = db.session.execute(
+            db.select(Notificacion).where(
+                Notificacion.organizacion_id == coordinador.organizacion_id,
+                Notificacion.titulo == "Cobertura insuficiente: decisión pendiente",
+                Notificacion.enlace == f"/convocatorias/{convocatoria_id}/cobertura-insuficiente",
+            )
+        ).scalar_one()
+        assert aviso.enlace == f"/convocatorias/{convocatoria_id}/cobertura-insuficiente"
+
+    ingresar(EMAIL_COORDINADOR)
+    panel = cliente_sembrado.get(
+        f"/convocatorias/{convocatoria_id}/cobertura-insuficiente",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+    )
+    contenido = panel.get_data(as_text=True)
+    assert panel.status_code == 200
+    assert "75.00%" in contenido
+    assert "Necesidades solicitadas" in contenido
+    assert "2000 litros" in contenido
+    assert "500 unidades" in contenido
+    assert "Agua potable" in contenido
+    assert "Cruz Solidaria" in contenido
+    assert "Reiniciar convocatoria" in contenido
+    assert "Enviar ofertas igualmente" in contenido
+
+    respuesta = enviar_formulario(
+        f"/convocatorias/{convocatoria_id}/cobertura-insuficiente/aceptar-parcial"
+    )
+    assert respuesta.status_code == 302
+    assert respuesta.headers["Location"].endswith(f"/convocatorias/{convocatoria_id}")
+    pagina_destino = cliente_sembrado.get(
+        respuesta.headers["Location"],
+        headers={"Accept": "text/html,application/xhtml+xml"},
+    )
+    assert pagina_destino.status_code == 200
+
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, convocatoria_id)
+        emergencia = db.session.get(Emergencia, emergencia_id)
+        assert convocatoria.decision_cobertura == DecisionCobertura.aceptada_parcialmente
+        assert convocatoria.cobertura_completa is False
+        assert emergencia.estado == EstadoEmergencia.activa
+        aviso_municipal = db.session.execute(
+            db.select(Notificacion).where(
+                Notificacion.organizacion_id == emergencia.municipio_id,
+                Notificacion.titulo
+                == "Cobertura parcial aprobada: ofertas listas para seleccionar",
+            )
+        ).scalar_one()
+        assert aviso_municipal.enlace == f"/adjudicaciones/convocatoria/{convocatoria_id}"
+        assert obtener_convocatoria(convocatoria_id, emergencia.municipio_id) is convocatoria
+
+    panel_cerrado = cliente_sembrado.get(f"/convocatorias/{convocatoria_id}/cobertura-insuficiente")
+    assert panel_cerrado.status_code == 404
+
+
+def test_solo_el_coordinador_puede_acceder_al_panel_de_cobertura_insuficiente(
+    app, cliente_sembrado, datos_ofertas_web, ingresar
+):
+    convocatoria_id, _ = _evaluar_cobertura(app, cliente_sembrado, datos_ofertas_web, (1000, 250))
+    ingresar(EMAIL_REPRESENTANTE)
+
+    respuesta = cliente_sembrado.get(f"/convocatorias/{convocatoria_id}/cobertura-insuficiente")
+    assert respuesta.status_code == 403
+
+
+def test_no_se_puede_aceptar_cobertura_parcial_menor_al_75(
+    app,
+    cliente_sembrado,
+    datos_ofertas_web,
+    ingresar,
+    enviar_formulario,
+):
+    convocatoria_id, _ = _evaluar_cobertura(
+        app,
+        cliente_sembrado,
+        datos_ofertas_web,
+        (14999, 3750),
+        cantidades_solicitadas=(20000, 5000),
+    )
+    ingresar(EMAIL_COORDINADOR)
+
+    panel = cliente_sembrado.get(
+        f"/convocatorias/{convocatoria_id}/cobertura-insuficiente",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+    )
+    assert panel.status_code == 200
+    contenido = panel.get_data(as_text=True)
+    assert "75.00%" in contenido
+    assert "Enviar ofertas igualmente" in contenido
+    assert "disabled" in contenido
+
+    respuesta = enviar_formulario(
+        f"/convocatorias/{convocatoria_id}/cobertura-insuficiente/aceptar-parcial"
+    )
+    assert respuesta.status_code == 302
+
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, convocatoria_id)
+        assert convocatoria.decision_cobertura == DecisionCobertura.pendiente
+        assert convocatoria.porcentaje_cobertura == 75
+        assert convocatoria.emergencia.estado == EstadoEmergencia.registrada
+
+
+def test_reabrir_cobertura_conserva_historial_y_permite_otra_ronda(
+    app,
+    cliente_sembrado,
+    datos_ofertas_web,
+    ingresar,
+    enviar_formulario,
+    monkeypatch,
+):
+    convocatoria_id, emergencia_id = _evaluar_cobertura(
+        app, cliente_sembrado, datos_ofertas_web, (1000, 250)
+    )
+    ingresar(EMAIL_COORDINADOR)
+
+    respuesta = enviar_formulario(
+        f"/convocatorias/{convocatoria_id}/cobertura-insuficiente/reabrir"
+    )
+    assert respuesta.status_code == 302
+    assert respuesta.headers["Location"] == f"/emergencias/{emergencia_id}"
+
+    from app.modulos.convocatorias import servicios as servicios_convocatorias
+    from app.modulos.emergencias.lotes.servicios import crear_lotes
+
+    monkeypatch.setattr(servicios_convocatorias, "_notificar_bonita_timer", lambda *args: None)
+
+    with app.app_context():
+        convocatoria_anterior = db.session.get(Convocatoria, convocatoria_id)
+        lote_anterior = db.session.get(LoteItem, datos_ofertas_web["lote_item1_id"]).lote
+        emergencia = db.session.get(Emergencia, emergencia_id)
+        item_id = db.session.get(LoteItem, datos_ofertas_web["lote_item1_id"]).item_id
+        coordinador = db.session.execute(
+            db.select(Usuario).where(Usuario.email == EMAIL_COORDINADOR)
+        ).scalar_one()
+        assert convocatoria_anterior.estado == EstadoConvocatoria.cerrada
+        assert convocatoria_anterior.decision_cobertura == DecisionCobertura.convocatoria_reabierta
+        assert emergencia.estado == EstadoEmergencia.registrada
+
+        nuevos_lotes = crear_lotes(
+            emergencia_id=emergencia_id,
+            descripcion="Necesidades de la nueva ronda",
+            items=[{"item_id": item_id, "cantidad_solicitada": "100"}],
+        )
+        nueva_convocatoria = servicios_convocatorias.crear_convocatoria(
+            emergencia_id=emergencia_id,
+            coordinador_id=coordinador.id,
+            resumen_situacion="Nueva ronda de cobertura.",
+            fecha_cierre=datetime.now(UTC) + timedelta(days=1),
+        )
+
+        assert lote_anterior.estado == EstadoLote.en_convocatoria
+        assert nuevos_lotes[0].estado == EstadoLote.en_convocatoria
+        assert nuevos_lotes[0].convocatoria_id == nueva_convocatoria.id
+        assert nueva_convocatoria.id != convocatoria_anterior.id
 
 
 def test_historial_oferta_ruta(cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web):
