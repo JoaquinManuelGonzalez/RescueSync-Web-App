@@ -23,6 +23,9 @@
  *   marcadores     (opcional, barras) {nombre, valores}: una marca de referencia por barra sobre el
  *                  mismo eje (el plazo objetivo de cada gravedad)
  *   sinDato        (opcional) texto que se escribe donde el valor es null ("Sin ocurrencias")
+ *   enlaces        (opcional, barras) una URL por barra: tocarla sigue el enlace del filtro de la
+ *                  seccion que lleva a esa URL (indicadores.js lo aplica sin recargar). El filtro
+ *                  sigue a la vista: es el camino con teclado y sin JavaScript
  *
  *   Barras apiladas:
  *   series         [{nombre, valores, tono, unidad, decimales}], una por segmento
@@ -260,6 +263,26 @@
 
   // --- Una sola serie ---------------------------------------------------------------
 
+  // Tocar una barra hace lo mismo que elegir su opcion en el filtro de la seccion: se busca ese
+  // enlace y se lo activa, asi indicadores.js reemplaza solo las regiones que cambian.
+  function seguirEnlace(url) {
+    const enlace = [...document.querySelectorAll("[data-filtro-de-seccion] a[href]")].find(
+      (candidato) => candidato.getAttribute("href") === url,
+    );
+    if (enlace) enlace.click();
+    else window.location.assign(url);
+  }
+
+  function barrasConEnlaces(opciones, enlaces) {
+    opciones.onClick = (_evento, elementos) => {
+      const url = enlaces[elementos[0]?.index];
+      if (url) seguirEnlace(url);
+    };
+    opciones.onHover = (evento, elementos) => {
+      evento.native.target.style.cursor = elementos.length ? "pointer" : "default";
+    };
+  }
+
   function configuracionDeBarras(definicion, colores) {
     if (definicion.series) return configuracionDeApiladas(definicion, colores);
 
@@ -282,6 +305,7 @@
     opciones.scales = horizontal
       ? { y: ejeDeEtiquetas(definicion, true), x: valores }
       : { x: ejeDeEtiquetas(definicion, false), y: valores };
+    if (definicion.enlaces) barrasConEnlaces(opciones, definicion.enlaces);
 
     const datasets = [
       {

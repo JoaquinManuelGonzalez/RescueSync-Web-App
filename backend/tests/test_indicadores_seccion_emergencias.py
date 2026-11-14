@@ -53,6 +53,30 @@ def test_ca01_cuenta_las_emergencias_del_periodo_en_cada_estado(app, crear_emerg
     assert seccion.registradas == 10
 
 
+def test_los_graficos_de_la_seccion_se_arman_en_el_servidor(
+    app, crear_emergencias, cargar_necesidades
+) -> None:
+    (completa,) = crear_emergencias((MEDIADOS_DE_MARZO, FINALIZADA))
+    cargar_necesidades(completa, (100, 100))
+
+    with app.app_context():
+        seccion = obtener_seccion_de_emergencias(MARZO_DE_2025)
+
+    por_estado = seccion.grafico_por_estado()
+    assert por_estado["tipo"] == "barras"
+    assert por_estado["etiquetas"][0] == "Registrada"
+    assert por_estado["tonos"] == ["neutro", "info", "primario", "exito", "tenue"]
+    assert por_estado["detalles"][0] == "Esperando la definición de lotes"
+    assert por_estado["detalles"][3] is None, "una finalizada no espera nada"
+    assert por_estado["unidad"] == ["emergencia", "emergencias"]
+
+    cobertura = seccion.grafico_de_cobertura()
+    assert cobertura["tipo"] == "dona"
+    assert cobertura["etiquetas"] == ["Cobertura total", "Cobertura parcial"]
+    assert cobertura["valores"] == [1, 0]
+    assert cobertura["porcentajes"] == [100, 0]
+
+
 # --- CA-02: cobertura de las finalizadas -----------------------------------------
 
 

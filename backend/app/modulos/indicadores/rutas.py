@@ -166,10 +166,11 @@ def _enlaces_de_exportacion(solicitud: SolicitudDeSeccion) -> Callable[[str], di
     """Las descargas de un indicador con el periodo y los filtros vigentes.
 
     `csv` y `json` son las URLs de los datos; `png` es el nombre con que se guarda la imagen del
-    grafico, que el navegador arma desde el lienzo (no pasa por el servidor).
+    grafico, que el navegador arma desde el lienzo (no pasa por el servidor). Cuando dos graficos
+    comparten un indicador (y su tabla), `imagen` distingue el nombre del PNG de cada uno.
     """
 
-    def _enlaces(slug: str) -> dict[str, str]:
+    def _enlaces(slug: str, imagen: str | None = None) -> dict[str, str]:
         enlaces = {
             formato: url_for(
                 "indicadores.exportar",
@@ -181,7 +182,7 @@ def _enlaces_de_exportacion(solicitud: SolicitudDeSeccion) -> Callable[[str], di
             )
             for formato in FORMATOS_DE_EXPORTACION
         }
-        enlaces["png"] = nombre_de_archivo(slug, solicitud.periodo, "png")
+        enlaces["png"] = nombre_de_archivo(imagen or slug, solicitud.periodo, "png")
         return enlaces
 
     return _enlaces
@@ -240,6 +241,13 @@ def panel():
 def emergencias():
     """Emergencias por estado y cobertura de las finalizadas, con filtro de gravedad."""
     return _renderizar_seccion(secciones.EMERGENCIAS)
+
+
+@blueprint_indicadores.get("/convocatorias")
+@requiere_permiso(INDICADORES_VER, al_denegar=SeccionAjenaAlRol)
+def convocatorias():
+    """Decisiones ante cobertura insuficiente, con el detalle filtrable por decision."""
+    return _renderizar_seccion(secciones.CONVOCATORIAS)
 
 
 @blueprint_indicadores.get("/recursos")

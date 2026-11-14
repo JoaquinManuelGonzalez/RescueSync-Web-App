@@ -7,7 +7,9 @@ exactamente lo que se ve (regla de negocio de la HU de exportacion).
 Formato:
 
 - CSV en UTF-8, separado por comas, con los encabezados en la primera fila. Sin datos, sale solo
-  esa fila. Los decimales usan punto (la coma ya es el separador) y las fechas, ISO 8601.
+  esa fila. Los decimales usan punto (la coma ya es el separador) y las fechas, ISO 8601. Empieza
+  con la marca de orden de bytes (BOM) de UTF-8: sin ella, Excel en Windows abre el archivo como
+  Latin-1 y rompe los acentos ("Crítica"). Las demas planillas y librerias la ignoran.
 - JSON con los filtros aplicados y el arreglo de datos, una entrada por fila.
 """
 
@@ -25,6 +27,7 @@ from typing import Any
 from app.modulos.indicadores.periodo import Periodo
 
 PREFIJO_DE_ARCHIVO = "rescuesync"
+BOM_UTF8 = "\ufeff"
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +76,7 @@ def _valor_para_json(valor: Any) -> Any:
 
 def a_csv(tabla: TablaExportable) -> str:
     salida = io.StringIO()
+    salida.write(BOM_UTF8)
     escritor = csv.writer(salida, lineterminator="\r\n")
     escritor.writerow(tabla.columnas)
     for fila in tabla.filas:

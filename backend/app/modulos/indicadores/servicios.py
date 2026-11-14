@@ -20,6 +20,7 @@ from app.modulos.adjudicaciones import servicios as servicios_de_adjudicaciones
 from app.modulos.adjudicaciones.servicios import UnidadesDeEmergencia
 from app.modulos.emergencias import servicios as servicios_de_emergencias
 from app.modulos.emergencias.modelos import EstadoEmergencia, NivelGravedad
+from app.modulos.indicadores import graficos
 from app.modulos.indicadores.cobertura import (
     TipoDeCobertura,
     clasificar_cobertura,
@@ -28,6 +29,23 @@ from app.modulos.indicadores.cobertura import (
 )
 from app.modulos.indicadores.exportacion import TablaExportable
 from app.modulos.indicadores.periodo import Periodo
+
+EMERGENCIAS: graficos.Unidad = ("emergencia", "emergencias")
+
+# Color de cada estado en las barras: el de su etapa, del gris (recien registrada) al verde.
+TONO_POR_ESTADO = {
+    EstadoEmergencia.registrada: "neutro",
+    EstadoEmergencia.en_evaluacion: "info",
+    EstadoEmergencia.activa: "primario",
+    EstadoEmergencia.finalizada: "exito",
+    EstadoEmergencia.cancelada: "tenue",
+}
+# Que espera cada emergencia en curso, para el tooltip.
+DETALLE_POR_ESTADO = {
+    EstadoEmergencia.registrada: "Esperando la definición de lotes",
+    EstadoEmergencia.en_evaluacion: "Con lotes, esperando convocatoria",
+    EstadoEmergencia.activa: "Con convocatoria abierta",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +185,32 @@ class SeccionDeEmergencias:
             "cobertura": self.cobertura.a_diccionario(),
         }
 
+    def grafico_por_estado(self) -> dict[str, Any]:
+        return graficos.barras(
+            [etiqueta_estado_emergencia(fila.estado) for fila in self.por_estado],
+            [fila.cantidad for fila in self.por_estado],
+            tonos=[TONO_POR_ESTADO.get(fila.estado, "primario") for fila in self.por_estado],
+            detalles=[DETALLE_POR_ESTADO.get(fila.estado) for fila in self.por_estado],
+            unidad=EMERGENCIAS,
+        )
+
+    def porciones_de_cobertura(self) -> list[tuple[str, PorcionDeCobertura, str]]:
+        """(etiqueta, porcion, tono) de cada porcion de la torta de cobertura."""
+        return [
+            ("Cobertura total", self.cobertura.total, "exito"),
+            ("Cobertura parcial", self.cobertura.parcial, "advertencia"),
+        ]
+
+    def grafico_de_cobertura(self) -> dict[str, Any]:
+        porciones = self.porciones_de_cobertura()
+        return graficos.dona(
+            [etiqueta for etiqueta, _, _ in porciones],
+            [porcion.cantidad for _, porcion, _ in porciones],
+            porcentajes=[porcion.porcentaje for _, porcion, _ in porciones],
+            tonos=[tono for _, _, tono in porciones],
+            unidad=EMERGENCIAS,
+        )
+
     def tabla_por_estado(self) -> TablaExportable:
         """Una fila por estado, como las barras del grafico. Sin emergencias, vacia."""
         return TablaExportable(
@@ -180,14 +224,13 @@ class SeccionDeEmergencias:
 
     def tabla_de_cobertura(self) -> TablaExportable:
         """Las dos porciones de la torta de cobertura. Sin finalizadas evaluadas, vacia."""
-        cobertura = self.cobertura
         return TablaExportable(
             columnas=("cobertura", "emergencias", "porcentaje"),
-            filas=(
-                ("Cobertura total", cobertura.total.cantidad, cobertura.total.porcentaje),
-                ("Cobertura parcial", cobertura.parcial.cantidad, cobertura.parcial.porcentaje),
+            filas=tuple(
+                (etiqueta, porcion.cantidad, porcion.porcentaje)
+                for etiqueta, porcion, _ in self.porciones_de_cobertura()
             )
-            if cobertura.evaluadas
+            if self.cobertura.evaluadas
             else (),
         )
 

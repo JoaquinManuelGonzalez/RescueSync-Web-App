@@ -179,3 +179,45 @@ class FormularioDeOrden(FiltroDeSeccion):
 
     def validate_orden(self, campo: SelectField) -> None:
         self._validar_opcion(campo, MENSAJE_ORDEN_INVALIDO)
+
+
+class DecisionDeCobertura(enum.Enum):
+    """Lo que decidio el Centro Coordinador ante una cobertura insuficiente.
+
+    Son las dos ramas del proceso: "Reiniciar convocatoria" y "Enviar ofertas igualmente".
+    """
+
+    reapertura = "reapertura"
+    continuar_parcial = "continuar_parcial"
+
+    @property
+    def etiqueta(self) -> str:
+        return ETIQUETA_POR_DECISION[self]
+
+
+ETIQUETA_POR_DECISION = {
+    DecisionDeCobertura.reapertura: "Reapertura",
+    DecisionDeCobertura.continuar_parcial: "Continuar con parcial",
+}
+
+MENSAJE_DECISION_INVALIDA = "Elegí una decisión de la lista."
+
+
+class FormularioDeDecision(FiltroDeSeccion):
+    """Que emergencias lista el detalle de la seccion "Convocatorias". Vacio significa todas."""
+
+    campo = "decision"
+    opciones = DecisionDeCobertura
+
+    decision = SelectField(
+        "Decisión",
+        choices=FiltroDeSeccion._choices(
+            DecisionDeCobertura, ETIQUETA_POR_DECISION.__getitem__, "Todas"
+        ),
+        default="",
+        validate_choice=False,
+        validators=[Optional()],
+    )
+
+    def validate_decision(self, campo: SelectField) -> None:
+        self._validar_opcion(campo, MENSAJE_DECISION_INVALIDA)

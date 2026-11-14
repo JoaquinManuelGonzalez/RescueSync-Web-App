@@ -76,7 +76,7 @@
         encabezados=["Gravedad", "En término"],
         vacio=sin_casos,
         resumen="Porcentaje de casos resueltos en término, por gravedad.",
-        exportacion=exportacion("resolucion-en-termino"),
+        exportacion=exportacion("resolucion-en-termino", "resolucion-porcentaje-en-termino"),
     ) }}
     {{ tarjeta_grafico(
         "grafico-tiempo-medio",
@@ -87,7 +87,7 @@
         encabezados=["Gravedad", "Tiempo medio", "Plazo objetivo"],
         vacio=sin_casos,
         resumen="Tiempo medio de resolución por gravedad, comparado con su plazo objetivo.",
-        exportacion=exportacion("resolucion-en-termino"),
+        exportacion=exportacion("resolucion-en-termino", "resolucion-tiempo-medio"),
     ) }}
   </div>
 

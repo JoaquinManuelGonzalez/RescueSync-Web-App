@@ -15,10 +15,18 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from app.modulos.indicadores import proceso, recursos, red_de_ongs, respuesta, servicios
+from app.modulos.indicadores import (
+    convocatorias,
+    proceso,
+    recursos,
+    red_de_ongs,
+    respuesta,
+    servicios,
+)
 from app.modulos.indicadores.exportacion import TablaExportable
 from app.modulos.indicadores.formularios import (
     FiltroDeSeccion,
+    FormularioDeDecision,
     FormularioDeGravedad,
     FormularioDeOrden,
     FormularioDeRubro,
@@ -84,6 +92,27 @@ EMERGENCIAS = SeccionDelPanel(
             "cobertura-de-finalizadas",
             "Cobertura de las finalizadas",
             servicios.SeccionDeEmergencias.tabla_de_cobertura,
+        ),
+    ),
+)
+
+CONVOCATORIAS = SeccionDelPanel(
+    endpoint="indicadores.convocatorias",
+    titulo="Convocatorias",
+    icono="lista",
+    plantilla="indicadores/convocatorias.html",
+    obtener=convocatorias.obtener_seccion_de_convocatorias,
+    filtros=(FormularioDeDecision,),
+    indicadores=(
+        IndicadorExportable(
+            "decisiones-de-cobertura",
+            "Decisiones ante cobertura insuficiente",
+            convocatorias.SeccionDeConvocatorias.tabla,
+        ),
+        IndicadorExportable(
+            "emergencias-con-cobertura-insuficiente",
+            "Emergencias con cobertura insuficiente",
+            convocatorias.SeccionDeConvocatorias.tabla_de_detalle,
         ),
     ),
 )
@@ -168,6 +197,7 @@ PROCESO = SeccionDelPanel(
 SECCIONES: tuple[SeccionDelPanel, ...] = (
     RESUMEN,
     EMERGENCIAS,
+    CONVOCATORIAS,
     RECURSOS,
     RED_DE_ONGS,
     TIEMPOS_DE_RESPUESTA,

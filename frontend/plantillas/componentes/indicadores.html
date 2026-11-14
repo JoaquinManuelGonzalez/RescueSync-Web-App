@@ -42,7 +42,10 @@
         Una seccion que no se pudo calcular, con el boton para volver a pedirla.
 
     - esqueleto_de_graficos(cantidad)
-        Lugar reservado mientras llegan los datos de una seccion de carga diferida. -#}
+        Lugar reservado mientras llegan los datos de una seccion de carga diferida.
+
+    - insignia_gravedad(nivel)
+        El nivel de gravedad de una emergencia (un `NivelGravedad`) como insignia de color. -#}
 
 {% from "componentes/destacados.html" import icono_destacado %}
 {% from "componentes/diseno.html" import insignia %}
@@ -245,4 +248,10 @@
   </div>
   {%- endfor %}
 </div>
+{%- endmacro %}
+
+{%- set _VARIANTE_POR_GRAVEDAD = {"baja": "neutra", "media": "info", "alta": "advertencia", "critica": "error"} %}
+
+{% macro insignia_gravedad(nivel) -%}
+{{ insignia(nivel|etiqueta_gravedad, _VARIANTE_POR_GRAVEDAD.get(nivel.value, "neutra")) }}
 {%- endmacro %}

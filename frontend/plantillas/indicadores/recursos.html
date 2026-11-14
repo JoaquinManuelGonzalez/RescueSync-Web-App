@@ -88,7 +88,7 @@
           encabezados=["Rubro", "Unidades demandadas"],
           vacio=sin_demanda,
           resumen="Unidades demandadas por rubro, de mayor a menor.",
-          exportacion=exportacion("rubros-demanda-e-inhabilitacion"),
+          exportacion=exportacion("rubros-demanda-e-inhabilitacion", "rubros-demanda"),
       ) }}
       {{ tarjeta_grafico(
           "grafico-inhabilitacion",
@@ -99,7 +99,7 @@
           encabezados=["Rubro", "Tasa de inhabilitación"],
           vacio=sin_demanda,
           resumen="Tasa de inhabilitación del Sistema Nacional por rubro.",
-          exportacion=exportacion("rubros-demanda-e-inhabilitacion"),
+          exportacion=exportacion("rubros-demanda-e-inhabilitacion", "rubros-inhabilitacion"),
       ) }}
     </div>
 

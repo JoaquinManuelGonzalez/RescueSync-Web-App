@@ -285,6 +285,23 @@
         @apply bg-primario;
     }
 
+    /* Decisiones ante cobertura insuficiente: los mismos tonos que sus barras (graficos.js). */
+    .decision-punto {
+        @apply inline-block size-2 rounded-full;
+    }
+
+    .decision-punto-reapertura {
+        @apply bg-amber-500;
+    }
+
+    .decision-punto-continuar_parcial {
+        @apply bg-blue-500;
+    }
+
+    .decisiones-lista {
+        @apply flex flex-wrap items-center gap-1.5;
+    }
+
     /* Mientras indicadores.js trae los datos de un filtro nuevo. */
     [data-panel-actualizable][aria-busy="true"] {
         @apply pointer-events-none opacity-60 transition-opacity;

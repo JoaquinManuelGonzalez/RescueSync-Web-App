@@ -13,6 +13,7 @@ import pytest
 
 from app.modulos.emergencias.modelos import EstadoEmergencia, TipoNecesidad
 from app.modulos.indicadores import rutas as rutas_de_indicadores
+from app.modulos.indicadores.exportacion import BOM_UTF8
 from app.modulos.indicadores.formularios import MENSAJE_RUBRO_INVALIDO
 from app.modulos.indicadores.secciones import INDICADORES_EXPORTABLES
 
@@ -150,7 +151,7 @@ def test_ca01_exportar_csv(cliente_sembrado, ingresar, recursos_de_la_hu) -> Non
     assert respuesta.headers["Content-Disposition"] == (
         'attachment; filename="rescuesync-recursos-movilizados-2025-09-01_2025-10-31.csv"'
     )
-    assert respuesta.get_data(as_text=True).splitlines() == [
+    assert respuesta.get_data(as_text=True).removeprefix(BOM_UTF8).splitlines() == [
         "mes,rubro,unidades",
         "2025-09,Personal sanitario,5",
         "2025-09,Alimentos,1000",
@@ -204,7 +205,7 @@ def test_ca03_sin_datos_el_csv_trae_solo_encabezados(cliente_sembrado, ingresar,
     )
 
     assert respuesta.status_code == 200
-    lineas = respuesta.get_data(as_text=True).splitlines()
+    lineas = respuesta.get_data(as_text=True).removeprefix(BOM_UTF8).splitlines()
     if slug == "resumen-de-actividad":
         # El resumen siempre tiene sus cuatro cifras, aunque sean 0.
         assert len(lineas) == 5
@@ -244,3 +245,55 @@ def test_un_periodo_invalido_no_se_exporta(cliente_sembrado, ingresar) -> None:
     )
 
     assert respuesta.status_code == 400
+
+
+@pytest.mark.parametrize(
+    ("slug", "filtro", "valor"),
+    [
+        ("emergencias-por-estado", "gravedad", "alta"),
+        ("cobertura-de-finalizadas", "gravedad", "critica"),
+        ("ranking-de-ongs", "orden", "tiempo"),
+        ("recursos-movilizados", "rubro", "alimentos"),
+    ],
+)
+def test_el_json_exportado_lleva_el_filtro_de_la_seccion(
+    cliente_sembrado, ingresar, recursos_de_la_hu, slug, filtro, valor
+) -> None:
+    ingresar(EMAIL_AUDITOR)
+
+    respuesta = cliente_sembrado.get(
+        f"/auditoria/exportaciones/{slug}.json", query_string={**SEP_OCT, filtro: valor}
+    )
+
+    assert respuesta.status_code == 200
+    assert json.loads(respuesta.get_data(as_text=True))["filtros"][filtro] == valor
+
+
+def test_en_celular_el_ranking_se_ordena_con_un_filtro(
+    ingresar_por_formulario, navegar, recursos_de_la_hu
+) -> None:
+    ingresar_por_formulario(EMAIL_AUDITOR)
+
+    cuerpo = navegar(
+        "/auditoria/red-de-ongs?desde=2025-09-01&hasta=2025-10-31&orden=tiempo"
+    ).get_data(as_text=True)
+
+    # Visible solo en pantallas angostas, donde la tabla pierde sus encabezados ordenables.
+    assert (
+        '<div class="md:hidden"><nav class="filtro-segmentado" aria-label="Ordenar el ranking por"'
+        in cuerpo
+    )
+    assert 'href="/auditoria/red-de-ongs?orden=tiempo" aria-current="true"' in cuerpo
+
+
+def test_cada_grafico_de_un_par_descarga_su_imagen_con_su_nombre(
+    ingresar_por_formulario, navegar, recursos_de_la_hu
+) -> None:
+    ingresar_por_formulario(EMAIL_AUDITOR)
+
+    cuerpo = navegar("/auditoria/recursos?desde=2025-09-01&hasta=2025-10-31").get_data(as_text=True)
+
+    assert 'data-nombre-archivo="rescuesync-rubros-demanda-2025-09-01_2025-10-31.png"' in cuerpo
+    assert (
+        'data-nombre-archivo="rescuesync-rubros-inhabilitacion-2025-09-01_2025-10-31.png"' in cuerpo
+    )

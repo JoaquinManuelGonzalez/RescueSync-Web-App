@@ -99,12 +99,17 @@ def barras(
     mostrar_valores: bool = True,
     maximo: float | None = None,
     marcadores: Marcadores | None = None,
+    enlaces: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Barras de una sola serie, con un color por barra.
 
     Un valor None es "sin dato": no dibuja barra y, con `sin_dato`, escribe ese texto en su
     lugar ("Sin ocurrencias"), para que no se confunda con un cero. `maximo` fija el tope del eje
     (100 para porcentajes).
+
+    `enlaces`, una URL por barra, hace que tocar una barra aplique el filtro de la seccion que
+    lleva a esa URL (el mismo enlace del filtro segmentado, que sigue siendo el camino accesible
+    con teclado y sin JavaScript).
     """
     definicion: dict[str, Any] = {
         "tipo": "barras",
@@ -125,6 +130,8 @@ def barras(
         definicion["maximo"] = maximo
     if marcadores is not None:
         definicion["marcadores"] = marcadores.a_diccionario()
+    if enlaces is not None:
+        definicion["enlaces"] = list(enlaces)
     return definicion
 
 

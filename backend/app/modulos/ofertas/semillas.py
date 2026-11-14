@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.core.semillas import ResultadoSemilla, obtener_o_crear, registrar
 from app.extensiones import db
-from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
+from app.modulos.convocatorias.modelos import Convocatoria, DecisionCobertura, EstadoConvocatoria
 from app.modulos.emergencias.modelos import Emergencia, EstadoLote, Item, LoteItem, LoteNecesidad
 from app.modulos.ofertas.modelos import (
     EstadoOferta,
@@ -29,6 +29,7 @@ EMAIL_REPRESENTANTE_DEMO = "representante@cruzsolidaria.test"
 MARCA_CONVOCATORIA_COBERTURA_INSUFICIENTE = "SEED_PRUEBA_COBERTURA_INSUFICIENTE"
 
 MARCA_CONVOCATORIA_HISTORICA = "SEED_COBERTURA_HISTORICA"
+MARCA_REAPERTURA_HISTORICA = "SEED_REAPERTURA_HISTORICA"
 DESCRIPCION_LOTE_HISTORICO = "Necesidades atendidas"
 
 
@@ -56,12 +57,17 @@ class OfertaHistorica:
 @dataclass(frozen=True, slots=True)
 class AdjudicacionHistorica:
     """Lo que pidio una emergencia historica, las ofertas que recibio y cuando se adjudico
-    (`horas_hasta_adjudicar` desde su registro)."""
+    (`horas_hasta_adjudicar` desde su registro).
+
+    `reaperturas` son las convocatorias anteriores que no alcanzaron la cobertura y el Centro
+    Coordinador reinicio, antes de la que se adjudico.
+    """
 
     emergencia: str
     necesidades: tuple[tuple[str, int], ...]
     horas_hasta_adjudicar: float
     ofertas: tuple[OfertaHistorica, ...]
+    reaperturas: int = 0
 
 
 CRUZ_SOLIDARIA = "representante@cruzsolidaria.test"
@@ -74,6 +80,9 @@ NO_HABILITADA = TipoAsignacion.rechazada
 # Emergencias de emergencias/semillas_emergencias.py::EMERGENCIAS_HISTORICAS ya adjudicadas, para
 # que cada seccion del panel de auditoria tenga datos: adjudicaciones en varios meses y rubros,
 # consorcios, aportes que el Sistema Nacional no habilito y una cobertura parcial (la laguna).
+# Para la seccion "Convocatorias": el incendio de La Plata se reabrio dos veces y el temporal de
+# Pergamino una; las que no cubrieron todo (la laguna y Pergamino) se adjudicaron porque el
+# Centro Coordinador decidio continuar con la cobertura parcial.
 # La finalizada "Anegamiento de calles..." queda sin necesidades a proposito: el panel la informa
 # aparte. Lo que hizo cada ONG despues de la adjudicacion esta en ejecucion_cierre/semillas.py.
 ADJUDICACIONES_HISTORICAS: tuple[AdjudicacionHistorica, ...] = (
@@ -133,6 +142,7 @@ ADJUDICACIONES_HISTORICAS: tuple[AdjudicacionHistorica, ...] = (
             ("Botiquines de primeros auxilios", 50),
         ),
         horas_hasta_adjudicar=36,
+        reaperturas=2,
         ofertas=(
             OfertaHistorica(
                 CRUZ_SOLIDARIA,
@@ -154,6 +164,7 @@ ADJUDICACIONES_HISTORICAS: tuple[AdjudicacionHistorica, ...] = (
             ("Retroexcavadoras", 2),
         ),
         horas_hasta_adjudicar=20,
+        reaperturas=1,
         ofertas=(
             OfertaHistorica(
                 CRUZ_ROJA,
@@ -383,8 +394,39 @@ def sembrar_cobertura_historica() -> list[ResultadoSemilla]:
             adjudicadas.get(nombre, 0) >= requerida for nombre, requerida in historica.necesidades
         )
         lote.estado = EstadoLote.adjudicado_total if cubre_todo else EstadoLote.adjudicado_parcial
+        # Como en el proceso: sin cobertura completa, solo se adjudica si se decidio continuar.
+        convocatoria.cobertura_completa = cubre_todo
+        convocatoria.decision_cobertura = (
+            DecisionCobertura.pendiente if cubre_todo else DecisionCobertura.aceptada_parcialmente
+        )
+        _sembrar_reaperturas(emergencia, historica.reaperturas, coordinador)
 
     return [resultado_lotes, resultado_lineas]
+
+
+def _sembrar_reaperturas(emergencia: Emergencia, cantidad: int, coordinador: Usuario) -> None:
+    """Las convocatorias que se reiniciaron antes de la adjudicada, una por hora desde el
+    registro: cerradas, evaluadas sin cobertura completa y con la decision de reabrir."""
+    for numero in range(1, cantidad + 1):
+        inicio = emergencia.creado_en + timedelta(hours=numero)
+        convocatoria, _ = obtener_o_crear(
+            Convocatoria,
+            claves={
+                "emergencia_id": emergencia.id,
+                "observaciones": f"{MARCA_REAPERTURA_HISTORICA} {numero}",
+            },
+            valores={
+                "coordinador_id": coordinador.id,
+                "fecha_inicio": inicio,
+                "fecha_cierre": inicio + timedelta(minutes=30),
+                "resumen_situacion": emergencia.descripcion,
+                "estado": EstadoConvocatoria.cerrada,
+            },
+        )
+        convocatoria.estado = EstadoConvocatoria.cerrada
+        convocatoria.cobertura_completa = False
+        convocatoria.cobertura_evaluada_en = inicio + timedelta(minutes=45)
+        convocatoria.decision_cobertura = DecisionCobertura.convocatoria_reabierta
 
 
 def _sembrar_oferta(

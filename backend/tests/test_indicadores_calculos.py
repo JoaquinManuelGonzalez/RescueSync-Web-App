@@ -11,7 +11,13 @@ import pytest
 
 from app.core.integraciones.bonita.consultas import NodoArchivado
 from app.modulos.indicadores.etapas import duraciones_por_tarea
-from app.modulos.indicadores.exportacion import TablaExportable, a_csv, a_json, nombre_de_archivo
+from app.modulos.indicadores.exportacion import (
+    BOM_UTF8,
+    TablaExportable,
+    a_csv,
+    a_json,
+    nombre_de_archivo,
+)
 from app.modulos.indicadores.periodo import Periodo
 from app.modulos.indicadores.series import etiqueta_de_mes, mes_de, mes_iso, meses_contiguos
 from app.modulos.indicadores.tiempos import (
@@ -91,7 +97,16 @@ def test_nombres_de_mes() -> None:
 
 
 def test_ca03_sin_datos_el_csv_trae_solo_los_encabezados() -> None:
-    assert a_csv(TablaExportable(columnas=("mes", "rubro", "unidades"))) == "mes,rubro,unidades\r\n"
+    assert a_csv(TablaExportable(columnas=("mes", "rubro", "unidades"))) == (
+        f"{BOM_UTF8}mes,rubro,unidades\r\n"
+    )
+
+
+def test_el_csv_empieza_con_el_bom_para_que_excel_lea_los_acentos() -> None:
+    contenido = a_csv(TablaExportable(columnas=("gravedad",), filas=(("Crítica",),)))
+
+    assert contenido.encode("utf-8").startswith(b"\xef\xbb\xbf")
+    assert contenido.removeprefix(BOM_UTF8).splitlines() == ["gravedad", "Crítica"]
 
 
 def test_el_csv_usa_coma_punto_decimal_e_iso_8601() -> None:

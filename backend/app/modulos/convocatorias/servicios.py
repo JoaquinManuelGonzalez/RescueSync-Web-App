@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, and_, case, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.core.errores import (
@@ -562,3 +564,65 @@ def obtener_primera_adjudicacion(*, emergencia_ids: Select[tuple[int]]) -> dict[
         .group_by(Convocatoria.emergencia_id)
     ).all()
     return {emergencia_id: adjudicada_en for emergencia_id, adjudicada_en in filas}
+
+
+@dataclass(frozen=True, slots=True)
+class HistorialDeConvocatorias:
+    """Las convocatorias que publico una emergencia y lo que se decidio ante cada cobertura
+    insuficiente.
+
+    Una reapertura deja la convocatoria anterior como historial y abre otra, asi que una
+    emergencia reabierta dos veces tiene `reaperturas == 2` y al menos tres publicadas.
+    `pendientes_de_decision` son las coberturas insuficientes que el Centro Coordinador todavia
+    no resolvio.
+    """
+
+    emergencia_id: int
+    publicadas: int
+    reaperturas: int
+    aceptadas_parcialmente: int
+    pendientes_de_decision: int
+
+    @property
+    def tuvo_cobertura_insuficiente(self) -> bool:
+        return bool(self.reaperturas or self.aceptadas_parcialmente or self.pendientes_de_decision)
+
+
+def _cantidad_que_cumple(condicion) -> Any:
+    """Cuantas filas del grupo cumplen la condicion (portable entre SQLite y Postgres)."""
+    return func.coalesce(func.sum(case((condicion, 1), else_=0)), 0)
+
+
+def listar_historial_de_convocatorias(
+    *, emergencia_ids: Select[tuple[int]]
+) -> list[HistorialDeConvocatorias]:
+    """El historial de convocatorias de esas emergencias, en una sola consulta agrupada.
+
+    Las emergencias sin ninguna convocatoria publicada (los borradores no cuentan) no aparecen.
+    """
+    pendiente = and_(
+        Convocatoria.estado == EstadoConvocatoria.cerrada,
+        Convocatoria.cobertura_evaluada_en.is_not(None),
+        Convocatoria.cobertura_completa.is_(False),
+        Convocatoria.decision_cobertura == DecisionCobertura.pendiente,
+    )
+    filas = db.session.execute(
+        select(
+            Convocatoria.emergencia_id,
+            func.count(Convocatoria.id),
+            _cantidad_que_cumple(
+                Convocatoria.decision_cobertura == DecisionCobertura.convocatoria_reabierta
+            ),
+            _cantidad_que_cumple(
+                Convocatoria.decision_cobertura == DecisionCobertura.aceptada_parcialmente
+            ),
+            _cantidad_que_cumple(pendiente),
+        )
+        .where(
+            Convocatoria.emergencia_id.in_(emergencia_ids),
+            Convocatoria.estado != EstadoConvocatoria.borrador,
+        )
+        .group_by(Convocatoria.emergencia_id)
+        .order_by(Convocatoria.emergencia_id)
+    ).all()
+    return [HistorialDeConvocatorias(*(int(valor) for valor in fila)) for fila in filas]

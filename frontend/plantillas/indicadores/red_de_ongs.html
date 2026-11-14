@@ -1,7 +1,7 @@
 {% extends "indicadores/base.html" %}
 {% from "componentes/alertas.html" import alerta %}
 {% from "componentes/iconos.html" import icono %}
-{% from "componentes/indicadores.html" import tarjeta_indicador, tarjeta_grafico, encabezado_de_seccion, encabezado_ordenable %}
+{% from "componentes/indicadores.html" import tarjeta_indicador, tarjeta_grafico, encabezado_de_seccion, encabezado_ordenable, filtro_segmentado %}
 {% from "componentes/tablas.html" import celda %}
 
 {% block title %}Red de ONGs · Panel de auditoría{% endblock %}
@@ -83,7 +83,18 @@
 
 {#- --- Ranking de ONGs --------------------------------------------------------------- -#}
 <section class="space-y-5" aria-labelledby="ranking-titulo">
-  {{ encabezado_de_seccion("ranking-titulo", "Ranking de ONGs", "Lotes adjudicados a cada ONG y cuánto tarda, en promedio, en finalizar sus actividades.") }}
+  {#- En pantallas angostas la tabla se apila en tarjetas y pierde sus encabezados ordenables:
+      el mismo orden se elige con este filtro, que en pantallas anchas no hace falta. -#}
+  {%- set por_tiempo = ranking.orden.value == "tiempo" %}
+  {%- set opciones_de_orden = [
+      {"texto": "Más lotes", "url": url_for("indicadores.red_de_ongs"), "activo": not por_tiempo},
+      {"texto": "Menor tiempo de ejecución", "url": url_for("indicadores.red_de_ongs", orden="tiempo"), "activo": por_tiempo},
+  ] %}
+  {% call encabezado_de_seccion("ranking-titulo", "Ranking de ONGs", "Lotes adjudicados a cada ONG y cuánto tarda, en promedio, en finalizar sus actividades.") %}
+    {%- if ranking.filas %}
+    <div class="md:hidden">{{ filtro_segmentado("Ordenar el ranking por", "filtro-orden", opciones_de_orden) }}</div>
+    {%- endif %}
+  {% endcall %}
 
   <div class="space-y-5" aria-live="polite" data-panel-actualizable="seccion-ranking">
     {%- if filtros.orden.errors %}
@@ -108,7 +119,6 @@
     ) }}
 
     {%- if ranking.filas %}
-    {%- set por_tiempo = ranking.orden.value == "tiempo" %}
     <div class="tabla-contenedor" data-filtro-de-seccion>
       <table class="tabla">
         <caption class="sr-only">Ranking de ONGs, ordenado por {{ "tiempo medio de ejecución, de menor a mayor" if por_tiempo else "lotes adjudicados, de mayor a menor" }}</caption>
