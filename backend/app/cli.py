@@ -15,6 +15,9 @@ from app.extensiones import db
 MENSAJE_SIN_MIGRAR = "Ejecute las migraciones antes de cargar los datos semilla"
 
 
+SIMBOLO_DE_RESULTADO = {"ok": "✓", "aviso": "!", "error": "✗"}
+
+
 def _base_migrada() -> bool:
     """Indica si el esquema fue aplicado, mirando la tabla de control de Alembic."""
     inspector = inspect(db.engine)
@@ -75,6 +78,38 @@ def registrar_comandos(app: Flask) -> None:
             raise
 
         _imprimir_resumen(resultados)
+
+    @app.cli.command("bonita-diagnostico")
+    def bonita_diagnostico() -> None:
+        """Revisa la conexion con Bonita y dice como resolver cada problema que encuentra.
+
+        Sale con codigo 1 si algun chequeo da error, para poder usarlo en scripts.
+        """
+        from app.core.acceso.permisos import NombreRol
+        from app.core.integraciones.bonita.diagnostico import Resultado, diagnosticar
+        from app.core.integraciones.bonita.proceso import (
+            ACTOR_CENTRO_COORDINADOR,
+            ACTOR_MUNICIPAL,
+        )
+        from app.core.integraciones.bonita.sesion import BONITA_BASE_URL
+        from app.modulos.usuarios_roles import servicios
+
+        # Los perfiles que la app identifica por su email en Bonita, con el actor que cumplen.
+        usuarios_por_actor = {
+            ACTOR_MUNICIPAL: servicios.listar_emails_activos_por_rol(NombreRol.OPERADOR_MUNICIPAL),
+            ACTOR_CENTRO_COORDINADOR: servicios.listar_emails_activos_por_rol(
+                NombreRol.COORDINADOR_REGIONAL
+            ),
+        }
+        click.echo(f"Diagnóstico de Bonita ({BONITA_BASE_URL})")
+        chequeos = diagnosticar(usuarios_por_actor)
+        for chequeo in chequeos:
+            marca = SIMBOLO_DE_RESULTADO[chequeo.resultado]
+            click.echo(f"  {marca} {chequeo.nombre}: {chequeo.detalle}")
+            if chequeo.pista and chequeo.resultado is not Resultado.OK:
+                click.echo(f"      → {chequeo.pista}")
+        if any(chequeo.resultado is Resultado.ERROR for chequeo in chequeos):
+            sys.exit(1)
 
     @app.cli.command("crear-administrador")
     @click.option("--email", required=True, help="Email con el que va a iniciar sesion.")

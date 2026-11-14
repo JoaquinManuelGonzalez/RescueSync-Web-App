@@ -69,3 +69,46 @@ def test_un_login_sin_token_es_una_respuesta_invalida(monkeypatch) -> None:
 
     assert isinstance(error.value, ErrorDeAplicacion)
     assert error.value.detalle == {"componente": "bonita", "falta": "X-Bonita-API-Token"}
+
+
+def test_el_timeout_de_lectura_hacia_bonita_es_configurable(monkeypatch) -> None:
+    from app.core.integraciones import cliente_http
+
+    recibidos = []
+
+    def _responder(solicitud: httpx.Request) -> httpx.Response:
+        recibidos.append(solicitud.extensions["timeout"])
+        return httpx.Response(200, json=[])
+
+    with httpx.Client(transport=httpx.MockTransport(_responder)) as cliente:
+        cliente_http.ejecutar_solicitud(
+            cliente,
+            componente=cliente_http.COMPONENTE_BONITA,
+            metodo="GET",
+            endpoint_normalizado="/API/bpm/case",
+            url="http://bonita.invalido/bonita/API/bpm/case",
+            idempotente=True,
+            timeout_lectura_s=25,
+        )
+
+    assert recibidos[0]["read"] == 25
+    assert recibidos[0]["connect"] == cliente_http.TIMEOUT_CONEXION_S
+
+
+def test_las_llamadas_a_bonita_usan_bonita_timeout_s(monkeypatch) -> None:
+    argumentos = {}
+    monkeypatch.setattr(sesion, "obtener_cliente", lambda _username: None)
+    monkeypatch.setattr(sesion, "BONITA_TIMEOUT_S", 42.0)
+    monkeypatch.setattr(
+        sesion, "ejecutar_solicitud", lambda _cliente, **kwargs: argumentos.update(kwargs)
+    )
+
+    sesion.ejecutar_solicitud_bonita(
+        username="walter.bates",
+        metodo="GET",
+        endpoint_normalizado="/API/bpm/case",
+        url="http://bonita.invalido/bonita/API/bpm/case",
+        idempotente=True,
+    )
+
+    assert argumentos["timeout_lectura_s"] == 42.0

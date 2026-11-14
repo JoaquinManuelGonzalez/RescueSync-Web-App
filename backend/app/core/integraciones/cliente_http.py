@@ -76,6 +76,7 @@ def ejecutar_solicitud(
     url: str,
     idempotente: bool,
     headers: dict[str, str] | None = None,
+    timeout_lectura_s: float = TIMEOUT_LECTURA_S,
     **kwargs,
 ) -> httpx.Response:
     id_correlacion = id_correlacion_actual()
@@ -105,14 +106,14 @@ def ejecutar_solicitud(
                 headers=cabeceras,
                 timeout=httpx.Timeout(
                     connect=TIMEOUT_CONEXION_S,
-                    read=TIMEOUT_LECTURA_S,
-                    write=TIMEOUT_LECTURA_S,
+                    read=timeout_lectura_s,
+                    write=timeout_lectura_s,
                     pool=TIMEOUT_CONEXION_S,
                 ),
                 **kwargs,
             )
 
-        except httpx.RequestError:
+        except httpx.RequestError as error:
             duracion_ms = int((time.perf_counter() - inicio) * 1000)
 
             registrar_llamada_saliente(
@@ -127,7 +128,7 @@ def ejecutar_solicitud(
             )
 
             if intento == cantidad_intentos:
-                raise ServicioExternoNoDisponible(detalle={"componente": componente})
+                raise ServicioExternoNoDisponible(detalle={"componente": componente}) from error
 
             continue
 

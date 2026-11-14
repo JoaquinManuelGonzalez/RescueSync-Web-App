@@ -25,14 +25,24 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 
-from flask import Blueprint, Response, jsonify, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    Response,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from app.core.acceso.autorizacion import requiere_permiso
 from app.core.acceso.permisos import INDICADORES_EXPORTAR, INDICADORES_VER
 from app.core.errores import RecursoNoEncontrado, SeccionAjenaAlRol, SolicitudInvalida
 from app.core.interfaz.formularios import errores_de
 from app.core.interfaz.navegacion import EntradaDeMenu
-from app.core.interfaz.vistas import pide_json
+from app.core.interfaz.vistas import ERROR, pide_json
 from app.core.logging import registrar_evento
 from app.modulos.indicadores import secciones
 from app.modulos.indicadores.exportacion import a_csv, a_json, nombre_de_archivo
@@ -327,6 +337,11 @@ def proceso_datos():
     )
 
 
+MENSAJE_EXPORTACION_SIN_MOTOR = (
+    f"{MENSAJE_MOTOR_NO_DISPONIBLE} Reintentá la exportación en unos minutos."
+)
+
+
 @blueprint_indicadores.get("/exportaciones/<slug>.<formato>")
 @requiere_permiso(INDICADORES_EXPORTAR, al_denegar=SeccionAjenaAlRol)
 def exportar(slug: str, formato: str):
@@ -343,7 +358,24 @@ def exportar(slug: str, formato: str):
     if solicitud.errores:
         raise SolicitudInvalida(detalle=solicitud.errores)
 
-    tabla = indicador.tabla(seccion.obtener(solicitud.periodo, **solicitud.valores))
+    try:
+        datos = seccion.obtener(solicitud.periodo, **solicitud.valores)
+    except ERRORES_DEL_MOTOR as error:
+        # Solo los indicadores de Bonita llegan aca. Un cliente JSON recibe el envelope del
+        # contrato; al navegador se lo devuelve a la seccion con el aviso, en vez de dejarlo
+        # frente a un JSON de error en lugar del archivo.
+        if pide_json():
+            raise
+        registrar_evento(
+            logging.WARNING,
+            "indicadores_bonita_no_disponible",
+            "No se pudo exportar un indicador de Bonita",
+            codigo=error.codigo,
+            indicador=slug,
+        )
+        flash(MENSAJE_EXPORTACION_SIN_MOTOR, ERROR)
+        return redirect(_url_de_la_seccion(seccion.endpoint, solicitud))
+    tabla = indicador.tabla(datos)
 
     if formato == "csv":
         contenido = a_csv(tabla)

@@ -231,10 +231,10 @@ class SeccionDeProceso:
 def _etapas(
     casos: list[consultas.CasoArchivado], gravedad: NivelGravedad | None
 ) -> EtapasDelProceso:
+    lineas = consultas.lineas_de_tiempo(casos)
     duraciones: dict[str, list[Decimal]] = defaultdict(list)
     for caso in casos:
-        linea = consultas.linea_de_tiempo_de_caso_terminado(caso.caso_id)
-        for nombre, dias in duraciones_por_tarea(linea, caso.iniciado_en).items():
+        for nombre, dias in duraciones_por_tarea(lineas[caso.caso_id], caso.iniciado_en).items():
             duraciones[nombre].append(dias)
     return EtapasDelProceso(
         gravedad=gravedad,
@@ -290,14 +290,13 @@ def obtener_seccion_de_proceso(
         if registro.bonita_case_id
     }
 
-    definiciones = consultas.listar_definiciones_del_proceso(BONITA_PROCESO_NOMBRE)
-    archivados = consultas.listar_casos_archivados(definiciones)
+    foto = consultas.foto_del_proceso(BONITA_PROCESO_NOMBRE)
     terminados = [
         (gravedad_por_caso[caso_id], caso)
-        for caso_id, caso in archivados.items()
+        for caso_id, caso in foto.casos_terminados.items()
         if caso_id in gravedad_por_caso
     ]
-    abiertos = consultas.listar_ids_de_casos_abiertos(definiciones) & gravedad_por_caso.keys()
+    abiertos = foto.casos_abiertos & gravedad_por_caso.keys()
 
     return SeccionDeProceso(
         etapas=_etapas(

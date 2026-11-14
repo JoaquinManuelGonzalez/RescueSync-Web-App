@@ -7,6 +7,7 @@ seccion habla con el motor. Cada test se nombra por el criterio de aceptacion qu
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
@@ -54,10 +55,20 @@ class BonitaFalso:
 def bonita(monkeypatch: pytest.MonkeyPatch) -> BonitaFalso:
     falso = BonitaFalso()
     consultas = proceso.consultas
-    monkeypatch.setattr(consultas, "listar_definiciones_del_proceso", lambda nombre: ["1"])
-    monkeypatch.setattr(consultas, "listar_casos_archivados", lambda d: dict(falso.terminados))
-    monkeypatch.setattr(consultas, "listar_ids_de_casos_abiertos", lambda d: set(falso.abiertos))
-    monkeypatch.setattr(consultas, "linea_de_tiempo_de_caso_terminado", falso.lineas.__getitem__)
+    monkeypatch.setattr(
+        consultas,
+        "foto_del_proceso",
+        lambda nombre: consultas.FotoDelProceso(
+            definiciones=("1",),
+            casos_terminados=dict(falso.terminados),
+            casos_abiertos=frozenset(falso.abiertos),
+        ),
+    )
+    monkeypatch.setattr(
+        consultas,
+        "lineas_de_tiempo",
+        lambda casos: {caso.caso_id: falso.lineas[caso.caso_id] for caso in casos},
+    )
     return falso
 
 
@@ -66,7 +77,7 @@ def bonita_caido(monkeypatch: pytest.MonkeyPatch) -> None:
     def _falla(*_args, **_kwargs):
         raise ServicioExternoNoDisponible(detalle={"componente": "bonita"})
 
-    monkeypatch.setattr(proceso.consultas, "listar_definiciones_del_proceso", _falla)
+    monkeypatch.setattr(proceso.consultas, "foto_del_proceso", _falla)
 
 
 @pytest.fixture
@@ -263,3 +274,88 @@ def test_los_datos_diferidos_conservan_el_periodo_y_el_filtro(
         'data-carga-diferida="/auditoria/proceso/datos?desde=2025-03-01&amp;hasta=2025-03-31'
         '&amp;gravedad=alta"' in cuerpo
     )
+
+
+def test_los_datos_diferidos_filtran_las_etapas_por_gravedad(
+    ingresar_por_formulario, navegar, bonita, emergencias_con_caso
+) -> None:
+    emergencias_con_caso((ALTA, "101"), (MEDIA, "102"))
+    bonita.terminar("101", dias=5, seleccionar_en_dias=1)
+    bonita.terminar("102", dias=5, seleccionar_en_dias=3)
+    ingresar_por_formulario(EMAIL_AUDITOR)
+
+    respuesta = navegar("/auditoria/proceso/datos?desde=2025-03-01&hasta=2025-03-31&gravedad=alta")
+
+    cuerpo = respuesta.get_data(as_text=True)
+    assert respuesta.status_code == 200
+    assert 'id="grafico-etapas"' in cuerpo
+    assert re.search(r"1,0 día\b", cuerpo), "la etapa de la emergencia Alta (1 día)"
+    assert "3,0 días" not in cuerpo
+
+
+# --- Exportacion de los indicadores de Bonita -------------------------------------------------
+
+PERIODO_DE_MARZO = {"desde": "2025-03-01", "hasta": "2025-03-31"}
+
+
+@pytest.mark.parametrize("slug", ["etapas-del-proceso", "resolucion-en-termino"])
+def test_los_indicadores_de_bonita_se_exportan_en_csv(
+    cliente_sembrado, ingresar, bonita, emergencias_con_caso, slug
+) -> None:
+    emergencias_con_caso((ALTA, "101"))
+    bonita.terminar("101", dias=5, seleccionar_en_dias=1)
+    ingresar(EMAIL_AUDITOR)
+
+    respuesta = cliente_sembrado.get(
+        f"/auditoria/exportaciones/{slug}.csv", query_string=PERIODO_DE_MARZO
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.headers["Content-Disposition"].endswith(
+        f'filename="rescuesync-{slug}-2025-03-01_2025-03-31.csv"'
+    )
+    assert len(respuesta.get_data(as_text=True).splitlines()) > 1
+
+
+def test_el_json_de_etapas_lleva_el_filtro_de_gravedad(
+    cliente_sembrado, ingresar, bonita, emergencias_con_caso
+) -> None:
+    emergencias_con_caso((ALTA, "101"))
+    bonita.terminar("101", dias=5, seleccionar_en_dias=1)
+    ingresar(EMAIL_AUDITOR)
+
+    respuesta = cliente_sembrado.get(
+        "/auditoria/exportaciones/etapas-del-proceso.json",
+        query_string={**PERIODO_DE_MARZO, "gravedad": "alta"},
+    )
+
+    datos = respuesta.get_json(force=True)
+    assert datos["filtros"] == {"desde": "2025-03-01", "hasta": "2025-03-31", "gravedad": "alta"}
+
+
+def test_sin_motor_la_exportacion_vuelve_a_la_seccion_con_el_aviso(
+    ingresar_por_formulario, navegar, bonita_caido
+) -> None:
+    ingresar_por_formulario(EMAIL_AUDITOR)
+
+    respuesta = navegar(
+        "/auditoria/exportaciones/etapas-del-proceso.csv?desde=2025-03-01&hasta=2025-03-31"
+    )
+
+    assert respuesta.status_code == 302
+    assert respuesta.headers["Location"].startswith("/auditoria/proceso?desde=2025-03-01")
+    pantalla = navegar(respuesta.headers["Location"]).get_data(as_text=True)
+    assert "Reintentá la exportación" in pantalla
+
+
+def test_sin_motor_la_exportacion_por_json_responde_el_envelope(
+    cliente_sembrado, ingresar, bonita_caido
+) -> None:
+    ingresar(EMAIL_AUDITOR)
+
+    respuesta = cliente_sembrado.get(
+        "/auditoria/exportaciones/resolucion-en-termino.json", query_string=PERIODO_DE_MARZO
+    )
+
+    assert respuesta.status_code == 503
+    assert respuesta.get_json()["error"]["codigo"] == "SERVICIO_EXTERNO_NO_DISPONIBLE"
