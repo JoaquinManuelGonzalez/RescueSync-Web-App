@@ -11,7 +11,13 @@ from app.core.integraciones.bonita.api import (
 NOMBRE_TAREA_PUBLICAR = "Gestionar emergencia y publicar convocatoria"
 NOMBRE_TAREA_SELECCIONAR = "Seleccionar ofertas"
 NOMBRE_TAREA_FINALIZAR = "Esperar finalizacion de tareas"
+# Sin tilde: es el nombre exacto de la tarea en el BPMN y la busqueda de Bonita lo compara tal cual.
 NOMBRE_TAREA_DECIDIR_COBERTURA = "Decidir accion ante cobertura insuficiente"
+
+# Actores del BPMN con los que la app actua en nombre de sus usuarios: el operador municipal
+# inicia el caso y el coordinador publica la convocatoria y decide ante cobertura insuficiente.
+ACTOR_MUNICIPAL = "Empleado municipal"
+ACTOR_CENTRO_COORDINADOR = "Empleado centro coordinador"
 
 
 def iniciar_gestion(

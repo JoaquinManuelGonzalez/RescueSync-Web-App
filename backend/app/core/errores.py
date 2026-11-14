@@ -114,6 +114,17 @@ class PermisoDenegado(ErrorDeAplicacion):
     estado_http = 403
 
 
+class SeccionAjenaAlRol(PermisoDenegado):
+    """La seccion entera pertenece a otro perfil, como el panel de auditoria.
+
+    Para un cliente JSON es un 403 PERMISO_DENEGADO como cualquier otro; al navegador se lo
+    devuelve a su portal con un aviso, en vez de dejarlo frente a la pagina de error de una
+    pantalla que nunca va a poder usar.
+    """
+
+    redirigir_a = "inicio.panel"
+
+
 class RecursoNoEncontrado(ErrorDeAplicacion):
     codigo = "RECURSO_NO_ENCONTRADO"
     estado_http = 404

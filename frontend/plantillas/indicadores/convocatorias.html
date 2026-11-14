@@ -1,0 +1,166 @@
+{% extends "indicadores/base.html" %}
+{% from "componentes/alertas.html" import alerta %}
+{% from "componentes/diseno.html" import insignia %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/indicadores.html" import tarjeta_indicador, tarjeta_grafico, encabezado_de_seccion, filtro_segmentado, menu_exportar, insignia_gravedad %}
+{% from "componentes/tablas.html" import tabla, celda %}
+
+{% block title %}Convocatorias · Panel de auditoría{% endblock %}
+
+{#- Seccion "Convocatorias" del panel de auditoria (indicadores/convocatorias.py): emergencias que
+    no se cubrieron en la primera convocatoria y que decidio el Centro Coordinador en cada caso.
+    Tocar una barra (o elegir la decision en el filtro) lista abajo las emergencias que la
+    tuvieron; tocar de nuevo la barra elegida vuelve a mostrarlas todas. -#}
+
+{% macro _emergencias(cantidad) -%}
+{{ cantidad|numero }} {{ "emergencia" if cantidad == 1 else "emergencias" }}
+{%- endmacro %}
+
+{% block seccion %}
+{%- set elegida = seccion.decision %}
+{%- set url_todas = url_for("indicadores.convocatorias") %}
+{%- set url_por_decision = {} %}
+{%- for decision in filtros.decision.opciones %}
+{%- set _ = url_por_decision.update({decision.value: url_for("indicadores.convocatorias", decision=decision.value)}) %}
+{%- endfor %}
+
+{#- --- Decisiones ante cobertura insuficiente -------------------------------------------- -#}
+<section class="space-y-5" aria-labelledby="convocatorias-titulo">
+  {{ encabezado_de_seccion("convocatorias-titulo", "Convocatorias", "Cuántas emergencias no se cubrieron en la primera convocatoria y qué decidió el Centro Coordinador en cada caso.") }}
+
+  <div class="graficos-grilla" aria-live="polite" data-panel-actualizable="seccion-decisiones">
+    {%- set barras = seccion.barras() %}
+    {%- set filas = [] %}
+    {%- for _decision, etiqueta, cantidad, emergencias in barras %}
+    {%- set _ = filas.append((etiqueta, cantidad, _emergencias(emergencias))) %}
+    {%- endfor %}
+    {#- Tocar la barra elegida vuelve a "Todas"; las demas eligen su decision. -#}
+    {%- set enlaces = [] %}
+    {%- for barra in barras %}
+    {%- set _ = enlaces.append(url_todas if elegida == barra[0] else url_por_decision[barra[0].value]) %}
+    {%- endfor %}
+    {%- if seccion.hubo_decisiones %}
+    {%- set vacio = none %}
+    {%- elif seccion.esperan_decision %}
+    {%- set vacio = "Todavía no hay decisiones: " ~ _emergencias(seccion.esperan_decision) ~ " " ~ ("espera" if seccion.esperan_decision == 1 else "esperan") ~ " la decisión del Centro Coordinador." %}
+    {%- else %}
+    {%- set vacio = "Ninguna emergencia del período necesitó decidir ante una cobertura insuficiente." %}
+    {%- endif %}
+    {#- La cifra principal va primero: arriba en el celular, a la izquierda en pantallas anchas. -#}
+    <div class="graficos-grilla-angosta grid content-start gap-4 sm:grid-cols-2 md:grid-cols-1">
+      {%- set porcentaje = seccion.porcentaje_afectadas %}
+      {{ tarjeta_indicador(
+          "Necesitaron una decisión",
+          (porcentaje ~ " %") if porcentaje is not none else none,
+          "reiniciar",
+          "advertencia" if seccion.afectadas else "exito",
+          detalle="de las emergencias necesitó una decisión por cobertura insuficiente (" ~ seccion.afectadas|length ~ " de " ~ seccion.emergencias_con_convocatoria ~ ").",
+          pendiente="Ninguna emergencia del período publicó convocatorias.",
+      ) }}
+      {{ tarjeta_indicador(
+          "Esperan decisión",
+          seccion.esperan_decision,
+          "reloj",
+          "advertencia" if seccion.esperan_decision else "exito",
+          detalle=("Con cobertura insuficiente que el Centro Coordinador todavía no resolvió." if seccion.esperan_decision else "Todas las coberturas insuficientes tienen una decisión."),
+      ) }}
+      <p class="grafico-nota sm:col-span-2 md:col-span-1">
+        {{ icono("info", "size-4") }}
+        <span>El porcentaje se calcula sobre las emergencias del período con al menos una convocatoria publicada. Una emergencia reabierta varias veces cuenta una sola vez.</span>
+      </p>
+    </div>
+    <div class="graficos-grilla-ancha">
+      {% call tarjeta_grafico(
+          "grafico-decisiones",
+          "Decisiones ante cobertura insuficiente",
+          "Cada decisión suma en su barra: una emergencia reabierta dos veces cuenta dos veces.",
+          seccion.grafico(enlaces),
+          filas,
+          encabezados=["Decisión", "Decisiones", "Emergencias"],
+          vacio=vacio,
+          resumen="Decisiones ante cobertura insuficiente: " ~ (filas|map("join", " ")|join(", ")),
+          exportacion=exportacion("decisiones-de-cobertura"),
+      ) %}
+      {%- if seccion.hubo_decisiones %}
+      <p class="grafico-nota">
+        {{ icono("info", "size-4") }}
+        <span>Tocá una barra para ver abajo las emergencias que tuvieron esa decisión.</span>
+      </p>
+      {%- endif %}
+      {% endcall %}
+    </div>
+  </div>
+</section>
+
+{#- --- Detalle: emergencias con cobertura insuficiente --------------------------------- -#}
+<section class="space-y-5" aria-labelledby="detalle-titulo">
+  {%- set opciones = [{"texto": "Todas", "url": url_todas, "activo": elegida is none}] %}
+  {%- for decision in filtros.decision.opciones %}
+  {%- set _ = opciones.append({
+      "texto": decision.etiqueta,
+      "url": url_por_decision[decision.value],
+      "activo": elegida == decision,
+      "punto": "decision-punto decision-punto-" ~ decision.value,
+  }) %}
+  {%- endfor %}
+  {% call encabezado_de_seccion("detalle-titulo", "Emergencias con cobertura insuficiente", "Qué emergencias tuvieron cada decisión y cuántas convocatorias necesitaron.") %}
+    {{ filtro_segmentado("Filtrar por decisión", "filtro-decision", opciones) }}
+  {% endcall %}
+
+  <div class="space-y-3" aria-live="polite" data-panel-actualizable="seccion-detalle">
+    {%- if filtros.decision.errors %}
+    {{ alerta("error", filtros.decision.decision.errors|first ~ " Se muestran todas.", titulo="El filtro de decisión no se aplicó") }}
+    {%- endif %}
+
+    {%- set detalle = seccion.detalle %}
+    <div class="grafico-cabecera-fila">
+      <p class="grafico-descripcion">
+        {%- if elegida %}
+        {{ _emergencias(detalle|length) }} con {{ elegida.etiqueta|lower }}.
+        {%- else %}
+        {{ _emergencias(detalle|length) }} con al menos una cobertura insuficiente, de la que más convocatorias necesitó a la que menos.
+        {%- endif %}
+      </p>
+      {{ menu_exportar(exportacion("emergencias-con-cobertura-insuficiente"), "Emergencias con cobertura insuficiente") }}
+    </div>
+
+    {%- if detalle %}
+    {% call tabla(["Emergencia", "Gravedad", "Convocatorias publicadas", "Decisiones"]) %}
+      {%- for emergencia in detalle %}
+      <tr class="tabla-fila">
+        <td class="tabla-celda tabla-celda-principal"><span class="font-medium text-gray-900">{{ emergencia.titulo }}</span></td>
+        {% call celda("Gravedad") %}{{ insignia_gravedad(emergencia.gravedad) }}{% endcall %}
+        {% call celda("Convocatorias publicadas") %}<span class="ranking-cifra">{{ emergencia.convocatorias_publicadas|numero }}</span>{% endcall %}
+        {% call celda("Decisiones") %}
+        <span class="decisiones-lista">
+          {%- if emergencia.reaperturas %}
+          {{ insignia("Reapertura" ~ (" ×" ~ emergencia.reaperturas if emergencia.reaperturas > 1 else ""), "advertencia") }}
+          {%- endif %}
+          {%- if emergencia.continuaciones %}
+          {{ insignia("Continuar con parcial", "info") }}
+          {%- endif %}
+          {%- if emergencia.pendientes %}
+          {{ insignia("Espera decisión", "neutra") }}
+          {%- endif %}
+        </span>
+        {% endcall %}
+      </tr>
+      {%- endfor %}
+    {% endcall %}
+    {%- else %}
+    <p class="kpi-nota">
+      {%- if elegida %}
+      {{ icono("info", "size-5") }} Ninguna emergencia del período tuvo {{ elegida.etiqueta|lower }}.
+      {%- else %}
+      {{ icono("exito", "size-5") }} Ninguna emergencia del período tuvo cobertura insuficiente.
+      {%- endif %}
+    </p>
+    {%- endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts_de_la_seccion %}
+<script src="{{ url_for('static', filename='js/vendor/chart-4.4.9.umd.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/graficos.js') }}" defer></script>
+{% endblock %}

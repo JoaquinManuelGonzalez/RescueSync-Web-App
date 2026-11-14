@@ -1,0 +1,145 @@
+{% extends "indicadores/base.html" %}
+{% from "componentes/alertas.html" import alerta %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/indicadores.html" import tarjeta_grafico, encabezado_de_seccion, filtro_segmentado, insignia_gravedad %}
+{% from "componentes/tablas.html" import tabla, celda %}
+
+{% block title %}Emergencias · Panel de auditoría{% endblock %}
+
+{#- Seccion "Emergencias" del panel de auditoria (rutas.py::emergencias): cuantas emergencias
+    del periodo hay en cada estado y cuantas de las finalizadas cubrieron todo lo que pidieron.
+    El filtro de gravedad acota toda la seccion. -#}
+
+{% macro _emergencias(cantidad) -%}
+{{ cantidad }} {{ "emergencia" if cantidad == 1 else "emergencias" }}
+{%- endmacro %}
+
+{% block seccion %}
+{%- set cobertura = seccion.cobertura %}
+{%- set gravedad = seccion.gravedad %}
+{%- set con_gravedad = (" con gravedad " ~ (gravedad|etiqueta_gravedad)|lower) if gravedad else "" %}
+<section class="space-y-5" aria-labelledby="emergencias-titulo" data-seccion-emergencias>
+  {%- set opciones_de_gravedad = [{"texto": "Todas", "url": url_for("indicadores.emergencias"), "activo": gravedad is none}] %}
+  {%- for nivel in filtros.gravedad.opciones %}
+  {%- set _ = opciones_de_gravedad.append({
+      "texto": nivel|etiqueta_gravedad,
+      "url": url_for("indicadores.emergencias", gravedad=nivel.value),
+      "activo": gravedad == nivel,
+      "punto": "gravedad-punto gravedad-punto-" ~ nivel.value,
+  }) %}
+  {%- endfor %}
+  {% call encabezado_de_seccion("emergencias-titulo", "Emergencias", "Cuántas hay en cada estado y si las finalizadas cubrieron lo que pidieron.") %}
+    {#- Enlaces comunes: sin JavaScript cada uno recarga la seccion con su gravedad. -#}
+    {{ filtro_segmentado("Filtrar por nivel de gravedad", "filtro-gravedad", opciones_de_gravedad) }}
+  {% endcall %}
+
+  <div class="space-y-5" aria-live="polite" data-panel-actualizable="seccion-emergencias">
+    {%- if filtros.gravedad.errors %}
+    {{ alerta("error", filtros.gravedad.gravedad.errors|first ~ " Se muestran todas.", titulo="El filtro de gravedad no se aplicó") }}
+    {%- endif %}
+
+    <div class="graficos-grilla">
+      {#- --- CA-01: emergencias por estado --------------------------------------- -#}
+      {%- set filas = [] %}
+      {%- for fila in seccion.por_estado %}
+      {%- set _ = filas.append((fila.estado|etiqueta_estado_emergencia, fila.cantidad)) %}
+      {%- endfor %}
+      {%- set resumen_estados = "Emergencias por estado: " ~ (filas|map("join", " ")|join(", ")) %}
+      <div class="graficos-grilla-ancha">
+        {{ tarjeta_grafico(
+            "grafico-estados",
+            "Emergencias por estado",
+            "Registradas en el período" ~ con_gravedad ~ ", según en qué etapa están hoy.",
+            seccion.grafico_por_estado(),
+            filas,
+            vacio=("No hay emergencias registradas en este período" ~ con_gravedad ~ ".") if seccion.registradas == 0 else none,
+            resumen=resumen_estados,
+            exportacion=exportacion("emergencias-por-estado"),
+        ) }}
+      </div>
+
+      {#- --- CA-02: cobertura de las finalizadas ---------------------------------- -#}
+      {%- if cobertura.finalizadas == 0 %}
+      {%- set vacio_cobertura = "Ninguna emergencia" ~ con_gravedad ~ " finalizó en este período." %}
+      {%- elif cobertura.evaluadas == 0 %}
+      {%- set vacio_cobertura = "Las emergencias finalizadas no tienen necesidades registradas: no hay cobertura que medir." %}
+      {%- else %}
+      {%- set vacio_cobertura = none %}
+      {%- endif %}
+      {%- set porciones = seccion.porciones_de_cobertura() %}
+      {%- set filas_cobertura = [] %}
+      {%- for etiqueta, porcion, _tono in porciones %}
+      {%- set _ = filas_cobertura.append((etiqueta, porcion.cantidad ~ " (" ~ porcion.porcentaje ~ " %)")) %}
+      {%- endfor %}
+      <div class="graficos-grilla-angosta">
+        {% call tarjeta_grafico(
+            "grafico-cobertura",
+            "Cobertura de las finalizadas",
+            "Unidades adjudicadas sobre las requeridas, sumando todos los lotes.",
+            seccion.grafico_de_cobertura(),
+            filas_cobertura,
+            vacio=vacio_cobertura,
+            resumen="Cobertura de las finalizadas: " ~ (filas_cobertura|map("join", " ")|join(", ")),
+            centro=(cobertura.total.porcentaje ~ " %", "con cobertura total"),
+            exportacion=exportacion("cobertura-de-finalizadas"),
+        ) %}
+        {%- if cobertura.evaluadas %}
+        <ul class="grafico-leyenda">
+          {%- for etiqueta, porcion, tono in porciones %}
+          <li class="grafico-leyenda-item">
+            <span class="grafico-leyenda-marca grafico-tono-{{ tono }}" aria-hidden="true"></span>
+            <span class="grafico-leyenda-texto">{{ etiqueta }}:</span>
+            <span class="grafico-leyenda-valor">{{ porcion.cantidad }} ({{ porcion.porcentaje }} %)</span>
+          </li>
+          {%- endfor %}
+        </ul>
+        {%- endif %}
+        {%- if cobertura.sin_necesidades and cobertura.evaluadas %}
+        <p class="grafico-nota">
+          {{ icono("info", "size-4") }}
+          <span>{{ _emergencias(cobertura.sin_necesidades) }} {{ "finalizada" if cobertura.sin_necesidades == 1 else "finalizadas" }} sin necesidades registradas no {{ "entra" if cobertura.sin_necesidades == 1 else "entran" }} en el cálculo.</span>
+        </p>
+        {%- endif %}
+        {% endcall %}
+      </div>
+    </div>
+
+    {#- --- Detalle: las finalizadas que se cerraron con faltantes ---------------------- -#}
+    <section class="space-y-3" aria-labelledby="faltantes-titulo">
+      <div class="grafico-cabecera">
+        <h3 id="faltantes-titulo" class="grafico-titulo">Finalizadas con faltantes</h3>
+        <p class="grafico-descripcion">Emergencias cerradas sin cubrir todas las unidades que pidieron, de menor a mayor cobertura.</p>
+      </div>
+      {%- if cobertura.con_faltantes %}
+      {% call tabla(["Emergencia", "Gravedad", "Cobertura"]) %}
+        {%- for emergencia in cobertura.con_faltantes %}
+        <tr class="tabla-fila">
+          <td class="tabla-celda tabla-celda-principal"><span class="font-medium text-gray-900">{{ emergencia.titulo }}</span></td>
+          {% call celda("Gravedad") %}{{ insignia_gravedad(emergencia.gravedad) }}{% endcall %}
+          {% call celda("Cobertura") %}
+          <div class="cobertura-barra-fila">
+            <div class="cobertura-barra" role="presentation"><span class="cobertura-barra-relleno" style="width: {{ emergencia.porcentaje }}%"></span></div>
+            <span class="cobertura-barra-valor">{{ emergencia.porcentaje }} %</span>
+          </div>
+          {% endcall %}
+        </tr>
+        {%- endfor %}
+      {% endcall %}
+      {%- else %}
+      <p class="kpi-nota">
+        {%- if cobertura.evaluadas %}
+        {{ icono("exito", "size-5") }} Ninguna emergencia finalizada{{ con_gravedad }} quedó con faltantes.
+        {%- else %}
+        {{ icono("info", "size-5") }} No hay emergencias finalizadas{{ con_gravedad }} con necesidades registradas en este período.
+        {%- endif %}
+      </p>
+      {%- endif %}
+    </section>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts_de_la_seccion %}
+<script src="{{ url_for('static', filename='js/vendor/chart-4.4.9.umd.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/graficos.js') }}" defer></script>
+{% endblock %}

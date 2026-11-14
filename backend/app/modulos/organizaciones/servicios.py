@@ -238,6 +238,20 @@ def obtener(organizacion_id: int) -> Organizacion:
     return organizacion
 
 
+def obtener_nombres(ids: Iterable[int]) -> dict[int, str]:
+    """Nombre de cada organizacion indicada, por id, en una sola consulta.
+
+    Pensada para reportes que solo necesitan nombrar organizaciones, sin exponer el modelo.
+    """
+    ids = list(ids)
+    if not ids:
+        return {}
+    filas = db.session.execute(
+        select(Organizacion.id, Organizacion.nombre).where(Organizacion.id.in_(ids))
+    ).all()
+    return {id_: nombre for id_, nombre in filas}
+
+
 def obtener_tipo_de_organizacion(organizacion_id: int) -> str | None:
     """Tipo de la organizacion como string, o None si no existe.
 

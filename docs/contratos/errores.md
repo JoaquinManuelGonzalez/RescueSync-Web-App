@@ -104,6 +104,8 @@ la interfaz; cómo se le presenta el mismo error a una persona está en la secci
 | 409 | `CONFLICTO_DE_ESTADO` | La entidad no admite la transición solicitada (por ejemplo, la emergencia ya fue adjudicada) |
 | 422 | `REGLA_DE_NEGOCIO_INCUMPLIDA` | Falla una validación de dominio propia (por ejemplo, oferta fuera de la ventana temporal) |
 | 422 | `SISTEMA_EXTERNO_RECHAZO` | La API Nacional o Bonita respondieron con un 4xx: la solicitud fue evaluada y rechazada |
+| 422 | `PROCESO_NO_DESPLEGADO` | Variante de `SISTEMA_EXTERNO_RECHAZO`: Bonita no tiene desplegado el proceso `BONITA_PROCESO_NOMBRE` en la versión `BONITA_PROCESO_VERSION` |
+| 422 | `TAREA_DE_PROCESO_NO_DISPONIBLE` | Variante de `SISTEMA_EXTERNO_RECHAZO`: el caso de Bonita todavía no llegó a la tarea que la aplicación quiere completar (el motor y la app no están en el mismo paso) |
 | 500 | `ERROR_INTERNO` | Excepción no contemplada dentro de la propia aplicación |
 | 502 | `RESPUESTA_EXTERNA_INVALIDA` | El sistema externo respondió con un cuerpo ilegible o con un formato inesperado |
 | 503 | `SERVICIO_EXTERNO_NO_DISPONIBLE` | El sistema externo respondió 5xx, o no respondió, tras agotar los reintentos |
@@ -145,7 +147,7 @@ política de tiempos de espera y reintentos, implementada en los clientes de
 | Parámetro | Valor |
 |---|---|
 | Timeout de conexión | 3 segundos |
-| Timeout de lectura | 10 segundos |
+| Timeout de lectura | 10 segundos (configurable con `BONITA_TIMEOUT_S`) |
 | Intentos totales | 3 (1 intento original + 2 reintentos) |
 | Backoff | Exponencial: 500 ms → 1 s → 2 s |
 | Jitter | ± 20 % sobre cada espera de backoff |
@@ -201,6 +203,11 @@ Bonita (integraciones 3 y 5 de `docs/arquitectura/componentes.md`), con los mism
 | No se reintenta ante | 4xx (por ejemplo, sesión de Bonita expirada sin renovación exitosa, variables de proceso inválidas) |
 | Código ante caída de Bonita | 503 `SERVICIO_EXTERNO_NO_DISPONIBLE` |
 | Código ante rechazo de Bonita | 422 `SISTEMA_EXTERNO_RECHAZO` |
+
+Todo lo que puede fallar al hablar con Bonita sale como un error de este contrato, nunca como un
+500: una tarea que el caso todavía no habilitó (`TAREA_DE_PROCESO_NO_DISPONIBLE`), un proceso no
+desplegado (`PROCESO_NO_DESPLEGADO`), o una respuesta sin el token de sesión o sin el `caseId` de
+la instancia creada (502 `RESPUESTA_EXTERNA_INVALIDA`). Así cada pantalla lo muestra como aviso.
 
 La instanciación de un proceso (integración 3, disparada al registrar una emergencia) no es
 idempotente por naturaleza, por lo que su cliente debe generar y enviar una clave de idempotencia

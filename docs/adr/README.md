@@ -36,6 +36,7 @@ de versión fijada), `Alternativas consideradas` y `Consecuencias`.
 | 007 | Estructura del esqueleto ejecutable y cadena de build de frontend | Propuesto | 2026-09-17 | [ADR-007-estructura-esqueleto-ejecutable.md](./ADR-007-estructura-esqueleto-ejecutable.md) |
 | 008 | Gestión de dependencias de Python con uv | Propuesto | 2026-09-17 | [ADR-008-gestion-dependencias-uv.md](./ADR-008-gestion-dependencias-uv.md) |
 | 009 | Autenticación por sesión y control de accesos basado en roles | Propuesto | 2026-09-21 | [ADR-009-autenticacion-y-rbac.md](./ADR-009-autenticacion-y-rbac.md) |
+| 010 | Librería de gráficos del panel de auditoría | Propuesto | 2026-11-02 | [ADR-010-libreria-de-graficos.md](./ADR-010-libreria-de-graficos.md) |
 
 La numeración es correlativa y nunca se reutiliza: si un ADR queda
 reemplazado u obsoleto, su número no vuelve a asignarse a una decisión

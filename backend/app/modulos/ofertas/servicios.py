@@ -12,11 +12,12 @@ from __future__ import annotations
 import json
 import logging
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import Select, case, func, select
 
 from app.core.errores import (
     ConflictoDeEstado,
@@ -29,11 +30,13 @@ from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import Convocatoria, DecisionCobertura
 from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
+from app.modulos.emergencias import servicios as servicios_de_emergencias
 from app.modulos.emergencias.modelos import (
     Emergencia,
     EstadoEmergencia,
     LoteItem,
     LoteNecesidad,
+    TipoNecesidad,
 )
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.ofertas.modelos import (
@@ -50,6 +53,12 @@ from app.modulos.organizaciones.modelos import (
     Organizacion,
     TipoOrganizacion,
 )
+
+# Clasificaciones del Sistema Nacional que habilitan un aporte: lo que cubre la necesidad.
+ASIGNACIONES_HABILITADAS = (TipoAsignacion.principal, TipoAsignacion.apoyo)
+
+# Ofertas que ya no comprometen nada: sus lineas no cubren necesidades aunque esten habilitadas.
+ESTADOS_DE_OFERTA_SIN_COMPROMISO = (EstadoOferta.retirada, EstadoOferta.rechazada)
 
 
 def _formatear_fecha_iso(fecha: datetime | None) -> str | None:
@@ -995,10 +1004,7 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
                 claves_recibidas.add(clave)
                 actualizaciones[linea.id] = (linea, clasificacion)
 
-                if clasificacion in (
-                    TipoAsignacion.principal,
-                    TipoAsignacion.apoyo,
-                ):
+                if clasificacion in ASIGNACIONES_HABILITADAS:
                     cantidades_habilitadas[lote_item_id] += linea.cantidad_ofrecida
 
         if claves_recibidas != set(lineas_por_clave):
@@ -1072,3 +1078,182 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
         "porcentaje_cobertura": float(porcentaje_cobertura),
         "lotes": detalle,
     }
+
+
+# --- Lectura agregada (panel de auditoria) ---------------------------------------
+
+
+def consultar_unidades_habilitadas(*, lote_item_ids: Select[tuple[int]]) -> Select[tuple[int, int]]:
+    """Subconsulta con las unidades habilitadas por el Sistema Nacional para cada item de lote.
+
+    Columnas: `lote_item_id` y `cantidad_habilitada`, la suma de lo ofrecido en las lineas
+    clasificadas como principal o apoyo, de ofertas que siguen en pie. Un item sin aportes
+    habilitados no aparece. Es un `Select` para combinarla en una sola consulta.
+    """
+    return (
+        select(
+            OfertaLinea.lote_item_id.label("lote_item_id"),
+            func.sum(OfertaLinea.cantidad_ofrecida).label("cantidad_habilitada"),
+        )
+        .join(Oferta, OfertaLinea.oferta_id == Oferta.id)
+        .where(
+            OfertaLinea.lote_item_id.in_(lote_item_ids),
+            OfertaLinea.tipo_asignacion.in_(ASIGNACIONES_HABILITADAS),
+            Oferta.estado.not_in(ESTADOS_DE_OFERTA_SIN_COMPROMISO),
+        )
+        .group_by(OfertaLinea.lote_item_id)
+    )
+
+
+def consultar_unidades_seleccionadas(
+    *, lote_item_ids: Select[tuple[int]]
+) -> Select[tuple[int, int]]:
+    """Subconsulta con las unidades adjudicadas a cada item de lote.
+
+    Columnas: `lote_item_id` y `cantidad_seleccionada`, la suma de lo ofrecido en las lineas que
+    el municipio selecciono de ofertas adjudicadas. Un item sin lineas seleccionadas no aparece.
+    """
+    return (
+        select(
+            OfertaLinea.lote_item_id.label("lote_item_id"),
+            func.sum(OfertaLinea.cantidad_ofrecida).label("cantidad_seleccionada"),
+        )
+        .join(Oferta, OfertaLinea.oferta_id == Oferta.id)
+        .where(
+            OfertaLinea.lote_item_id.in_(lote_item_ids),
+            OfertaLinea.seleccionada.is_(True),
+            Oferta.estado == EstadoOferta.adjudicada,
+        )
+        .group_by(OfertaLinea.lote_item_id)
+    )
+
+
+def consultar_ofertas_adjudicadas(
+    *, convocatoria_ids: Select[tuple[int]]
+) -> Select[tuple[int, int]]:
+    """Subconsulta con las ofertas adjudicadas de esas convocatorias.
+
+    Columnas: `oferta_id` y `convocatoria_id`.
+    """
+    return select(
+        Oferta.id.label("oferta_id"),
+        Oferta.convocatoria_id.label("convocatoria_id"),
+    ).where(
+        Oferta.convocatoria_id.in_(convocatoria_ids),
+        Oferta.estado == EstadoOferta.adjudicada,
+    )
+
+
+# Participacion de una ONG que acepto sumarse a la oferta: la lider nace aceptada.
+PARTICIPACION_ACEPTADA = "aceptada"
+
+
+def consultar_participantes_aceptados(*, oferta_ids: Select[tuple[int]]) -> Select[tuple[int, int]]:
+    """Subconsulta con las organizaciones que participan aceptadas de esas ofertas.
+
+    Columnas: `oferta_id` y `organizacion_id`. Una oferta con mas de un participante aceptado es
+    de consorcio.
+    """
+    return select(
+        OfertaOrganizacion.oferta_id.label("oferta_id"),
+        OfertaOrganizacion.organizacion_id.label("organizacion_id"),
+    ).where(
+        OfertaOrganizacion.oferta_id.in_(oferta_ids),
+        OfertaOrganizacion.estado_participacion == PARTICIPACION_ACEPTADA,
+    )
+
+
+def consultar_lineas_seleccionadas(
+    *, oferta_ids: Select[tuple[int]]
+) -> Select[tuple[int, int, int, int]]:
+    """Subconsulta con las lineas seleccionadas de esas ofertas.
+
+    Columnas: `oferta_id`, `lote_item_id`, `organizacion_id` (la ONG que aporta la linea) y
+    `cantidad`.
+    """
+    return select(
+        OfertaLinea.oferta_id.label("oferta_id"),
+        OfertaLinea.lote_item_id.label("lote_item_id"),
+        OfertaLinea.organizacion_id.label("organizacion_id"),
+        OfertaLinea.cantidad_ofrecida.label("cantidad"),
+    ).where(
+        OfertaLinea.oferta_id.in_(oferta_ids),
+        OfertaLinea.seleccionada.is_(True),
+    )
+
+
+# Lo que el Sistema Nacional ya clasifico: habilitado (principal o apoyo) o no habilitado.
+ASIGNACIONES_EVALUADAS = (*ASIGNACIONES_HABILITADAS, TipoAsignacion.rechazada)
+
+
+@dataclass(frozen=True, slots=True)
+class DemandaDeCategoria:
+    """Unidades que piden los lotes de un rubro y como evaluo el Sistema Nacional lo ofertado.
+
+    `evaluadas` son las unidades ofertadas que el Sistema Nacional clasifico y `no_habilitadas`
+    las que de esas no habilito. Con `evaluadas` en 0 no hay tasa que calcular.
+    """
+
+    categoria: TipoNecesidad
+    demandadas: int
+    evaluadas: int
+    no_habilitadas: int
+
+
+def listar_demanda_e_inhabilitacion_por_categoria(
+    *, emergencia_ids: Select[tuple[int]]
+) -> list[DemandaDeCategoria]:
+    """Demanda y evaluacion por rubro de los lotes de esas emergencias, en una sola consulta.
+
+    Solo aparecen los rubros con alguna unidad pedida. Las ofertas retiradas no cuentan: lo que
+    se retiro no es oferta de la red.
+    """
+    requeridas = servicios_de_emergencias.consultar_unidades_requeridas(
+        emergencia_ids=emergencia_ids
+    ).subquery()
+
+    demanda = (
+        select(
+            requeridas.c.categoria.label("categoria"),
+            func.sum(requeridas.c.cantidad_requerida).label("demandadas"),
+        )
+        .group_by(requeridas.c.categoria)
+        .subquery()
+    )
+    no_habilitada = OfertaLinea.tipo_asignacion == TipoAsignacion.rechazada
+    evaluacion = (
+        select(
+            requeridas.c.categoria.label("categoria"),
+            func.sum(OfertaLinea.cantidad_ofrecida).label("evaluadas"),
+            func.sum(case((no_habilitada, OfertaLinea.cantidad_ofrecida), else_=0)).label(
+                "no_habilitadas"
+            ),
+        )
+        .select_from(OfertaLinea)
+        .join(requeridas, OfertaLinea.lote_item_id == requeridas.c.lote_item_id)
+        .join(Oferta, OfertaLinea.oferta_id == Oferta.id)
+        .where(
+            OfertaLinea.tipo_asignacion.in_(ASIGNACIONES_EVALUADAS),
+            Oferta.estado != EstadoOferta.retirada,
+        )
+        .group_by(requeridas.c.categoria)
+        .subquery()
+    )
+
+    filas = db.session.execute(
+        select(
+            demanda.c.categoria,
+            demanda.c.demandadas,
+            func.coalesce(evaluacion.c.evaluadas, 0),
+            func.coalesce(evaluacion.c.no_habilitadas, 0),
+        ).outerjoin(evaluacion, evaluacion.c.categoria == demanda.c.categoria)
+    ).all()
+    return [
+        DemandaDeCategoria(
+            categoria=categoria,
+            demandadas=int(demandadas),
+            evaluadas=int(evaluadas),
+            no_habilitadas=int(no_habilitadas),
+        )
+        for categoria, demandadas, evaluadas, no_habilitadas in filas
+    ]

@@ -122,6 +122,14 @@ setea las variables de proceso iniciales (identificador de la emergencia, nivel 
 ubicación, etc.). A medida que el flujo avanza, la aplicación web también consulta y completa
 tareas humanas asignadas a los distintos roles a través de esta misma API.
 
+Cuando la cobertura de una convocatoria es insuficiente, la decisión del Centro Coordinador
+("Reiniciar convocatoria" o "Enviar ofertas igualmente") completa la tarea "Decidir accion ante
+cobertura insuficiente" con `decisionCoberturaInput` = `reiniciar` o `continuar`. Se envía a
+Bonita **antes** de guardarla: si el motor no la recibe, no se guarda nada y el coordinador puede
+reintentar, en lugar de dejar el caso trabado en esa tarea. Una emergencia sin caso en Bonita (el
+motor estaba caído cuando se creó) no tiene tarea que completar: la decisión se guarda igual y se
+registra el evento `bonita_decision_sin_caso`.
+
 **4. Bonita → Aplicación web (backend).** Esta es la integración inversa del sistema y la única
 en la que Bonita actúa como cliente HTTP de la aplicación web. Se detalla en la sección 3.
 
@@ -145,13 +153,28 @@ propias del dominio llamando a la capa `servicios` de los módulos de proceso y 
 PostgreSQL por SQLAlchemy, igual que cualquier otro módulo. Se lista acá para dejar explícito de
 dónde salen los datos propios del dashboard, y porque la regla de dependencia de la sección 5 se
 le aplica igual que a los demás módulos: nunca importa modelos ajenos ni consulta tablas de otro
-módulo por su cuenta.
+módulo por su cuenta. Por ejemplo, la sección "Convocatorias" (decisiones ante cobertura
+insuficiente) lee el historial de cada emergencia con
+`convocatorias.servicios.listar_historial_de_convocatorias`, una sola consulta agrupada.
 
-**9. Aplicación web (módulo `indicadores`) → Bonita.** Para los indicadores de proceso —tiempos
-promedio por etapa de la emergencia— el dashboard sí sale a la red: consulta la API de Bonita a
-través del cliente de `core/integraciones/bonita`, y combina esos tiempos con las métricas
-propias en un mismo reporte. Es una llamada saliente como cualquier otra, sujeta al contrato de
-errores y de logging (ver `docs/contratos/errores.md` y `docs/contratos/logging.md`).
+**9. Aplicación web (módulo `indicadores`) → Bonita.** Para los indicadores de proceso —tiempo
+promedio de cada etapa y resolución en término según gravedad— el dashboard sí sale a la red:
+consulta la API de Bonita a través de `core/integraciones/bonita/consultas.py` y combina esos
+tiempos con datos propios (la gravedad y la fecha de la emergencia, enlazada a su caso por
+`bonita_case_id`). Son llamadas `GET` de solo lectura con el usuario técnico (`BONITA_USER`):
+`/API/bpm/process` (todas las versiones del proceso), `/API/bpm/archivedCase` (casos terminados,
+cuyo id es `sourceObjectId`), `/API/bpm/case` (casos en curso) y `/API/bpm/archivedFlowNode`
+(las líneas de tiempo de los casos terminados). Para no repetir llamadas, la "foto" del proceso
+(versiones, casos terminados y abiertos) se reutiliza durante 60 segundos, y las líneas de tiempo
+que faltan se piden en lote: una búsqueda paginada por versión
+(`archivedFlowNode?f=processId=…&o=archivedDate DESC`) que se corta al llegar al inicio del caso
+más viejo que se necesita, en vez de una llamada por caso. Un caso terminado ya no cambia, así que
+su línea de tiempo queda en memoria. Para diagnosticar la conexión (login, proceso desplegado,
+mapeo de actores) está el comando `flask bonita-diagnostico`. Están sujetas al
+contrato de errores y de logging (ver `docs/contratos/errores.md` y `docs/contratos/logging.md`):
+si Bonita no responde, la sección "Proceso" lo muestra con un reintento y el resto del panel sigue
+funcionando, porque ninguna otra sección consulta el motor y los datos de Bonita se piden aparte,
+después de mostrar la pantalla.
 
 ## 3. Integración destacada: Bonita como iniciador (integración #4)
 
@@ -253,7 +276,7 @@ de lectura (`indicadores`) que implementa el dashboard.
 | `ofertas` | Carga de ofertas de ayuda por parte de las ONGs dentro de la ventana vigente, y exposición del endpoint consolidado que consume Bonita (integración 4) | `ofertas_de_ayuda` |
 | `adjudicacion` | Registro de la decisión de adjudicación del Centro Coordinador Regional y su comunicación a la API Nacional | `adjudicaciones` |
 | `ejecucion_cierre` | Seguimiento de la ejecución de cada ONG adjudicada y cierre del proyecto con liberación de recursos | `ejecuciones`, `bitacora_de_cierre` |
-| `indicadores` | Dashboard de métricas y reportes para el perfil Auditor/Directivo: gráficos interactivos y exportación de datos, combinando métricas propias con tiempos de etapa obtenidos de Bonita | Ninguna propia: es de solo lectura sobre las tablas de los demás módulos, siempre a través de sus servicios |
+| `indicadores` | Dashboard de métricas y reportes para el perfil Auditor/Directivo: gráficos interactivos y exportación de datos, combinando métricas propias con tiempos de etapa obtenidos de Bonita. Sus rutas viven bajo `/auditoria`, una por sección (pestaña), declaradas en `indicadores/secciones.py`; cada indicador se exporta en CSV y JSON desde `/auditoria/exportaciones/<slug>.<formato>`. Las adjudicaciones se leen de `adjudicaciones.servicios`: unidades de las líneas seleccionadas y la fecha `convocatoria.adjudicada_en`, que registra `seleccionar_lineas`. Las decisiones ante cobertura insuficiente, de `convocatorias.servicios` (`decision_cobertura` de cada convocatoria) | Ninguna propia: es de solo lectura sobre las tablas de los demás módulos, siempre a través de sus servicios |
 
 ### Árbol de carpetas
 

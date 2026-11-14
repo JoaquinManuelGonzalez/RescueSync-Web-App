@@ -8,8 +8,11 @@ con nivel de gravedad, zona afectada y descripción.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import datetime
 
-from sqlalchemy import case, select
+from sqlalchemy import Select, case, func, select
 
 from app.core.errores import (
     RecursoNoEncontrado,
@@ -22,12 +25,20 @@ from app.extensiones import db
 from app.modulos.emergencias.modelos import (
     Emergencia,
     EstadoEmergencia,
+    EstadoLote,
+    Item,
+    LoteItem,
+    LoteNecesidad,
     NivelGravedad,
     TipoEmergencia,
+    TipoNecesidad,
 )
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
 from app.modulos.usuarios_roles.modelos import Usuario
+
+# Estados terminales: una emergencia en cualquier otro estado sigue en curso.
+ESTADOS_CERRADOS = (EstadoEmergencia.finalizada, EstadoEmergencia.cancelada)
 
 
 def _validar_municipio(municipio_id: int) -> Organizacion:
@@ -198,7 +209,7 @@ def crear_emergencia(
         _notificar_instanciacion_bonita(case_id, emergencia.id)
     except Exception:
         # No diferencia entre SistemaExternoRechazo,
-        # ServicioExternoNoDisponible y RuntimeError.
+        # ServicioExternoNoDisponible ni ningún otro error.
         # Lo importante es que aunque falle Bonita,
         # la emergencia se registre.
         # Puede volver a intentar conectar a la hora
@@ -249,10 +260,7 @@ def listar_emergencias(
 
     consulta = (
         select(Emergencia)
-        .where(
-            Emergencia.estado != EstadoEmergencia.finalizada,
-            Emergencia.estado != EstadoEmergencia.cancelada,
-        )
+        .where(Emergencia.estado.not_in(ESTADOS_CERRADOS))
         .order_by(expresion_gravedad.desc(), Emergencia.creado_en.desc())
     )
 
@@ -260,3 +268,179 @@ def listar_emergencias(
         consulta = consulta.where(Emergencia.municipio_id == municipio_id)
 
     return list(db.session.execute(consulta).scalars().all())
+
+
+# --- Lectura agregada (panel de auditoria) ---------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ConteoDeEmergencias:
+    """Cuantas emergencias se registraron en un rango, segun en que quedo cada una."""
+
+    registradas: int
+    en_curso: int
+    finalizadas: int
+    canceladas: int
+
+
+def _registradas_entre(desde: datetime, hasta: datetime):
+    """Rango semiabierto `[desde, hasta)` sobre la fecha de registro.
+
+    Los limites llegan en UTC: es como se guardan las fechas, y asi la comparacion es la misma
+    en PostgreSQL y en el SQLite de los tests.
+    """
+    return (Emergencia.creado_en >= desde) & (Emergencia.creado_en < hasta)
+
+
+def contar_emergencias_registradas(*, desde: datetime, hasta: datetime) -> ConteoDeEmergencias:
+    """Cuenta en una sola consulta las emergencias registradas en `[desde, hasta)`."""
+
+    def contar_si(condicion):
+        return func.count(case((condicion, 1)))
+
+    fila = db.session.execute(
+        select(
+            func.count(Emergencia.id),
+            contar_si(Emergencia.estado.not_in(ESTADOS_CERRADOS)),
+            contar_si(Emergencia.estado == EstadoEmergencia.finalizada),
+            contar_si(Emergencia.estado == EstadoEmergencia.cancelada),
+        ).where(_registradas_entre(desde, hasta))
+    ).one()
+
+    registradas, en_curso, finalizadas, canceladas = fila
+    return ConteoDeEmergencias(
+        registradas=registradas,
+        en_curso=en_curso,
+        finalizadas=finalizadas,
+        canceladas=canceladas,
+    )
+
+
+def _filtro_de_registradas(
+    desde: datetime,
+    hasta: datetime,
+    gravedad: NivelGravedad | None = None,
+    estado: EstadoEmergencia | None = None,
+):
+    """Las registradas en `[desde, hasta)`, acotadas a una gravedad y un estado si se indican."""
+    condicion = _registradas_entre(desde, hasta)
+    if gravedad is not None:
+        condicion &= Emergencia.nivel_gravedad == gravedad
+    if estado is not None:
+        condicion &= Emergencia.estado == estado
+    return condicion
+
+
+def contar_emergencias_por_estado(
+    *, desde: datetime, hasta: datetime, gravedad: NivelGravedad | None = None
+) -> dict[EstadoEmergencia, int]:
+    """Cuantas emergencias registradas en `[desde, hasta)` hay en cada estado.
+
+    Trae todos los estados, en el orden del ciclo de vida (el del enum) y con 0 los que no tienen
+    emergencias: un estado nuevo aparece solo, sin tocar a quien consume el conteo.
+    """
+    filas = db.session.execute(
+        select(Emergencia.estado, func.count(Emergencia.id))
+        .where(_filtro_de_registradas(desde, hasta, gravedad))
+        .group_by(Emergencia.estado)
+    ).all()
+    cantidades = {estado: cantidad for estado, cantidad in filas}
+    return {estado: cantidades.get(estado, 0) for estado in EstadoEmergencia}
+
+
+def consultar_ids_de_emergencias_registradas(
+    *,
+    desde: datetime,
+    hasta: datetime,
+    gravedad: NivelGravedad | None = None,
+    estado: EstadoEmergencia | None = None,
+) -> Select[tuple[int]]:
+    """Subconsulta con los ids de las emergencias registradas en `[desde, hasta)`.
+
+    Es la forma en que los demas modulos filtran "las emergencias del periodo" sin conocer esta
+    tabla: la usan como `emergencia_id.in_(...)` y todo se resuelve en una sola consulta.
+    `gravedad` y `estado` acotan el conjunto cuando se indican.
+    """
+    return select(Emergencia.id).where(_filtro_de_registradas(desde, hasta, gravedad, estado))
+
+
+def consultar_unidades_requeridas(
+    *, emergencia_ids: Select[tuple[int]]
+) -> Select[tuple[int, int, int, int, TipoNecesidad]]:
+    """Subconsulta con las unidades que pide cada item de lote de esas emergencias.
+
+    Columnas: `lote_item_id`, `emergencia_id`, `lote_id`, `cantidad_requerida` y `categoria` (el
+    rubro del item del catalogo). Los lotes cancelados no cuentan: lo que se dejo de pedir ya no
+    es una necesidad. Es un `Select` para que quien la use la combine con sus propios datos en
+    una sola consulta, tomando solo las columnas que necesite.
+    """
+    return (
+        select(
+            LoteItem.id.label("lote_item_id"),
+            LoteNecesidad.emergencia_id.label("emergencia_id"),
+            LoteItem.lote_id.label("lote_id"),
+            LoteItem.cantidad_solicitada.label("cantidad_requerida"),
+            Item.categoria.label("categoria"),
+        )
+        .join(LoteNecesidad, LoteItem.lote_id == LoteNecesidad.id)
+        .join(Item, LoteItem.item_id == Item.id)
+        .where(
+            LoteNecesidad.emergencia_id.in_(emergencia_ids),
+            LoteNecesidad.estado != EstadoLote.cancelado,
+        )
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class RegistroDeEmergencia:
+    """Lo que necesitan los indicadores de tiempos de una emergencia, sin exponer el modelo.
+
+    `creado_en` es la fecha de registro (el inicio de la respuesta) y `bonita_case_id` el caso del
+    proceso en Bonita, o None si la emergencia nunca llego a instanciarlo.
+    """
+
+    id: int
+    nivel_gravedad: NivelGravedad
+    estado: EstadoEmergencia
+    creado_en: datetime
+    bonita_case_id: str | None
+
+
+def listar_registros_de_emergencias(
+    *, desde: datetime, hasta: datetime, gravedad: NivelGravedad | None = None
+) -> list[RegistroDeEmergencia]:
+    """Las emergencias registradas en `[desde, hasta)`, en una sola consulta y por fecha."""
+    filas = db.session.execute(
+        select(
+            Emergencia.id,
+            Emergencia.nivel_gravedad,
+            Emergencia.estado,
+            Emergencia.creado_en,
+            Emergencia.bonita_case_id,
+        )
+        .where(_filtro_de_registradas(desde, hasta, gravedad))
+        .order_by(Emergencia.creado_en, Emergencia.id)
+    ).all()
+    return [RegistroDeEmergencia(*fila) for fila in filas]
+
+
+@dataclass(frozen=True, slots=True)
+class DatosBasicosDeEmergencia:
+    """Lo minimo para nombrar una emergencia en un reporte, sin exponer el modelo."""
+
+    id: int
+    titulo: str
+    nivel_gravedad: NivelGravedad
+
+
+def obtener_datos_basicos(ids: Iterable[int]) -> dict[int, DatosBasicosDeEmergencia]:
+    """Titulo y gravedad de cada emergencia indicada, por id."""
+    ids = list(ids)
+    if not ids:
+        return {}
+    filas = db.session.execute(
+        select(Emergencia.id, Emergencia.titulo, Emergencia.nivel_gravedad).where(
+            Emergencia.id.in_(ids)
+        )
+    ).all()
+    return {id_: DatosBasicosDeEmergencia(id_, titulo, gravedad) for id_, titulo, gravedad in filas}

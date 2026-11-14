@@ -5,15 +5,18 @@ import threading
 
 import httpx
 
-from app.core.errores import SistemaExternoRechazo
+from app.core.errores import RespuestaExternaInvalida, SistemaExternoRechazo
 from app.core.integraciones.cliente_http import (
     COMPONENTE_BONITA,
+    TIMEOUT_LECTURA_S,
     ejecutar_solicitud,
 )
 
 BONITA_BASE_URL = os.environ["BONITA_BASE_URL"].rstrip("/")
 BONITA_USER = os.environ["BONITA_USER"]
 BONITA_PASSWORD = os.environ["BONITA_PASSWORD"]
+# Timeout de lectura hacia Bonita (configuracion.py lo valida como entero; 10 por defecto).
+BONITA_TIMEOUT_S = float(os.environ.get("BONITA_TIMEOUT_S", TIMEOUT_LECTURA_S))
 
 NOMBRE_COOKIE_TOKEN = "X-Bonita-API-Token"
 
@@ -32,6 +35,7 @@ def iniciar_sesion(username: str) -> httpx.Client:
             endpoint_normalizado="/loginservice",
             url=f"{BONITA_BASE_URL}/loginservice",
             idempotente=False,
+            timeout_lectura_s=BONITA_TIMEOUT_S,
             data={
                 "username": username,
                 "password": BONITA_PASSWORD,
@@ -49,8 +53,11 @@ def iniciar_sesion(username: str) -> httpx.Client:
     token = cliente.cookies.get(NOMBRE_COOKIE_TOKEN)
 
     if not token:
+        # Bonita acepto el login pero no devolvio X-Bonita-API-Token.
         cliente.close()
-        raise RuntimeError("Bonita inició sesión pero no devolvió X-Bonita-API-Token.")
+        raise RespuestaExternaInvalida(
+            detalle={"componente": "bonita", "falta": NOMBRE_COOKIE_TOKEN}
+        )
 
     cliente.headers[NOMBRE_COOKIE_TOKEN] = token
 
@@ -100,6 +107,7 @@ def ejecutar_solicitud_bonita(
             endpoint_normalizado=endpoint_normalizado,
             url=url,
             idempotente=idempotente,
+            timeout_lectura_s=BONITA_TIMEOUT_S,
             **kwargs,
         )
     except SistemaExternoRechazo as exc:
@@ -123,5 +131,6 @@ def ejecutar_solicitud_bonita(
             endpoint_normalizado=endpoint_normalizado,
             url=url,
             idempotente=idempotente,
+            timeout_lectura_s=BONITA_TIMEOUT_S,
             **kwargs,
         )

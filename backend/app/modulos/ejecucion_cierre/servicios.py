@@ -6,9 +6,10 @@ Gestiona el ciclo de vida local de las tareas de campo asignadas a las ONGs.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import and_, exists, select
+from sqlalchemy import Select, and_, exists, select
 from sqlalchemy.orm import selectinload
 
 from app.core.errores import ConflictoDeEstado, RecursoNoEncontrado
@@ -198,3 +199,33 @@ def obtener_estado_finalizacion_emergencia(emergencia_id: int) -> dict[str, int 
             and organizaciones_finalizadas == organizaciones_participantes
         ),
     }
+
+
+# --- Lectura agregada (panel de auditoria) ---------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class FinalizacionDeActividad:
+    """Cuando una ONG marco como finalizada su actividad en una oferta adjudicada."""
+
+    oferta_id: int
+    organizacion_id: int
+    fecha_fin: datetime
+
+
+def listar_finalizaciones(*, emergencia_ids: Select[tuple[int]]) -> list[FinalizacionDeActividad]:
+    """Las actividades finalizadas en esas emergencias, en una sola consulta.
+
+    Una actividad que la ONG nunca abrio no tiene tarea, y una abierta sin terminar no tiene
+    fecha de fin: ninguna de las dos aparece.
+    """
+    filas = db.session.execute(
+        select(TareaEjecucion.oferta_id, TareaEjecucion.organizacion_id, TareaEjecucion.fecha_fin)
+        .where(
+            TareaEjecucion.emergencia_id.in_(emergencia_ids),
+            TareaEjecucion.estado == EstadoTareaEjecucion.finalizada,
+            TareaEjecucion.fecha_fin.is_not(None),
+        )
+        .order_by(TareaEjecucion.id)
+    ).all()
+    return [FinalizacionDeActividad(*fila) for fila in filas]

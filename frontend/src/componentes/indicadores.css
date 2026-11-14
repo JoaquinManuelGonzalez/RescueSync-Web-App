@@ -1,0 +1,715 @@
+/* Panel de auditoria: pestañas, filtros, tarjetas de indicadores, graficos y exportacion.
+ *
+ * Las arman plantillas/indicadores/ (base.html y una plantilla por seccion) y los macros de
+ * plantillas/componentes/indicadores.html: `tarjeta_indicador()`, `tarjeta_grafico()`,
+ * `menu_exportar()`, `encabezado_de_seccion()`, `filtro_segmentado()`, `encabezado_ordenable()`,
+ * `aviso_de_error()` y `esqueleto_de_graficos()`.
+ */
+
+@layer components {
+    /* --- Filtro de periodo ---------------------------------------------------- */
+
+    .periodo-cabecera {
+        @apply flex items-start gap-3;
+    }
+
+    .periodo-cabecera-icono {
+        @apply inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-acento text-primario;
+    }
+
+    .periodo-cabecera-titulo {
+        @apply text-base font-semibold text-gray-900;
+    }
+
+    .periodo-cabecera-texto {
+        @apply text-sm text-gray-500;
+    }
+
+    .periodo-atajos {
+        @apply flex flex-wrap gap-2;
+    }
+
+    .periodo-atajo {
+        @apply inline-flex items-center rounded-full bg-superficie px-3 py-1.5 text-sm font-medium text-gray-600
+            ring-1 ring-gray-200 transition-colors
+            hover:bg-acento/40 hover:text-primario
+            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario;
+    }
+
+    .periodo-atajo-activo {
+        @apply bg-acento/60 text-primario ring-primario/30;
+    }
+
+    /* En escritorio las dos fechas y el boton van en una fila. El boton se alinea con los
+     * controles y no con las etiquetas: baja lo que mide una etiqueta mas el espacio del campo. */
+    .periodo-filtro {
+        @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-start;
+    }
+
+    .periodo-filtro-accion {
+        @apply flex sm:col-span-2 lg:col-span-1 lg:pt-8;
+    }
+
+    .periodo-filtro-accion .btn {
+        @apply w-full sm:w-auto;
+    }
+
+    /* El icono queda alineado con la primera linea aunque el texto ocupe varias. */
+    .periodo-resumen {
+        @apply flex items-start gap-2 text-sm/6 text-gray-600;
+    }
+
+    .periodo-resumen svg {
+        @apply mt-1 shrink-0 text-primario;
+    }
+
+    .periodo-resumen strong {
+        @apply font-semibold text-gray-900 tabular-nums;
+    }
+
+    /* --- Tarjetas de indicadores (KPI) ---------------------------------------- */
+
+    .kpi-grilla {
+        @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-4;
+    }
+
+    /* Tres cifras: una columna en el telefono, dos en tablet (la tercera ocupa la fila entera,
+     * sin quedar huerfana) y tres en escritorio. */
+    .kpi-grilla-tres {
+        @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-3;
+    }
+
+    .kpi-grilla-tres > :last-child:nth-child(odd) {
+        @apply sm:col-span-2 lg:col-span-1;
+    }
+
+    /* No es un enlace: al pasar el mouse aparece el filete de la marca, pero la tarjeta no se
+     * levanta, para no prometer un clic que no lleva a ningun lado. */
+    .kpi {
+        @apply relative flex min-w-0 flex-col gap-4 overflow-hidden rounded-xl bg-superficie p-4 shadow-sm sm:p-5
+            ring-1 ring-gray-200 transition-shadow duration-200 hover:shadow-md;
+    }
+
+    .kpi::before {
+        @apply absolute inset-x-0 top-0 h-1 origin-left scale-x-0 bg-linear-to-r from-primario to-primario-light
+            transition-transform duration-300;
+        content: "";
+    }
+
+    .kpi:hover::before {
+        @apply scale-x-100;
+    }
+
+    .kpi-cabecera {
+        @apply flex items-start justify-between gap-3;
+    }
+
+    .kpi-etiqueta {
+        @apply text-xs font-semibold uppercase tracking-wide text-gray-500;
+    }
+
+    .kpi-icono {
+        @apply inline-flex size-10 shrink-0 items-center justify-center rounded-full;
+    }
+
+    .kpi-valor {
+        @apply text-2xl font-bold tracking-tight break-words text-gray-900 tabular-nums sm:text-3xl;
+    }
+
+    .kpi-valor-sin-dato {
+        @apply text-gray-400;
+    }
+
+    .kpi-pie {
+        @apply mt-auto space-y-2;
+    }
+
+    .kpi-detalle {
+        @apply text-sm text-gray-500;
+    }
+
+    .kpi-porcentaje {
+        @apply font-semibold text-gray-900 tabular-nums;
+    }
+
+    .kpi-barra {
+        @apply h-1.5 overflow-hidden rounded-full bg-gray-100;
+    }
+
+    .kpi-barra-relleno {
+        @apply block h-full rounded-full transition-[width] duration-500;
+    }
+
+    /* Tonos: los mismos colores con que el resto de la interfaz pinta cada estado. */
+    .kpi-primario .kpi-icono {
+        @apply bg-acento text-primario;
+    }
+
+    .kpi-primario .kpi-barra-relleno {
+        @apply bg-primario;
+    }
+
+    .kpi-info .kpi-icono {
+        @apply bg-blue-50 text-blue-700;
+    }
+
+    .kpi-info .kpi-barra-relleno {
+        @apply bg-blue-500;
+    }
+
+    .kpi-exito .kpi-icono {
+        @apply bg-green-50 text-exito;
+    }
+
+    .kpi-exito .kpi-barra-relleno {
+        @apply bg-exito;
+    }
+
+    .kpi-advertencia .kpi-icono {
+        @apply bg-amber-50 text-amber-700;
+    }
+
+    .kpi-advertencia .kpi-barra-relleno {
+        @apply bg-amber-500;
+    }
+
+    .kpi-nota {
+        @apply flex items-center gap-2 rounded-lg bg-superficie px-4 py-3 text-sm text-gray-600 ring-1 ring-gray-200;
+    }
+
+    .kpi-nota svg {
+        @apply shrink-0 text-blue-600;
+    }
+
+    /* --- Pestañas de las secciones -------------------------------------------- */
+
+    /* En pantallas angostas las pestañas se desplazan dentro de su barra, sin mover la pagina. El
+     * borde derecho se desvanece para avisar que hay mas pestañas; indicadores.js centra la activa. */
+    .panel-pestanas {
+        @apply flex gap-1 overflow-x-auto border-b border-gray-200;
+        scrollbar-width: none;
+        scroll-snap-type: x proximity;
+    }
+
+    .panel-pestanas::-webkit-scrollbar {
+        display: none;
+    }
+
+    @media (width < 64rem) {
+        .panel-pestanas {
+            mask-image: linear-gradient(to right, black calc(100% - 2.5rem), transparent);
+        }
+    }
+
+    .panel-pestana {
+        scroll-snap-align: start;
+        @apply inline-flex shrink-0 items-center gap-2 border-b-2 border-transparent px-3 py-2.5 text-sm font-medium sm:px-4
+            text-gray-500 transition-colors
+            hover:border-gray-300 hover:text-gray-800
+            focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primario;
+    }
+
+    .panel-pestana-activa {
+        @apply border-primario text-primario hover:border-primario hover:text-primario;
+    }
+
+    /* --- Cabecera de una seccion y sus filtros -------------------------------- */
+
+    .seccion-cabecera {
+        @apply flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between;
+    }
+
+    /* Filtros con muchas opciones: siempre debajo del titulo, a lo ancho. */
+    .seccion-cabecera-apilada {
+        @apply lg:flex-col lg:items-stretch;
+    }
+
+    .seccion-titulo {
+        @apply text-lg font-semibold text-gray-900;
+    }
+
+    .seccion-texto {
+        @apply text-sm text-gray-500;
+    }
+
+    /* Control segmentado: una fila de pastillas de las que una sola esta elegida. En el telefono es
+     * una sola fila que se desplaza de costado (no apila cinco renglones de pastillas); desde
+     * tablet las pastillas que no entran pasan a la linea siguiente. */
+    .filtro-segmentado {
+        @apply inline-flex max-w-full gap-1 self-start overflow-x-auto rounded-xl bg-gray-100 p-1
+            sm:flex-wrap sm:overflow-visible lg:self-auto;
+        scrollbar-width: none;
+    }
+
+    .filtro-segmentado::-webkit-scrollbar {
+        display: none;
+    }
+
+    @media (width < 40rem) {
+        .filtro-segmentado {
+            mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent);
+        }
+    }
+
+    .seccion-cabecera-apilada .filtro-segmentado {
+        @apply lg:self-start;
+    }
+
+    .filtro-segmento {
+        @apply inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap text-gray-600
+            transition-colors hover:bg-white/70 hover:text-gray-900
+            focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primario;
+    }
+
+    .filtro-segmento-activo {
+        @apply bg-superficie text-gray-900 shadow-sm ring-1 ring-gray-200 hover:bg-superficie;
+    }
+
+    .gravedad-punto {
+        @apply inline-block size-2 rounded-full;
+    }
+
+    .gravedad-punto-baja {
+        @apply bg-gray-400;
+    }
+
+    .gravedad-punto-media {
+        @apply bg-blue-500;
+    }
+
+    .gravedad-punto-alta {
+        @apply bg-amber-500;
+    }
+
+    .gravedad-punto-critica {
+        @apply bg-primario;
+    }
+
+    /* Decisiones ante cobertura insuficiente: los mismos tonos que sus barras (graficos.js). */
+    .decision-punto {
+        @apply inline-block size-2 rounded-full;
+    }
+
+    .decision-punto-reapertura {
+        @apply bg-amber-500;
+    }
+
+    .decision-punto-continuar_parcial {
+        @apply bg-blue-500;
+    }
+
+    .decisiones-lista {
+        @apply flex flex-wrap items-center gap-1.5;
+    }
+
+    /* Mientras indicadores.js trae los datos de un filtro nuevo. */
+    [data-panel-actualizable][aria-busy="true"] {
+        @apply pointer-events-none opacity-60 transition-opacity;
+    }
+
+    /* --- Graficos ------------------------------------------------------------- */
+
+    .graficos-grilla {
+        @apply grid gap-4 md:grid-cols-5;
+    }
+
+    .graficos-grilla-ancha {
+        @apply min-w-0 md:col-span-3;
+    }
+
+    .graficos-grilla-angosta {
+        @apply min-w-0 md:col-span-2;
+    }
+
+    .grafico-tarjeta {
+        @apply flex h-full min-w-0 flex-col gap-5 p-4 sm:p-6;
+    }
+
+    .grafico-cabecera {
+        @apply space-y-1;
+    }
+
+    /* Titulo y boton de exportar comparten la fila; la descripcion va debajo, a todo el ancho
+     * (en el telefono no queda encajonada al lado del boton). */
+    .grafico-cabecera-fila {
+        @apply flex items-start justify-between gap-3;
+    }
+
+    .grafico-cabecera-fila .grafico-titulo {
+        @apply min-w-0 pt-1;
+    }
+
+    .grafico-titulo {
+        @apply text-base font-semibold text-gray-900;
+    }
+
+    .grafico-descripcion {
+        @apply text-sm text-gray-500;
+    }
+
+    .grafico-cuerpo {
+        @apply relative;
+    }
+
+    /* Alto fijo: Chart.js ocupa el contenedor y no estira la tarjeta. */
+    .grafico-lienzo {
+        @apply relative h-64 sm:h-72;
+    }
+
+    /* Cifra en el hueco de la dona. No captura el mouse, para no tapar el tooltip. */
+    .grafico-centro {
+        @apply pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center;
+    }
+
+    .grafico-centro-cifra {
+        @apply text-3xl font-bold tracking-tight text-gray-900 tabular-nums;
+    }
+
+    .grafico-centro-texto {
+        @apply max-w-28 text-xs text-gray-500;
+    }
+
+    /* Tabla con los datos del grafico: a la vista sin JavaScript; cuando el grafico se dibuja,
+     * graficos.js la deja solo para lectores de pantalla (clase sr-only). */
+    .grafico-respaldo {
+        @apply w-full text-sm;
+    }
+
+    .grafico-respaldo tr {
+        @apply border-b border-gray-100 last:border-0;
+    }
+
+    .grafico-respaldo th {
+        @apply py-2 text-left font-medium text-gray-600;
+    }
+
+    .grafico-respaldo td {
+        @apply py-2 pl-3 text-right font-semibold text-gray-900 tabular-nums;
+    }
+
+    .grafico-respaldo thead th {
+        @apply text-xs font-semibold uppercase tracking-wide text-gray-500;
+    }
+
+    .grafico-respaldo thead th + th {
+        @apply pl-3 text-right;
+    }
+
+    .grafico-vacio {
+        @apply flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-gray-200
+            px-6 py-12 text-center text-sm text-gray-500;
+    }
+
+    .grafico-vacio-icono {
+        @apply inline-flex size-12 items-center justify-center rounded-full bg-gray-100 text-gray-400;
+    }
+
+    .grafico-leyenda {
+        @apply mx-auto w-full max-w-xs space-y-2;
+    }
+
+    .grafico-leyenda-item {
+        @apply flex items-center gap-2 text-sm;
+    }
+
+    .grafico-leyenda-marca {
+        @apply size-3 shrink-0 rounded-sm;
+    }
+
+    .grafico-leyenda-texto {
+        @apply text-gray-600;
+    }
+
+    .grafico-leyenda-valor {
+        @apply ml-auto font-semibold text-gray-900 tabular-nums;
+    }
+
+    /* Mismos colores que los tonos de graficos.js. */
+    .grafico-tono-exito {
+        @apply bg-exito;
+    }
+
+    .grafico-tono-advertencia {
+        @apply bg-amber-500;
+    }
+
+    .grafico-nota {
+        @apply mt-auto flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600;
+    }
+
+    .grafico-nota svg {
+        @apply mt-px shrink-0 text-blue-600;
+    }
+
+    /* Barra de porcentaje cubierto en la tabla de finalizadas con faltantes. */
+    .cobertura-barra-fila {
+        @apply flex items-center gap-3;
+    }
+
+    .cobertura-barra {
+        @apply h-2 w-full max-w-48 overflow-hidden rounded-full bg-gray-100;
+    }
+
+    .cobertura-barra-relleno {
+        @apply block h-full rounded-full bg-amber-500;
+    }
+
+    .cobertura-barra-valor {
+        @apply w-12 shrink-0 text-right font-semibold text-gray-900 tabular-nums;
+    }
+
+    /* --- Grilla de dos graficos iguales --------------------------------------- */
+
+    .graficos-grilla-pareja {
+        @apply grid gap-4 md:grid-cols-2;
+    }
+
+    .graficos-grilla-pareja > * {
+        @apply min-w-0;
+    }
+
+    /* --- Menu de exportacion -------------------------------------------------- */
+
+    /* <details> nativo: se abre sin JavaScript; indicadores.js lo cierra al hacer clic afuera. */
+    .exportar-menu {
+        @apply relative shrink-0;
+    }
+
+    .exportar-boton {
+        @apply inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg bg-superficie px-2.5 py-1.5
+            text-xs font-semibold text-gray-600 ring-1 ring-gray-200 transition-colors select-none
+            hover:bg-acento/40 hover:text-primario hover:ring-primario/30
+            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario;
+    }
+
+    .exportar-boton::-webkit-details-marker {
+        display: none;
+    }
+
+    .exportar-menu[open] .exportar-boton {
+        @apply bg-acento/50 text-primario ring-primario/30;
+    }
+
+    .exportar-boton-flecha {
+        @apply transition-transform duration-150;
+    }
+
+    .exportar-menu[open] .exportar-boton-flecha {
+        @apply rotate-180;
+    }
+
+    .exportar-opciones {
+        @apply absolute right-0 z-20 mt-2 w-64 max-w-[calc(100vw-2.5rem)] animate-fade-down overflow-hidden
+            rounded-xl bg-superficie p-1.5 shadow-lg ring-1 ring-gray-200;
+    }
+
+    .exportar-opcion {
+        @apply flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors
+            hover:bg-acento/40
+            focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primario;
+    }
+
+    .exportar-opcion-formato {
+        @apply inline-flex w-12 shrink-0 justify-center rounded-md bg-gray-100 py-0.5 text-xs font-bold
+            tracking-wide text-gray-700;
+    }
+
+    .exportar-opcion-texto {
+        @apply text-gray-600;
+    }
+
+    /* --- Tabla ordenable (ranking) -------------------------------------------- */
+
+    .tabla-orden {
+        @apply -mx-1 inline-flex items-center gap-1 rounded px-1 uppercase transition-colors hover:text-gray-900
+            focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primario;
+    }
+
+    .tabla-orden-activo {
+        @apply text-primario hover:text-primario;
+    }
+
+    .tabla-orden-icono {
+        @apply opacity-50;
+    }
+
+    .ranking-posicion {
+        @apply inline-flex size-7 items-center justify-center rounded-full bg-gray-100 text-xs font-bold
+            text-gray-600 tabular-nums;
+    }
+
+    .ranking-posicion-podio {
+        @apply bg-acento text-primario;
+    }
+
+    .ranking-ong {
+        @apply flex items-center gap-3 font-medium text-gray-900;
+    }
+
+    .ranking-cifra {
+        @apply font-semibold text-gray-900 tabular-nums;
+    }
+
+    .ranking-sin-dato {
+        @apply text-gray-400;
+    }
+
+    /* --- Seccion que no se pudo calcular (el motor de procesos no respondio) --- */
+
+    .seccion-error {
+        @apply flex flex-col items-start gap-4 border-l-4 border-amber-500 p-5 sm:flex-row sm:items-center;
+    }
+
+    .seccion-error-icono {
+        @apply inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-700;
+    }
+
+    .seccion-error-textos {
+        @apply flex-1 space-y-0.5;
+    }
+
+    .seccion-error-titulo {
+        @apply text-sm font-semibold text-gray-900;
+    }
+
+    .seccion-error-mensaje {
+        @apply text-sm text-gray-600;
+    }
+
+    /* --- Esqueleto de carga --------------------------------------------------- */
+
+    .esqueleto-tarjeta {
+        @apply gap-3;
+    }
+
+    .esqueleto {
+        @apply block rounded-md bg-gray-100;
+        background-image: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.7), transparent);
+        background-size: 200% 100%;
+        background-repeat: no-repeat;
+        animation: esqueleto-brillo 1.4s ease-in-out infinite;
+    }
+
+    .esqueleto-titulo {
+        @apply h-4 w-1/3;
+    }
+
+    .esqueleto-texto {
+        @apply h-3 w-2/3;
+    }
+
+    .esqueleto-lienzo {
+        @apply mt-2 h-56 w-full rounded-lg sm:h-64;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .esqueleto {
+            animation: none;
+        }
+    }
+
+    /* --- Tonos de la paleta categorica (los de graficos.js, para leyendas) ---- */
+
+    /* Paleta categorica validada para daltonismo: el mismo orden que graficos.js. */
+    .grafico-tono-serie-1,
+    .grafico-tono-primario {
+        @apply bg-primario;
+    }
+
+    .grafico-tono-serie-2 {
+        background-color: #1baf7a;
+    }
+
+    .grafico-tono-serie-3 {
+        background-color: #6250d6;
+    }
+
+    .grafico-tono-serie-4 {
+        background-color: #eb6834;
+    }
+
+    .grafico-tono-serie-5 {
+        background-color: #2a78d6;
+    }
+
+    .grafico-tono-serie-6 {
+        background-color: #eda100;
+    }
+
+    .grafico-tono-serie-7 {
+        background-color: #008300;
+    }
+
+    .grafico-tono-serie-8 {
+        background-color: #e87ba4;
+    }
+
+    .rubro-punto {
+        @apply inline-block size-2.5 shrink-0 rounded-full;
+    }
+
+
+    /* --- Resolucion en termino: una tarjeta por gravedad ------------------------ */
+
+    .gravedad-tarjetas {
+        @apply grid gap-4 sm:grid-cols-2 xl:grid-cols-4;
+    }
+
+    .gravedad-tarjeta {
+        @apply flex min-w-0 flex-col gap-2 p-4 sm:p-5;
+    }
+
+    .gravedad-tarjeta-cabecera {
+        @apply flex flex-wrap items-center justify-between gap-2;
+    }
+
+    .gravedad-tarjeta-nombre {
+        @apply inline-flex items-center gap-2 text-sm font-semibold text-gray-900;
+    }
+
+    .gravedad-tarjeta-plazo {
+        @apply rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600;
+    }
+
+    .gravedad-tarjeta-cifra {
+        @apply mt-1 text-3xl font-bold tracking-tight text-gray-900 tabular-nums;
+    }
+
+    .gravedad-tarjeta-sin-dato {
+        @apply text-gray-300;
+    }
+
+    .gravedad-tarjeta-texto {
+        @apply text-sm text-gray-600;
+    }
+
+    .gravedad-tarjeta-texto strong {
+        @apply font-semibold text-gray-900 tabular-nums;
+    }
+
+    .gravedad-relleno-baja {
+        @apply bg-gray-400;
+    }
+
+    .gravedad-relleno-media {
+        @apply bg-blue-500;
+    }
+
+    .gravedad-relleno-alta {
+        @apply bg-amber-500;
+    }
+
+    .gravedad-relleno-critica {
+        @apply bg-primario;
+    }
+}
+
+@keyframes esqueleto-brillo {
+    from {
+        background-position: 150% 0;
+    }
+
+    to {
+        background-position: -50% 0;
+    }
+}

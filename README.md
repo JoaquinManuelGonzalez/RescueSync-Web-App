@@ -124,8 +124,9 @@ POSTGRES_USER=rescuesync
 POSTGRES_PASSWORD=rescuesync_local
 DATABASE_URL=postgresql+psycopg://rescuesync:rescuesync_local@db:5432/rescuesync
 BONITA_BASE_URL=http://host.docker.internal:8080/bonita
-BONITA_USER=install
-BONITA_PASSWORD=install
+BONITA_USER=walter.bates
+BONITA_PASSWORD=la-de-walter.bates-en-la-organizacion-de-bonita
+BONITA_PROCESO_NOMBRE=RescueSync
 BONITA_CALLBACK_TOKEN=un-token-compartido-del-equipo
 API_NACIONAL_BASE_URL=http://api-nacional.invalido
 API_NACIONAL_CLIENT_ID=pendiente-entrega-3
@@ -274,9 +275,9 @@ secretos, está en [`docs/contratos/configuracion.md`](docs/contratos/configurac
 | `POSTGRES_PASSWORD` | **Sí** | `rescuesync_local` | Contraseña de PostgreSQL |
 | `DATABASE_URL` | **Sí** | `postgresql+psycopg://rescuesync:rescuesync_local@db:5432/rescuesync` | Cadena de conexión de SQLAlchemy |
 | `BONITA_BASE_URL` | **Sí** | `http://host.docker.internal:8080/bonita` | URL base de la API REST de Bonita |
-| `BONITA_USER` | **Sí** | `install` | Usuario técnico de Bonita |
-| `BONITA_PASSWORD` | **Sí** | `install` | Contraseña del usuario técnico de Bonita |
-| `BONITA_PROCESO_NOMBRE` | No | `GestionDeEmergencia` | Nombre del proceso BPMN a instanciar |
+| `BONITA_USER` | **Sí** | `walter.bates` | Usuario técnico de Bonita: ejecuta tareas, lee los indicadores de proceso y reemplaza a los usuarios de la app que no existen en Bonita |
+| `BONITA_PASSWORD` | **Sí** | (la de la organización) | Contraseña compartida: la del usuario técnico y la de las cuentas de la app en la organización de Bonita |
+| `BONITA_PROCESO_NOMBRE` | No | `RescueSync` | Nombre del proceso BPMN a instanciar |
 | `BONITA_PROCESO_VERSION` | No | `1.0` | Versión del proceso BPMN publicado |
 | `BONITA_TIMEOUT_S` | No | `10` | Timeout de lectura, en segundos, hacia Bonita |
 | `BONITA_CALLBACK_TOKEN` | **Sí** | `token-compartido` | Token con el que Bonita se autentica al pedir las ofertas consolidadas |
@@ -346,6 +347,7 @@ Todos se corren desde la raíz del repositorio.
 | Ver la revisión actual | `docker compose exec web flask db current` |
 | Cargar datos semilla | `docker compose exec web flask seed` |
 | Crear la primera cuenta de administrador | `docker compose exec web flask crear-administrador --email <email> --nombre "<nombre>"` |
+| Diagnosticar la conexión con Bonita | `docker compose exec web flask bonita-diagnostico` |
 | Correr los tests | `docker compose exec web pytest` |
 | Formatear el código | `docker compose exec web ruff format .` |
 | Verificar formato y lint | `docker compose exec web ruff format --check . && docker compose exec web ruff check .` |
@@ -552,8 +554,33 @@ cambio todavía se realiza solo en la web.
    distribuciones; si no, instalar la que indique la documentación de la versión elegida.
 3. Descomprimir e iniciar el Studio. La primera vez tarda varios minutos en levantar el
    runtime embebido.
-4. El portal queda en `http://localhost:8080/bonita`. Las credenciales por defecto del entorno
-   de desarrollo son `install` / `install`.
+4. El portal queda en `http://localhost:8080/bonita`.
+
+### Preparar el motor para la aplicación
+
+El runtime embebido del Studio arranca con la organización de ejemplo (ACME, contraseña `bpm`)
+y sin el proceso. La aplicación necesita lo que está en el proyecto de Bonita del equipo:
+
+1. **Organización.** En el explorador del proyecto: *Organizations* → `ACME.xml` → clic derecho →
+   **Desplegar**, con `walter.bates` como usuario por defecto. Trae a `walter.bates` y a las
+   cuentas de la app (`operador@chascomus.test`, `coordinador@rescuesync.test`, …) con la
+   contraseña que va en `BONITA_PASSWORD`. Si el login da 401, casi siempre es porque sigue
+   desplegada la ACME de fábrica.
+2. **Mapeo de actores.** Abrir el diagrama `RescueSync-1.0` → **Configurar** → entorno *Local* →
+   *Actor mapping*. `walter.bates` tiene que estar en los tres actores (la app ejecuta con él varias
+   tareas y lo usa cuando una cuenta no existe en Bonita); el operador municipal en *Empleado
+   municipal* y el coordinador en *Empleado centro coordinador*. Mapear los actores al rol `member`
+   cubre a todos de una vez. Esta configuración no se versiona: cada integrante la repite.
+3. **Proceso.** Con el diagrama abierto, **Ejecutar** (o *Desplegar*). Cada vez que cambia el
+   diagrama hay que volver a desplegarlo: si no, el motor sigue con la versión anterior y los
+   nombres de tareas o los contratos no coinciden con los de la app.
+
+Para verificar todo de una vez (conexión, login, proceso desplegado y su fecha, mapeo de actores
+y si cada operador y coordinador puede entrar a Bonita), con una pista por cada falla:
+
+```bash
+docker compose exec web flask bonita-diagnostico
+```
 
 ### Conectarlo con la aplicación
 

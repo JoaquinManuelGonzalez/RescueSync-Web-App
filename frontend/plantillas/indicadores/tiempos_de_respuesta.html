@@ -1,0 +1,69 @@
+{% extends "indicadores/base.html" %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/indicadores.html" import tarjeta_indicador, tarjeta_grafico, encabezado_de_seccion %}
+
+{% block title %}Tiempos de respuesta · Panel de auditoría{% endblock %}
+
+{#- Seccion "Tiempos de respuesta" del panel de auditoria (indicadores/respuesta.py): cuanto
+    tarda una emergencia desde que el municipio la registra hasta su primera adjudicacion, por
+    gravedad y en general. -#}
+
+{% block seccion %}
+{%- set sin_adjudicar = seccion.sin_adjudicar %}
+<section class="space-y-5" aria-labelledby="tiempos-titulo">
+  {{ encabezado_de_seccion("tiempos-titulo", "Tiempos de respuesta", "Cuánto tarda una emergencia desde que el municipio la registra hasta que se adjudican las ofertas: la etapa en la que todavía no hay ayuda en camino.") }}
+
+  <div class="space-y-5" data-panel-actualizable="seccion-tiempos">
+    <div class="kpi-grilla-tres animar-escalonado">
+      {{ tarjeta_indicador(
+          "Promedio general",
+          seccion.promedio_general_como_texto if seccion.promedio_general is not none else none,
+          "reloj",
+          "primario",
+          detalle="Desde el registro hasta la primera adjudicación, sobre " ~ seccion.adjudicadas ~ (" emergencia adjudicada." if seccion.adjudicadas == 1 else " emergencias adjudicadas."),
+          pendiente="Ninguna emergencia del período fue adjudicada todavía.",
+      ) }}
+      {{ tarjeta_indicador(
+          "Emergencias adjudicadas",
+          seccion.adjudicadas,
+          "exito",
+          "exito",
+          detalle="Entran en el cálculo del promedio.",
+      ) }}
+      {{ tarjeta_indicador(
+          "Sin adjudicar",
+          sin_adjudicar,
+          "advertencia",
+          "advertencia",
+          detalle=(sin_adjudicar ~ (" emergencia aún sin adjudicar: no entra en el promedio." if sin_adjudicar == 1 else " emergencias aún sin adjudicar: no entran en el promedio.")) if sin_adjudicar else "Todas las emergencias en curso ya tienen adjudicación.",
+      ) }}
+    </div>
+
+    {%- set filas = [] %}
+    {%- for fila in seccion.por_gravedad %}
+    {%- set _ = filas.append((fila.etiqueta, fila.adjudicadas, fila.promedio_como_texto)) %}
+    {%- endfor %}
+    {{ tarjeta_grafico(
+        "grafico-tiempos",
+        "Tiempo medio hasta la adjudicación, por gravedad",
+        "Días entre el registro de la emergencia y su primera adjudicación. Una gravedad sin emergencias adjudicadas no tiene tiempo que mostrar.",
+        seccion.grafico(),
+        filas,
+        encabezados=["Gravedad", "Emergencias adjudicadas", "Tiempo medio"],
+        vacio="Ninguna emergencia de este período fue adjudicada todavía." if not seccion.adjudicadas else none,
+        resumen="Tiempo medio hasta la adjudicación por gravedad. Promedio general: " ~ seccion.promedio_general_como_texto ~ ".",
+        exportacion=exportacion("tiempos-de-respuesta"),
+    ) }}
+
+    <p class="grafico-nota">
+      {{ icono("info", "size-4") }}
+      <span>Inicio: fecha de registro de la emergencia. Fin: su primera adjudicación registrada. Las canceladas no se cuentan como pendientes de adjudicación.</span>
+    </p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts_de_la_seccion %}
+<script src="{{ url_for('static', filename='js/vendor/chart-4.4.9.umd.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/graficos.js') }}" defer></script>
+{% endblock %}

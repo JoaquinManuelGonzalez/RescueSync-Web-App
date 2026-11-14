@@ -23,7 +23,7 @@ raíz del repositorio.
 | `BONITA_BASE_URL` | S | — | URL base de la REST API de Bonita | Todos |
 | `BONITA_USER` | S | — | Usuario técnico con el que la aplicación abre sesión en Bonita | Todos |
 | `BONITA_PASSWORD` | S | — | Contraseña del usuario técnico de Bonita | Todos |
-| `BONITA_PROCESO_NOMBRE` | N | `GestionDeEmergencia` | Nombre del proceso BPMN a instanciar | Todos |
+| `BONITA_PROCESO_NOMBRE` | N | `RescueSync` | Nombre del proceso BPMN a instanciar | Todos |
 | `BONITA_PROCESO_VERSION` | N | `1.0` | Versión del proceso BPMN publicado en Bonita | Todos |
 | `BONITA_TIMEOUT_S` | N | `10` | Timeout de lectura, en segundos, para llamadas a Bonita | Todos |
 | `BONITA_CALLBACK_TOKEN` | S | — | Token de servicio que Bonita envía al consultar el endpoint de ofertas consolidadas (integración 4) | Todos |

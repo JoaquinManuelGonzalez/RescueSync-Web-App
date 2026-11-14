@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, and_, case, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.core.errores import (
     ConflictoDeEstado,
+    ErrorDeAplicacion,
     RecursoNoEncontrado,
     ReglaDeNegocioIncumplida,
     SolicitudInvalida,
@@ -37,6 +40,11 @@ from app.modulos.ofertas.modelos import Oferta, OfertaLinea, TipoAsignacion
 from app.modulos.usuarios_roles.modelos import Usuario
 
 PORCENTAJE_MINIMO_COBERTURA_PARCIAL = Decimal("75.00")
+
+MENSAJE_DECISION_NO_COMUNICADA = (
+    "No pudimos comunicar la decisión al motor de procesos, así que no se guardó ningún "
+    "cambio. Intentá de nuevo en unos minutos."
+)
 
 
 def _consulta_de_convocatorias(
@@ -372,6 +380,47 @@ def _obtener_cobertura_pendiente_para_actualizar(convocatoria_id: int) -> Convoc
     return convocatoria
 
 
+def _comunicar_decision_a_bonita(
+    convocatoria: Convocatoria, emergencia: Emergencia, decision: str
+) -> None:
+    """Completa en Bonita la tarea "Decidir accion ante cobertura insuficiente".
+
+    Se llama antes del commit a proposito: si Bonita no recibe la decision, no se guarda nada y
+    el coordinador puede reintentar. Guardarla igual dejaria el caso trabado en esa tarea.
+
+    Una emergencia sin caso en Bonita (el motor estaba caido cuando se creo) no tiene ninguna
+    tarea que completar: se deja constancia en el log y la decision sigue su curso local, para
+    no bloquear al coordinador para siempre.
+    """
+    if not emergencia.bonita_case_id:
+        registrar_evento(
+            logging.WARNING,
+            "bonita_decision_sin_caso",
+            convocatoria_id=convocatoria.id,
+            emergencia_id=emergencia.id,
+            decision=decision,
+        )
+        return
+
+    coordinador = db.session.get(Usuario, convocatoria.coordinador_id)
+    try:
+        decidir_cobertura_insuficiente(
+            username=coordinador.email,
+            case_id=emergencia.bonita_case_id,
+            decision=decision,
+        )
+    except ErrorDeAplicacion as error:
+        db.session.rollback()
+        # Mismo tipo y codigo (503 si Bonita esta caido, 422 si rechazo), con un mensaje que
+        # le dice al coordinador que la decision no quedo guardada.
+        raise error.__class__(
+            MENSAJE_DECISION_NO_COMUNICADA,
+            codigo=error.codigo,
+            estado_http=error.estado_http,
+            detalle=error.detalle,
+        ) from error
+
+
 def reabrir_convocatoria_por_cobertura_insuficiente(convocatoria_id: int) -> Emergencia:
     """Devuelve la emergencia al registro y conserva esta convocatoria como historial."""
     convocatoria = _obtener_cobertura_pendiente_para_actualizar(convocatoria_id)
@@ -386,12 +435,7 @@ def reabrir_convocatoria_por_cobertura_insuficiente(convocatoria_id: int) -> Eme
         emergencia.estado = EstadoEmergencia.registrada
         servicios_de_notificaciones.notificar_cambio_estado_emergencia(emergencia, estado_anterior)
 
-    decidir_cobertura_insuficiente(
-        username=db.session.get(Usuario, convocatoria.coordinador_id).email,
-        case_id=emergencia.bonita_case_id,
-        decision="reiniciar",
-    )
-
+    _comunicar_decision_a_bonita(convocatoria, emergencia, "reiniciar")
     db.session.commit()
     return emergencia
 
@@ -418,12 +462,7 @@ def aceptar_cobertura_parcial(convocatoria_id: int) -> Convocatoria:
         servicios_de_notificaciones.notificar_cambio_estado_emergencia(emergencia, estado_anterior)
     servicios_de_notificaciones.notificar_cobertura_parcial_aceptada(convocatoria)
 
-    decidir_cobertura_insuficiente(
-        username=db.session.get(Usuario, convocatoria.coordinador_id).email,
-        case_id=emergencia.bonita_case_id,
-        decision="continuar",
-    )
-
+    _comunicar_decision_a_bonita(convocatoria, emergencia, "continuar")
     db.session.commit()
     return convocatoria
 
@@ -486,3 +525,104 @@ def _notificar_bonita_timer(
             emergencia_id=emergencia.id,
             motivo="No se pudo comunicar con Bonita; la convocatoria se creó igual.",
         )
+
+
+# --- Lectura agregada (panel de auditoria) ---------------------------------------
+
+
+def consultar_adjudicaciones(
+    *, emergencia_ids: Select[tuple[int]]
+) -> Select[tuple[int, int, datetime | None]]:
+    """Subconsulta con las convocatorias adjudicadas de esas emergencias.
+
+    Columnas: `convocatoria_id`, `emergencia_id` y `adjudicada_en`, el momento en que el
+    municipio confirmo la seleccion. Es un `Select` para que quien la use la combine con sus
+    propios datos en una sola consulta.
+    """
+    return select(
+        Convocatoria.id.label("convocatoria_id"),
+        Convocatoria.emergencia_id.label("emergencia_id"),
+        Convocatoria.adjudicada_en.label("adjudicada_en"),
+    ).where(
+        Convocatoria.emergencia_id.in_(emergencia_ids),
+        Convocatoria.estado == EstadoConvocatoria.adjudicada,
+    )
+
+
+def obtener_primera_adjudicacion(*, emergencia_ids: Select[tuple[int]]) -> dict[int, datetime]:
+    """Cuando se adjudico por primera vez cada una de esas emergencias, por id.
+
+    Las emergencias sin ninguna convocatoria adjudicada no aparecen.
+    """
+    filas = db.session.execute(
+        select(Convocatoria.emergencia_id, func.min(Convocatoria.adjudicada_en))
+        .where(
+            Convocatoria.emergencia_id.in_(emergencia_ids),
+            Convocatoria.estado == EstadoConvocatoria.adjudicada,
+            Convocatoria.adjudicada_en.is_not(None),
+        )
+        .group_by(Convocatoria.emergencia_id)
+    ).all()
+    return {emergencia_id: adjudicada_en for emergencia_id, adjudicada_en in filas}
+
+
+@dataclass(frozen=True, slots=True)
+class HistorialDeConvocatorias:
+    """Las convocatorias que publico una emergencia y lo que se decidio ante cada cobertura
+    insuficiente.
+
+    Una reapertura deja la convocatoria anterior como historial y abre otra, asi que una
+    emergencia reabierta dos veces tiene `reaperturas == 2` y al menos tres publicadas.
+    `pendientes_de_decision` son las coberturas insuficientes que el Centro Coordinador todavia
+    no resolvio.
+    """
+
+    emergencia_id: int
+    publicadas: int
+    reaperturas: int
+    aceptadas_parcialmente: int
+    pendientes_de_decision: int
+
+    @property
+    def tuvo_cobertura_insuficiente(self) -> bool:
+        return bool(self.reaperturas or self.aceptadas_parcialmente or self.pendientes_de_decision)
+
+
+def _cantidad_que_cumple(condicion) -> Any:
+    """Cuantas filas del grupo cumplen la condicion (portable entre SQLite y Postgres)."""
+    return func.coalesce(func.sum(case((condicion, 1), else_=0)), 0)
+
+
+def listar_historial_de_convocatorias(
+    *, emergencia_ids: Select[tuple[int]]
+) -> list[HistorialDeConvocatorias]:
+    """El historial de convocatorias de esas emergencias, en una sola consulta agrupada.
+
+    Las emergencias sin ninguna convocatoria publicada (los borradores no cuentan) no aparecen.
+    """
+    pendiente = and_(
+        Convocatoria.estado == EstadoConvocatoria.cerrada,
+        Convocatoria.cobertura_evaluada_en.is_not(None),
+        Convocatoria.cobertura_completa.is_(False),
+        Convocatoria.decision_cobertura == DecisionCobertura.pendiente,
+    )
+    filas = db.session.execute(
+        select(
+            Convocatoria.emergencia_id,
+            func.count(Convocatoria.id),
+            _cantidad_que_cumple(
+                Convocatoria.decision_cobertura == DecisionCobertura.convocatoria_reabierta
+            ),
+            _cantidad_que_cumple(
+                Convocatoria.decision_cobertura == DecisionCobertura.aceptada_parcialmente
+            ),
+            _cantidad_que_cumple(pendiente),
+        )
+        .where(
+            Convocatoria.emergencia_id.in_(emergencia_ids),
+            Convocatoria.estado != EstadoConvocatoria.borrador,
+        )
+        .group_by(Convocatoria.emergencia_id)
+        .order_by(Convocatoria.emergencia_id)
+    ).all()
+    return [HistorialDeConvocatorias(*(int(valor) for valor in fila)) for fila in filas]

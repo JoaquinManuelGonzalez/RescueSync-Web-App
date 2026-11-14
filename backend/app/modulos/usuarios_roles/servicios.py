@@ -111,6 +111,19 @@ def obtener_por_email(email: str) -> Usuario | None:
     ).scalar_one_or_none()
 
 
+def listar_emails_activos_por_rol(*nombres_rol: str) -> list[str]:
+    """Los emails de las cuentas activas con alguno de esos roles, ordenados."""
+    return list(
+        db.session.execute(
+            select(Usuario.email)
+            .join(Usuario.roles)
+            .where(Usuario.activo.is_(True), Rol.nombre.in_(nombres_rol))
+            .distinct()
+            .order_by(Usuario.email)
+        ).scalars()
+    )
+
+
 def obtener_usuario(usuario_id: int) -> Usuario:
     """Devuelve la cuenta o corta con 404."""
     usuario = db.session.get(Usuario, usuario_id)

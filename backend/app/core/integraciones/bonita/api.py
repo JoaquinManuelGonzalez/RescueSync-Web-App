@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 
+from app.core.errores import RespuestaExternaInvalida, SistemaExternoRechazo
 from app.core.integraciones.bonita.sesion import (
     BONITA_BASE_URL,
     ejecutar_solicitud_bonita,
@@ -41,10 +42,15 @@ def obtener_process_definition_id(
     procesos = respuesta.json()
 
     if not procesos:
-        raise RuntimeError(
-            "No se encontró el proceso de Bonita "
-            f"{BONITA_PROCESO_NOMBRE} "
-            f"versión {BONITA_PROCESO_VERSION}."
+        raise SistemaExternoRechazo(
+            f"El motor de procesos no tiene desplegado el proceso {BONITA_PROCESO_NOMBRE} "
+            f"versión {BONITA_PROCESO_VERSION}.",
+            codigo="PROCESO_NO_DESPLEGADO",
+            detalle={
+                "componente": "bonita",
+                "proceso": BONITA_PROCESO_NOMBRE,
+                "version": BONITA_PROCESO_VERSION,
+            },
         )
 
     process_definition_id = str(procesos[0]["id"])
@@ -71,7 +77,8 @@ def instanciar_proceso(
     datos = respuesta.json()
 
     if "caseId" not in datos:
-        raise RuntimeError("Bonita creó la instancia pero no devolvió caseId.")
+        # Bonita creo la instancia pero no devolvio su caseId.
+        raise RespuestaExternaInvalida(detalle={"componente": "bonita", "falta": "caseId"})
 
     return str(datos["caseId"])
 
@@ -106,8 +113,13 @@ def buscar_tarea_humana(
 
         time.sleep(espera_segundos)
 
-    raise RuntimeError(
-        f"No se encontró la tarea '{nombre_tarea}' en estado ready para el caso {case_id}."
+    # El caso no llego (todavia) a esa tarea: el motor y la app no estan en el mismo paso. Es un
+    # error de aplicacion para que cada pantalla lo muestre como aviso, no como un 500.
+    raise SistemaExternoRechazo(
+        f"El motor de procesos todavía no habilitó la tarea «{nombre_tarea}» para esta "
+        "emergencia. Esperá unos segundos y volvé a intentar.",
+        codigo="TAREA_DE_PROCESO_NO_DISPONIBLE",
+        detalle={"componente": "bonita", "tarea": nombre_tarea, "caso": case_id},
     )
 
 

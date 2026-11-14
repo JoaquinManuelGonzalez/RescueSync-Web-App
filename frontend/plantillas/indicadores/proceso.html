@@ -1,0 +1,59 @@
+{% extends "indicadores/base.html" %}
+{% from "componentes/alertas.html" import alerta %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/indicadores.html" import encabezado_de_seccion, filtro_segmentado, esqueleto_de_graficos %}
+
+{% block title %}Proceso · Panel de auditoría{% endblock %}
+
+{#- Seccion "Proceso" del panel de auditoria (rutas.py::proceso): tiempos que registra el motor
+    de procesos (Bonita), combinados con la gravedad de cada emergencia.
+
+    La pantalla se muestra sin esperar a Bonita: la region [data-carga-diferida] arranca con un
+    esqueleto y indicadores.js la completa con el fragmento de `url_de_datos`
+    (indicadores/proceso_datos.html). Si Bonita no responde, el fragmento trae el aviso con su
+    boton de reintento y el resto del panel no se entera. Sin JavaScript, el enlace del <noscript>
+    pide la misma pantalla con los datos incluidos. -#}
+
+{% block seccion %}
+{%- set gravedad = filtros.gravedad.elegido() if not filtros.gravedad.errors else none %}
+<section class="space-y-5" aria-labelledby="proceso-titulo">
+  {%- set opciones_de_gravedad = [{"texto": "Todas", "url": url_for("indicadores.proceso"), "activo": gravedad is none}] %}
+  {%- for nivel in filtros.gravedad.opciones %}
+  {%- set _ = opciones_de_gravedad.append({
+      "texto": nivel|etiqueta_gravedad,
+      "url": url_for("indicadores.proceso", gravedad=nivel.value),
+      "activo": gravedad == nivel,
+      "punto": "gravedad-punto gravedad-punto-" ~ nivel.value,
+  }) %}
+  {%- endfor %}
+  {% call encabezado_de_seccion("proceso-titulo", "Datos del motor de procesos", "Tiempos que registra Bonita, combinados con la gravedad de cada emergencia.") %}
+    {{ filtro_segmentado("Filtrar las etapas por nivel de gravedad", "filtro-gravedad", opciones_de_gravedad) }}
+  {% endcall %}
+
+  {%- if filtros.gravedad.errors %}
+  {{ alerta("error", filtros.gravedad.gravedad.errors|first ~ " Se muestran todas.", titulo="El filtro de gravedad no se aplicó") }}
+  {%- endif %}
+
+  <div class="space-y-8" aria-live="polite" data-panel-actualizable="seccion-proceso"
+       {%- if not con_datos %} data-carga-diferida="{{ url_de_datos }}"{% endif %}
+       data-mensaje-error="No se pudieron obtener los datos del motor de procesos.">
+    {%- if con_datos %}
+    {% include "indicadores/proceso_datos.html" %}
+    {%- else %}
+    <p class="kpi-nota">
+      {{ icono("flujo", "size-5 animate-spin [animation-duration:2s]") }}
+      Consultando el motor de procesos…
+    </p>
+    {{ esqueleto_de_graficos(2) }}
+    <noscript>
+      <p class="kpi-nota">{{ icono("info", "size-5") }} <a class="font-semibold text-primario underline" href="{{ url_sin_javascript }}">Ver los datos del motor de procesos</a></p>
+    </noscript>
+    {%- endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts_de_la_seccion %}
+<script src="{{ url_for('static', filename='js/vendor/chart-4.4.9.umd.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/graficos.js') }}" defer></script>
+{% endblock %}

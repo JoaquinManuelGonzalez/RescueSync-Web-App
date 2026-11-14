@@ -142,10 +142,12 @@ class Emergencia(db.Model):
         nullable=False,
     )
 
+    # Fecha de registro. Indexada porque el panel de auditoria filtra por periodo sobre ella.
     creado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
+        index=True,
     )
     actualizado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

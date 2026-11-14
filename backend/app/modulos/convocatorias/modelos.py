@@ -119,6 +119,14 @@ class Convocatoria(db.Model):
         server_default=DecisionCobertura.pendiente.value,
         nullable=False,
     )
+    adjudicada_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment=(
+            "Cuándo el municipio confirmó la selección de ofertas. Nula mientras la "
+            "convocatoria no esté adjudicada."
+        ),
+    )
 
     # --- relaciones -----------------------------------------------------------
     emergencia: Mapped[Emergencia] = relationship(
