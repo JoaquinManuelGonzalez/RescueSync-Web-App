@@ -36,7 +36,7 @@ VARIABLES_OPCIONALES: dict[str, str] = {
     "POSTGRES_HOST": "db",
     "POSTGRES_PORT": "5432",
     "POSTGRES_DB": "rescuesync",
-    "BONITA_PROCESO_NOMBRE": "GestionDeEmergencia",
+    "BONITA_PROCESO_NOMBRE": "RescueSync",
     "BONITA_PROCESO_VERSION": "1.0",
     "BONITA_TIMEOUT_S": "10",
     "API_NACIONAL_TIMEOUT_S": "10",

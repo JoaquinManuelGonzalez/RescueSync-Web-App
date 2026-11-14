@@ -154,7 +154,13 @@ tiempos con datos propios (la gravedad y la fecha de la emergencia, enlazada a s
 `bonita_case_id`). Son llamadas `GET` de solo lectura con el usuario técnico (`BONITA_USER`):
 `/API/bpm/process` (todas las versiones del proceso), `/API/bpm/archivedCase` (casos terminados,
 cuyo id es `sourceObjectId`), `/API/bpm/case` (casos en curso) y `/API/bpm/archivedFlowNode`
-(la línea de tiempo de cada caso terminado, que no cambia y queda en memoria). Están sujetas al
+(las líneas de tiempo de los casos terminados). Para no repetir llamadas, la "foto" del proceso
+(versiones, casos terminados y abiertos) se reutiliza durante 60 segundos, y las líneas de tiempo
+que faltan se piden en lote: una búsqueda paginada por versión
+(`archivedFlowNode?f=processId=…&o=archivedDate DESC`) que se corta al llegar al inicio del caso
+más viejo que se necesita, en vez de una llamada por caso. Un caso terminado ya no cambia, así que
+su línea de tiempo queda en memoria. Para diagnosticar la conexión (login, proceso desplegado,
+mapeo de actores) está el comando `flask bonita-diagnostico`. Están sujetas al
 contrato de errores y de logging (ver `docs/contratos/errores.md` y `docs/contratos/logging.md`):
 si Bonita no responde, la sección "Proceso" lo muestra con un reintento y el resto del panel sigue
 funcionando, porque ninguna otra sección consulta el motor y los datos de Bonita se piden aparte,
