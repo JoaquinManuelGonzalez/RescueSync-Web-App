@@ -16,6 +16,7 @@ from app.core.errores import (
     ReglaDeNegocioIncumplida,
     SolicitudInvalida,
 )
+from app.core.integraciones.bonita.proceso import decidir_cobertura_insuficiente
 from app.core.interfaz.paginacion import Pagina, paginar
 from app.core.logging import registrar_evento
 from app.extensiones import db
@@ -384,6 +385,13 @@ def reabrir_convocatoria_por_cobertura_insuficiente(convocatoria_id: int) -> Eme
         estado_anterior = emergencia.estado
         emergencia.estado = EstadoEmergencia.registrada
         servicios_de_notificaciones.notificar_cambio_estado_emergencia(emergencia, estado_anterior)
+
+    decidir_cobertura_insuficiente(
+        username=db.session.get(Usuario, convocatoria.coordinador_id).email,
+        case_id=emergencia.bonita_case_id,
+        decision="reiniciar",
+    )
+
     db.session.commit()
     return emergencia
 
@@ -409,6 +417,13 @@ def aceptar_cobertura_parcial(convocatoria_id: int) -> Convocatoria:
         emergencia.estado = EstadoEmergencia.activa
         servicios_de_notificaciones.notificar_cambio_estado_emergencia(emergencia, estado_anterior)
     servicios_de_notificaciones.notificar_cobertura_parcial_aceptada(convocatoria)
+
+    decidir_cobertura_insuficiente(
+        username=db.session.get(Usuario, convocatoria.coordinador_id).email,
+        case_id=emergencia.bonita_case_id,
+        decision="continuar",
+    )
+
     db.session.commit()
     return convocatoria
 
