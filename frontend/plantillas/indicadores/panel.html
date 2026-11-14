@@ -1,19 +1,22 @@
 {% extends "indicadores/base.html" %}
 {% from "componentes/iconos.html" import icono %}
-{% from "componentes/indicadores.html" import tarjeta_indicador %}
+{% from "componentes/indicadores.html" import tarjeta_indicador, encabezado_de_seccion, menu_exportar %}
 
 {% block title %}Panel de auditoría{% endblock %}
 
 {#- Seccion "Resumen" del panel de auditoria: las cuatro cifras de cabecera del periodo. -#}
 {% block seccion %}
+{%- set resumen = seccion %}
 {%- set registradas = resumen.emergencias_registradas %}
 <section class="space-y-4" aria-labelledby="resumen-titulo">
-  <h2 id="resumen-titulo" class="sr-only">Resumen del período</h2>
+  {% call encabezado_de_seccion("resumen-titulo", "Resumen del período", "Las cifras principales de la actividad de la red.") %}
+    {{ menu_exportar(exportacion("resumen-de-actividad"), "Resumen del período") }}
+  {% endcall %}
   <div class="kpi-grilla animar-escalonado">
     {{ tarjeta_indicador("Emergencias registradas", registradas, "advertencia", "primario", detalle="Dadas de alta en el período.") }}
     {{ tarjeta_indicador("Emergencias activas", resumen.emergencias_activas, "reloj", "info", detalle="En curso: sin finalizar ni cancelar.", total=registradas) }}
     {{ tarjeta_indicador("Emergencias finalizadas", resumen.emergencias_finalizadas, "exito", "exito", detalle="Con el proceso cerrado.", total=registradas) }}
-    {{ tarjeta_indicador("ONGs con adjudicación", resumen.ongs_con_adjudicacion, "organizaciones", "advertencia", detalle="Con al menos una adjudicación.", pendiente="Se calcula cuando se registren adjudicaciones.") }}
+    {{ tarjeta_indicador("ONGs con adjudicación", resumen.ongs_con_adjudicacion, "organizaciones", "advertencia", detalle="Con al menos una adjudicación.") }}
   </div>
 
   {%- if registradas == 0 %}

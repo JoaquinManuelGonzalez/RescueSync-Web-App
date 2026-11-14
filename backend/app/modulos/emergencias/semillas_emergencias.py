@@ -100,7 +100,8 @@ EMERGENCIAS: list[dict] = [
 
 # Emergencias ya resueltas, con fecha de registro fija, para que el panel de auditoria tenga
 # historia que mostrar: el filtro de octubre de 2026 y las tarjetas de finalizadas y canceladas.
-# Solo se usan estados que no exigen lotes ni convocatorias para ser coherentes.
+# Las finalizadas y la activa tienen sus lotes, ofertas y adjudicacion en ofertas/semillas.py, y lo
+# que hizo cada ONG despues en ejecucion_cierre/semillas.py.
 EMERGENCIAS_HISTORICAS: list[dict] = [
     {
         "titulo": "Granizo sobre la zona hortícola de La Plata",
@@ -199,6 +200,21 @@ EMERGENCIAS_HISTORICAS: list[dict] = [
         "usuario_email": "operador@bahia.test",
         "tipo_emergencia": TipoEmergencia.otros,
         "creado_en": datetime(2026, 10, 27, 20, 5, tzinfo=UTC),
+    },
+    {
+        "titulo": "Temporal de viento y lluvia en Pergamino",
+        "descripcion": (
+            "Un temporal dejó calles anegadas, árboles caídos y barrios sin luz. "
+            "Se necesitan rescatistas, generadores y alimentos para familias evacuadas."
+        ),
+        "nivel_gravedad": NivelGravedad.critica,
+        "zona_afectada": "Barrios Acevedo y Centenario, Pergamino",
+        # Adjudicada y en ejecucion: ofertas/semillas.py y ejecucion_cierre/semillas.py.
+        "estado": EstadoEmergencia.activa,
+        "municipio_nombre": "Municipalidad de Pergamino",
+        "usuario_email": "operador@pergamino.test",
+        "tipo_emergencia": TipoEmergencia.otros,
+        "creado_en": datetime(2026, 11, 3, 8, 0, tzinfo=UTC),
     },
 ]
 

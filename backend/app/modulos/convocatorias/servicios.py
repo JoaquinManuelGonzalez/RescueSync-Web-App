@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.core.errores import (
@@ -471,3 +471,42 @@ def _notificar_bonita_timer(
             emergencia_id=emergencia.id,
             motivo="No se pudo comunicar con Bonita; la convocatoria se creó igual.",
         )
+
+
+# --- Lectura agregada (panel de auditoria) ---------------------------------------
+
+
+def consultar_adjudicaciones(
+    *, emergencia_ids: Select[tuple[int]]
+) -> Select[tuple[int, int, datetime | None]]:
+    """Subconsulta con las convocatorias adjudicadas de esas emergencias.
+
+    Columnas: `convocatoria_id`, `emergencia_id` y `adjudicada_en`, el momento en que el
+    municipio confirmo la seleccion. Es un `Select` para que quien la use la combine con sus
+    propios datos en una sola consulta.
+    """
+    return select(
+        Convocatoria.id.label("convocatoria_id"),
+        Convocatoria.emergencia_id.label("emergencia_id"),
+        Convocatoria.adjudicada_en.label("adjudicada_en"),
+    ).where(
+        Convocatoria.emergencia_id.in_(emergencia_ids),
+        Convocatoria.estado == EstadoConvocatoria.adjudicada,
+    )
+
+
+def obtener_primera_adjudicacion(*, emergencia_ids: Select[tuple[int]]) -> dict[int, datetime]:
+    """Cuando se adjudico por primera vez cada una de esas emergencias, por id.
+
+    Las emergencias sin ninguna convocatoria adjudicada no aparecen.
+    """
+    filas = db.session.execute(
+        select(Convocatoria.emergencia_id, func.min(Convocatoria.adjudicada_en))
+        .where(
+            Convocatoria.emergencia_id.in_(emergencia_ids),
+            Convocatoria.estado == EstadoConvocatoria.adjudicada,
+            Convocatoria.adjudicada_en.is_not(None),
+        )
+        .group_by(Convocatoria.emergencia_id)
+    ).all()
+    return {emergencia_id: adjudicada_en for emergencia_id, adjudicada_en in filas}

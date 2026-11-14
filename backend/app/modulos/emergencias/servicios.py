@@ -26,10 +26,12 @@ from app.modulos.emergencias.modelos import (
     Emergencia,
     EstadoEmergencia,
     EstadoLote,
+    Item,
     LoteItem,
     LoteNecesidad,
     NivelGravedad,
     TipoEmergencia,
+    TipoNecesidad,
 )
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
@@ -364,25 +366,62 @@ def consultar_ids_de_emergencias_registradas(
 
 def consultar_unidades_requeridas(
     *, emergencia_ids: Select[tuple[int]]
-) -> Select[tuple[int, int, int]]:
+) -> Select[tuple[int, int, int, int, TipoNecesidad]]:
     """Subconsulta con las unidades que pide cada item de lote de esas emergencias.
 
-    Columnas: `lote_item_id`, `emergencia_id` y `cantidad_requerida`. Los lotes cancelados no
-    cuentan: lo que se dejo de pedir ya no es una necesidad. Es un `Select` para que quien la use
-    la combine con sus propios datos en una sola consulta.
+    Columnas: `lote_item_id`, `emergencia_id`, `lote_id`, `cantidad_requerida` y `categoria` (el
+    rubro del item del catalogo). Los lotes cancelados no cuentan: lo que se dejo de pedir ya no
+    es una necesidad. Es un `Select` para que quien la use la combine con sus propios datos en
+    una sola consulta, tomando solo las columnas que necesite.
     """
     return (
         select(
             LoteItem.id.label("lote_item_id"),
             LoteNecesidad.emergencia_id.label("emergencia_id"),
+            LoteItem.lote_id.label("lote_id"),
             LoteItem.cantidad_solicitada.label("cantidad_requerida"),
+            Item.categoria.label("categoria"),
         )
         .join(LoteNecesidad, LoteItem.lote_id == LoteNecesidad.id)
+        .join(Item, LoteItem.item_id == Item.id)
         .where(
             LoteNecesidad.emergencia_id.in_(emergencia_ids),
             LoteNecesidad.estado != EstadoLote.cancelado,
         )
     )
+
+
+@dataclass(frozen=True, slots=True)
+class RegistroDeEmergencia:
+    """Lo que necesitan los indicadores de tiempos de una emergencia, sin exponer el modelo.
+
+    `creado_en` es la fecha de registro (el inicio de la respuesta) y `bonita_case_id` el caso del
+    proceso en Bonita, o None si la emergencia nunca llego a instanciarlo.
+    """
+
+    id: int
+    nivel_gravedad: NivelGravedad
+    estado: EstadoEmergencia
+    creado_en: datetime
+    bonita_case_id: str | None
+
+
+def listar_registros_de_emergencias(
+    *, desde: datetime, hasta: datetime, gravedad: NivelGravedad | None = None
+) -> list[RegistroDeEmergencia]:
+    """Las emergencias registradas en `[desde, hasta)`, en una sola consulta y por fecha."""
+    filas = db.session.execute(
+        select(
+            Emergencia.id,
+            Emergencia.nivel_gravedad,
+            Emergencia.estado,
+            Emergencia.creado_en,
+            Emergencia.bonita_case_id,
+        )
+        .where(_filtro_de_registradas(desde, hasta, gravedad))
+        .order_by(Emergencia.creado_en, Emergencia.id)
+    ).all()
+    return [RegistroDeEmergencia(*fila) for fila in filas]
 
 
 @dataclass(frozen=True, slots=True)

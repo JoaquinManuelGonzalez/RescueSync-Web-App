@@ -1,7 +1,9 @@
-/* Panel de auditoria: pestañas, filtros, tarjetas de indicadores y graficos.
+/* Panel de auditoria: pestañas, filtros, tarjetas de indicadores, graficos y exportacion.
  *
- * Las arman plantillas/indicadores/ (base.html y una plantilla por seccion) y los macros
- * `tarjeta_indicador()` y `tarjeta_grafico()` de plantillas/componentes/indicadores.html.
+ * Las arman plantillas/indicadores/ (base.html y una plantilla por seccion) y los macros de
+ * plantillas/componentes/indicadores.html: `tarjeta_indicador()`, `tarjeta_grafico()`,
+ * `menu_exportar()`, `encabezado_de_seccion()`, `filtro_segmentado()`, `encabezado_ordenable()`,
+ * `aviso_de_error()` y `esqueleto_de_graficos()`.
  */
 
 @layer components {
@@ -71,10 +73,20 @@
         @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-4;
     }
 
+    /* Tres cifras: una columna en el telefono, dos en tablet (la tercera ocupa la fila entera,
+     * sin quedar huerfana) y tres en escritorio. */
+    .kpi-grilla-tres {
+        @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-3;
+    }
+
+    .kpi-grilla-tres > :last-child:nth-child(odd) {
+        @apply sm:col-span-2 lg:col-span-1;
+    }
+
     /* No es un enlace: al pasar el mouse aparece el filete de la marca, pero la tarjeta no se
      * levanta, para no prometer un clic que no lleva a ningun lado. */
     .kpi {
-        @apply relative flex flex-col gap-4 overflow-hidden rounded-xl bg-superficie p-5 shadow-sm
+        @apply relative flex min-w-0 flex-col gap-4 overflow-hidden rounded-xl bg-superficie p-4 shadow-sm sm:p-5
             ring-1 ring-gray-200 transition-shadow duration-200 hover:shadow-md;
     }
 
@@ -101,7 +113,7 @@
     }
 
     .kpi-valor {
-        @apply text-3xl font-bold tracking-tight text-gray-900 tabular-nums;
+        @apply text-2xl font-bold tracking-tight break-words text-gray-900 tabular-nums sm:text-3xl;
     }
 
     .kpi-valor-sin-dato {
@@ -171,14 +183,27 @@
 
     /* --- Pestañas de las secciones -------------------------------------------- */
 
-    /* En pantallas angostas las pestañas se desplazan dentro de su barra, sin mover la pagina. */
+    /* En pantallas angostas las pestañas se desplazan dentro de su barra, sin mover la pagina. El
+     * borde derecho se desvanece para avisar que hay mas pestañas; indicadores.js centra la activa. */
     .panel-pestanas {
         @apply flex gap-1 overflow-x-auto border-b border-gray-200;
         scrollbar-width: none;
+        scroll-snap-type: x proximity;
+    }
+
+    .panel-pestanas::-webkit-scrollbar {
+        display: none;
+    }
+
+    @media (width < 64rem) {
+        .panel-pestanas {
+            mask-image: linear-gradient(to right, black calc(100% - 2.5rem), transparent);
+        }
     }
 
     .panel-pestana {
-        @apply inline-flex shrink-0 items-center gap-2 border-b-2 border-transparent px-4 py-2.5 text-sm font-medium
+        scroll-snap-align: start;
+        @apply inline-flex shrink-0 items-center gap-2 border-b-2 border-transparent px-3 py-2.5 text-sm font-medium sm:px-4
             text-gray-500 transition-colors
             hover:border-gray-300 hover:text-gray-800
             focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primario;
@@ -194,6 +219,11 @@
         @apply flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between;
     }
 
+    /* Filtros con muchas opciones: siempre debajo del titulo, a lo ancho. */
+    .seccion-cabecera-apilada {
+        @apply lg:flex-col lg:items-stretch;
+    }
+
     .seccion-titulo {
         @apply text-lg font-semibold text-gray-900;
     }
@@ -202,13 +232,31 @@
         @apply text-sm text-gray-500;
     }
 
-    /* Control segmentado: una fila de pastillas de las que una sola esta elegida. */
+    /* Control segmentado: una fila de pastillas de las que una sola esta elegida. En el telefono es
+     * una sola fila que se desplaza de costado (no apila cinco renglones de pastillas); desde
+     * tablet las pastillas que no entran pasan a la linea siguiente. */
     .filtro-segmentado {
-        @apply inline-flex max-w-full flex-wrap gap-1 self-start rounded-xl bg-gray-100 p-1 lg:self-auto;
+        @apply inline-flex max-w-full gap-1 self-start overflow-x-auto rounded-xl bg-gray-100 p-1
+            sm:flex-wrap sm:overflow-visible lg:self-auto;
+        scrollbar-width: none;
+    }
+
+    .filtro-segmentado::-webkit-scrollbar {
+        display: none;
+    }
+
+    @media (width < 40rem) {
+        .filtro-segmentado {
+            mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent);
+        }
+    }
+
+    .seccion-cabecera-apilada .filtro-segmentado {
+        @apply lg:self-start;
     }
 
     .filtro-segmento {
-        @apply inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600
+        @apply inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap text-gray-600
             transition-colors hover:bg-white/70 hover:text-gray-900
             focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primario;
     }
@@ -245,23 +293,33 @@
     /* --- Graficos ------------------------------------------------------------- */
 
     .graficos-grilla {
-        @apply grid gap-4 lg:grid-cols-5;
+        @apply grid gap-4 md:grid-cols-5;
     }
 
     .graficos-grilla-ancha {
-        @apply lg:col-span-3;
+        @apply min-w-0 md:col-span-3;
     }
 
     .graficos-grilla-angosta {
-        @apply lg:col-span-2;
+        @apply min-w-0 md:col-span-2;
     }
 
     .grafico-tarjeta {
-        @apply flex h-full flex-col gap-5 p-5 sm:p-6;
+        @apply flex h-full min-w-0 flex-col gap-5 p-4 sm:p-6;
     }
 
     .grafico-cabecera {
         @apply space-y-1;
+    }
+
+    /* Titulo y boton de exportar comparten la fila; la descripcion va debajo, a todo el ancho
+     * (en el telefono no queda encajonada al lado del boton). */
+    .grafico-cabecera-fila {
+        @apply flex items-start justify-between gap-3;
+    }
+
+    .grafico-cabecera-fila .grafico-titulo {
+        @apply min-w-0 pt-1;
     }
 
     .grafico-titulo {
@@ -309,7 +367,15 @@
     }
 
     .grafico-respaldo td {
-        @apply py-2 text-right font-semibold text-gray-900 tabular-nums;
+        @apply py-2 pl-3 text-right font-semibold text-gray-900 tabular-nums;
+    }
+
+    .grafico-respaldo thead th {
+        @apply text-xs font-semibold uppercase tracking-wide text-gray-500;
+    }
+
+    .grafico-respaldo thead th + th {
+        @apply pl-3 text-right;
     }
 
     .grafico-vacio {
@@ -322,7 +388,7 @@
     }
 
     .grafico-leyenda {
-        @apply space-y-2;
+        @apply mx-auto w-full max-w-xs space-y-2;
     }
 
     .grafico-leyenda-item {
@@ -373,5 +439,260 @@
 
     .cobertura-barra-valor {
         @apply w-12 shrink-0 text-right font-semibold text-gray-900 tabular-nums;
+    }
+
+    /* --- Grilla de dos graficos iguales --------------------------------------- */
+
+    .graficos-grilla-pareja {
+        @apply grid gap-4 md:grid-cols-2;
+    }
+
+    .graficos-grilla-pareja > * {
+        @apply min-w-0;
+    }
+
+    /* --- Menu de exportacion -------------------------------------------------- */
+
+    /* <details> nativo: se abre sin JavaScript; indicadores.js lo cierra al hacer clic afuera. */
+    .exportar-menu {
+        @apply relative shrink-0;
+    }
+
+    .exportar-boton {
+        @apply inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg bg-superficie px-2.5 py-1.5
+            text-xs font-semibold text-gray-600 ring-1 ring-gray-200 transition-colors select-none
+            hover:bg-acento/40 hover:text-primario hover:ring-primario/30
+            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario;
+    }
+
+    .exportar-boton::-webkit-details-marker {
+        display: none;
+    }
+
+    .exportar-menu[open] .exportar-boton {
+        @apply bg-acento/50 text-primario ring-primario/30;
+    }
+
+    .exportar-boton-flecha {
+        @apply transition-transform duration-150;
+    }
+
+    .exportar-menu[open] .exportar-boton-flecha {
+        @apply rotate-180;
+    }
+
+    .exportar-opciones {
+        @apply absolute right-0 z-20 mt-2 w-64 max-w-[calc(100vw-2.5rem)] animate-fade-down overflow-hidden
+            rounded-xl bg-superficie p-1.5 shadow-lg ring-1 ring-gray-200;
+    }
+
+    .exportar-opcion {
+        @apply flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors
+            hover:bg-acento/40
+            focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primario;
+    }
+
+    .exportar-opcion-formato {
+        @apply inline-flex w-12 shrink-0 justify-center rounded-md bg-gray-100 py-0.5 text-xs font-bold
+            tracking-wide text-gray-700;
+    }
+
+    .exportar-opcion-texto {
+        @apply text-gray-600;
+    }
+
+    /* --- Tabla ordenable (ranking) -------------------------------------------- */
+
+    .tabla-orden {
+        @apply -mx-1 inline-flex items-center gap-1 rounded px-1 uppercase transition-colors hover:text-gray-900
+            focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primario;
+    }
+
+    .tabla-orden-activo {
+        @apply text-primario hover:text-primario;
+    }
+
+    .tabla-orden-icono {
+        @apply opacity-50;
+    }
+
+    .ranking-posicion {
+        @apply inline-flex size-7 items-center justify-center rounded-full bg-gray-100 text-xs font-bold
+            text-gray-600 tabular-nums;
+    }
+
+    .ranking-posicion-podio {
+        @apply bg-acento text-primario;
+    }
+
+    .ranking-ong {
+        @apply flex items-center gap-3 font-medium text-gray-900;
+    }
+
+    .ranking-cifra {
+        @apply font-semibold text-gray-900 tabular-nums;
+    }
+
+    .ranking-sin-dato {
+        @apply text-gray-400;
+    }
+
+    /* --- Seccion que no se pudo calcular (el motor de procesos no respondio) --- */
+
+    .seccion-error {
+        @apply flex flex-col items-start gap-4 border-l-4 border-amber-500 p-5 sm:flex-row sm:items-center;
+    }
+
+    .seccion-error-icono {
+        @apply inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-700;
+    }
+
+    .seccion-error-textos {
+        @apply flex-1 space-y-0.5;
+    }
+
+    .seccion-error-titulo {
+        @apply text-sm font-semibold text-gray-900;
+    }
+
+    .seccion-error-mensaje {
+        @apply text-sm text-gray-600;
+    }
+
+    /* --- Esqueleto de carga --------------------------------------------------- */
+
+    .esqueleto-tarjeta {
+        @apply gap-3;
+    }
+
+    .esqueleto {
+        @apply block rounded-md bg-gray-100;
+        background-image: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.7), transparent);
+        background-size: 200% 100%;
+        background-repeat: no-repeat;
+        animation: esqueleto-brillo 1.4s ease-in-out infinite;
+    }
+
+    .esqueleto-titulo {
+        @apply h-4 w-1/3;
+    }
+
+    .esqueleto-texto {
+        @apply h-3 w-2/3;
+    }
+
+    .esqueleto-lienzo {
+        @apply mt-2 h-56 w-full rounded-lg sm:h-64;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .esqueleto {
+            animation: none;
+        }
+    }
+
+    /* --- Tonos de la paleta categorica (los de graficos.js, para leyendas) ---- */
+
+    /* Paleta categorica validada para daltonismo: el mismo orden que graficos.js. */
+    .grafico-tono-serie-1,
+    .grafico-tono-primario {
+        @apply bg-primario;
+    }
+
+    .grafico-tono-serie-2 {
+        background-color: #1baf7a;
+    }
+
+    .grafico-tono-serie-3 {
+        background-color: #6250d6;
+    }
+
+    .grafico-tono-serie-4 {
+        background-color: #eb6834;
+    }
+
+    .grafico-tono-serie-5 {
+        background-color: #2a78d6;
+    }
+
+    .grafico-tono-serie-6 {
+        background-color: #eda100;
+    }
+
+    .grafico-tono-serie-7 {
+        background-color: #008300;
+    }
+
+    .grafico-tono-serie-8 {
+        background-color: #e87ba4;
+    }
+
+    .rubro-punto {
+        @apply inline-block size-2.5 shrink-0 rounded-full;
+    }
+
+
+    /* --- Resolucion en termino: una tarjeta por gravedad ------------------------ */
+
+    .gravedad-tarjetas {
+        @apply grid gap-4 sm:grid-cols-2 xl:grid-cols-4;
+    }
+
+    .gravedad-tarjeta {
+        @apply flex min-w-0 flex-col gap-2 p-4 sm:p-5;
+    }
+
+    .gravedad-tarjeta-cabecera {
+        @apply flex flex-wrap items-center justify-between gap-2;
+    }
+
+    .gravedad-tarjeta-nombre {
+        @apply inline-flex items-center gap-2 text-sm font-semibold text-gray-900;
+    }
+
+    .gravedad-tarjeta-plazo {
+        @apply rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600;
+    }
+
+    .gravedad-tarjeta-cifra {
+        @apply mt-1 text-3xl font-bold tracking-tight text-gray-900 tabular-nums;
+    }
+
+    .gravedad-tarjeta-sin-dato {
+        @apply text-gray-300;
+    }
+
+    .gravedad-tarjeta-texto {
+        @apply text-sm text-gray-600;
+    }
+
+    .gravedad-tarjeta-texto strong {
+        @apply font-semibold text-gray-900 tabular-nums;
+    }
+
+    .gravedad-relleno-baja {
+        @apply bg-gray-400;
+    }
+
+    .gravedad-relleno-media {
+        @apply bg-blue-500;
+    }
+
+    .gravedad-relleno-alta {
+        @apply bg-amber-500;
+    }
+
+    .gravedad-relleno-critica {
+        @apply bg-primario;
+    }
+}
+
+@keyframes esqueleto-brillo {
+    from {
+        background-position: 150% 0;
+    }
+
+    to {
+        background-position: -50% 0;
     }
 }

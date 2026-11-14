@@ -1,20 +1,48 @@
 {#- Piezas del panel de auditoria (clases en src/componentes/indicadores.css).
 
-    {% from "componentes/indicadores.html" import tarjeta_indicador %}
+    {% from "componentes/indicadores.html" import tarjeta_indicador, tarjeta_grafico %}
 
     - tarjeta_indicador(etiqueta, valor, icono_nombre, tono, detalle, total, pendiente)
         Cifra destacada de un indicador. `tono` es primario, info, exito o advertencia.
-        Con `total`, muestra que porcentaje del total representa la cifra y una barra.
-        Con `valor` en none, el indicador no tiene datos todavia: se muestra "—" con la insignia
-        "Próximamente" y el texto `pendiente`, nunca un 0 que se leeria como un dato real.
+        `valor` es un numero (se escribe con separador de miles) o un texto ya formateado
+        ("5,0 días", "40 %"). Con `total`, muestra que porcentaje del total representa la cifra
+        y una barra. Con `valor` en none, el indicador no tiene datos: se muestra "—" con la
+        insignia "Sin datos" y el texto `pendiente`, nunca un 0 que se leeria como un dato real.
 
-    - tarjeta_grafico(id, titulo, descripcion, definicion, filas, vacio, resumen, centro)
+    - tarjeta_grafico(id, titulo, descripcion, definicion, filas, vacio, resumen, centro,
+                      encabezados, exportacion)
         Tarjeta con un grafico de Chart.js que dibuja estaticos/js/graficos.js a partir de
-        `definicion` (ver el encabezado de ese archivo). `filas` son pares (etiqueta, valor) con
-        los mismos datos en una tabla: la leen los lectores de pantalla y es lo que se ve sin
-        JavaScript. `resumen` es el texto alternativo del lienzo. Con `vacio` (un texto) no hay
-        grafico: se explica por que. `centro` es un par (cifra, texto) que va en el hueco de una
-        dona. Con {% call %}, el contenido va debajo del grafico (leyendas, notas). -#}
+        `definicion` (ver el encabezado de ese archivo). `filas` son los mismos datos en una
+        tabla: la leen los lectores de pantalla y es lo que se ve sin JavaScript. Cada fila es un
+        par (etiqueta, valor) o, con `encabezados` (el nombre de cada columna), una tupla con un
+        valor por columna. `resumen` es el texto alternativo del lienzo. Con `vacio` (un texto)
+        no hay grafico: se explica por que. `centro` es un par (cifra, texto) que va en el hueco
+        de una dona. `exportacion` son los enlaces de descarga del indicador (la funcion
+        `exportacion(slug)` del contexto del panel). Con {% call %}, el contenido va debajo del
+        grafico (leyendas, notas).
+
+    - menu_exportar(exportacion, titulo, grafico_id)
+        Boton "Exportar" con las descargas en CSV y JSON del indicador (no necesitan JavaScript)
+        y, con `grafico_id`, la imagen PNG del grafico (la arma indicadores.js desde el lienzo).
+
+    - encabezado_de_seccion(id, titulo, texto, apilada)
+        Titulo de una seccion del panel. Con {% call %}, sus filtros van a la derecha; con
+        `apilada`, debajo (para filtros con muchas opciones).
+
+    - filtro_segmentado(etiqueta, region, opciones)
+        Filtro propio de una seccion: un enlace por opcion, que indicadores.js aplica sin
+        recargar (y sin JavaScript recarga la pagina). `opciones` son diccionarios con `texto`,
+        `url`, `activo` y, opcionalmente, `punto` (la clase del punto de color).
+
+    - encabezado_ordenable(texto, url, activo, direccion)
+        Encabezado de columna que ordena la tabla al hacer clic (un enlace que aplica el orden
+        sin recargar). `direccion` es "ascending" o "descending" y se anuncia con aria-sort.
+
+    - aviso_de_error(titulo, mensaje, url_de_reintento)
+        Una seccion que no se pudo calcular, con el boton para volver a pedirla.
+
+    - esqueleto_de_graficos(cantidad)
+        Lugar reservado mientras llegan los datos de una seccion de carga diferida. -#}
 
 {% from "componentes/destacados.html" import icono_destacado %}
 {% from "componentes/diseno.html" import insignia %}
@@ -27,7 +55,7 @@
 
 {% macro tarjeta_indicador(etiqueta, valor, icono_nombre, tono="primario", detalle=none, total=none, pendiente=none) -%}
 {%- set sin_dato = valor is none %}
-{%- set porcentaje = ((valor / total * 100)|round|int) if (not sin_dato and total) else none %}
+{%- set porcentaje = ((valor / total * 100)|round|int) if (not sin_dato and valor is number and total) else none %}
 <article class="kpi kpi-{{ tono }}">
   <div class="kpi-cabecera">
     <h3 class="kpi-etiqueta">{{ etiqueta }}</h3>
@@ -36,13 +64,13 @@
   {%- if sin_dato %}
   <p class="kpi-valor kpi-valor-sin-dato"><span aria-hidden="true">—</span><span class="sr-only">Sin datos</span></p>
   <div class="kpi-pie">
-    {{ insignia("Próximamente", "neutra") }}
+    {{ insignia("Sin datos", "neutra") }}
     {%- if pendiente %}
     <p class="kpi-detalle">{{ pendiente }}</p>
     {%- endif %}
   </div>
   {%- else %}
-  <p class="kpi-valor">{{ _numero(valor) }}</p>
+  <p class="kpi-valor">{{ valor if valor is string else _numero(valor) }}</p>
   <div class="kpi-pie">
     {%- if detalle %}
     <p class="kpi-detalle">{{ detalle }}</p>
@@ -56,10 +84,49 @@
 </article>
 {%- endmacro %}
 
-{% macro tarjeta_grafico(id, titulo, descripcion, definicion, filas, vacio=none, resumen=none, centro=none) -%}
+{% macro menu_exportar(exportacion, titulo, grafico_id=none) -%}
+<details class="exportar-menu" data-exportar-menu>
+  <summary class="exportar-boton">
+    {{ icono("descargar", "size-4") }}
+    <span>Exportar</span>
+    <span class="sr-only">los datos de {{ titulo }}</span>
+    {{ icono("desplegar", "size-3.5 exportar-boton-flecha") }}
+  </summary>
+  <ul class="exportar-opciones">
+    <li>
+      <a class="exportar-opcion" href="{{ exportacion.csv }}" download>
+        <span class="exportar-opcion-formato">CSV</span>
+        <span class="exportar-opcion-texto">Para abrir en una planilla</span>
+      </a>
+    </li>
+    <li>
+      <a class="exportar-opcion" href="{{ exportacion.json }}" download>
+        <span class="exportar-opcion-formato">JSON</span>
+        <span class="exportar-opcion-texto">Datos estructurados con los filtros</span>
+      </a>
+    </li>
+    {%- if grafico_id %}
+    {#- Sin JavaScript no hay grafico que descargar: indicadores.js muestra la opcion. -#}
+    <li hidden data-opcion-imagen>
+      <button type="button" class="exportar-opcion" data-exportar-imagen="{{ grafico_id }}" data-nombre-archivo="{{ exportacion.png }}">
+        <span class="exportar-opcion-formato">PNG</span>
+        <span class="exportar-opcion-texto">Imagen del gráfico para informes</span>
+      </button>
+    </li>
+    {%- endif %}
+  </ul>
+</details>
+{%- endmacro %}
+
+{% macro tarjeta_grafico(id, titulo, descripcion, definicion, filas, vacio=none, resumen=none, centro=none, encabezados=none, exportacion=none) -%}
 <article class="tarjeta grafico-tarjeta" aria-labelledby="{{ id }}-titulo">
   <header class="grafico-cabecera">
-    <h3 id="{{ id }}-titulo" class="grafico-titulo">{{ titulo }}</h3>
+    <div class="grafico-cabecera-fila">
+      <h3 id="{{ id }}-titulo" class="grafico-titulo">{{ titulo }}</h3>
+      {%- if exportacion %}
+      {{ menu_exportar(exportacion, titulo, none if vacio else id) }}
+      {%- endif %}
+    </div>
     <p class="grafico-descripcion">{{ descripcion }}</p>
   </header>
   {%- if vacio %}
@@ -81,11 +148,22 @@
     </div>
     <table class="grafico-respaldo" data-grafico-respaldo>
       <caption class="sr-only">{{ titulo }}</caption>
-      <tbody>
-        {%- for etiqueta, valor in filas %}
+      {%- if encabezados %}
+      <thead>
         <tr>
-          <th scope="row">{{ etiqueta }}</th>
+          {%- for encabezado in encabezados %}
+          <th scope="col">{{ encabezado }}</th>
+          {%- endfor %}
+        </tr>
+      </thead>
+      {%- endif %}
+      <tbody>
+        {%- for fila in filas %}
+        <tr>
+          <th scope="row">{{ fila[0] }}</th>
+          {%- for valor in fila[1:] %}
           <td>{{ valor }}</td>
+          {%- endfor %}
         </tr>
         {%- endfor %}
       </tbody>
@@ -97,4 +175,74 @@
   {{ caller() }}
   {%- endif %}
 </article>
+{%- endmacro %}
+
+{% macro encabezado_de_seccion(id, titulo, texto, apilada=false) -%}
+<div class="seccion-cabecera{{ ' seccion-cabecera-apilada' if apilada }}">
+  <div>
+    <h2 id="{{ id }}" class="seccion-titulo">{{ titulo }}</h2>
+    <p class="seccion-texto">{{ texto }}</p>
+  </div>
+  {%- if caller is defined %}
+  {{ caller() }}
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{% macro filtro_segmentado(etiqueta, region, opciones) -%}
+<nav class="filtro-segmentado" aria-label="{{ etiqueta }}" data-filtro-de-seccion data-panel-actualizable="{{ region }}">
+  {%- for opcion in opciones %}
+  <a class="filtro-segmento{{ ' filtro-segmento-activo' if opcion.activo }}" href="{{ opcion.url }}"
+     {%- if opcion.activo %} aria-current="true"{% endif %}>
+    {%- if opcion.punto %}
+    <span class="{{ opcion.punto }}" aria-hidden="true"></span>
+    {%- endif %}
+    {{ opcion.texto }}
+  </a>
+  {%- endfor %}
+</nav>
+{%- endmacro %}
+
+{% macro encabezado_ordenable(texto, url, activo, direccion="descending") -%}
+<th scope="col" class="tabla-encabezado"{% if activo %} aria-sort="{{ direccion }}"{% endif %}>
+  <a class="tabla-orden{{ ' tabla-orden-activo' if activo }}" href="{{ url }}"
+     {%- if activo %} aria-current="true"{% endif %}>
+    <span>{{ texto }}</span>
+    {%- if activo %}
+    {{ icono("ascendente" if direccion == "ascending" else "descendente", "size-3.5") }}
+    <span class="sr-only">(orden actual)</span>
+    {%- else %}
+    {{ icono("ordenar", "size-3.5 tabla-orden-icono") }}
+    <span class="sr-only">(ordenar por esta columna)</span>
+    {%- endif %}
+  </a>
+</th>
+{%- endmacro %}
+
+{% macro aviso_de_error(titulo, mensaje, url_de_reintento) -%}
+<div class="tarjeta seccion-error" role="alert">
+  <span class="seccion-error-icono">{{ icono("advertencia", "size-6") }}</span>
+  <div class="seccion-error-textos">
+    <p class="seccion-error-titulo">{{ titulo }}</p>
+    <p class="seccion-error-mensaje">{{ mensaje }}</p>
+  </div>
+  <a class="btn btn-secundario" href="{{ url_de_reintento }}" data-reintentar>
+    {{ icono("reintentar", "size-4") }}
+    <span>Reintentar</span>
+  </a>
+</div>
+{%- endmacro %}
+
+{% macro esqueleto_de_graficos(cantidad=2) -%}
+<div class="graficos-grilla" aria-hidden="true">
+  {%- for _ in range(cantidad) %}
+  <div class="{{ 'graficos-grilla-ancha' if loop.first else 'graficos-grilla-angosta' }}">
+    <div class="tarjeta grafico-tarjeta esqueleto-tarjeta">
+      <span class="esqueleto esqueleto-titulo"></span>
+      <span class="esqueleto esqueleto-texto"></span>
+      <span class="esqueleto esqueleto-lienzo"></span>
+    </div>
+  </div>
+  {%- endfor %}
+</div>
 {%- endmacro %}

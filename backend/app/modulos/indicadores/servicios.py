@@ -1,8 +1,13 @@
-"""Servicios del panel de auditoria.
+"""Servicios del panel de auditoria: secciones "Resumen" y "Emergencias".
 
 Cada metrica sale de la capa de servicios del modulo al que pertenece el dato: este modulo
 compone los resultados y nunca importa modelos ni consulta tablas ajenas
 (docs/arquitectura/componentes.md seccion 5, reglas 3 y 4).
+
+Las demas secciones viven cada una en su modulo (`recursos`, `red_de_ongs`, `respuesta`,
+`proceso`) con la misma forma: una funcion `obtener_seccion_de_*(periodo, **filtros)` que
+devuelve un resultado con `a_diccionario()` para JSON y una `tabla()` por indicador para la
+exportacion. `secciones.py` las reune.
 """
 
 from __future__ import annotations
@@ -21,25 +26,34 @@ from app.modulos.indicadores.cobertura import (
     porcentaje_cubierto,
     porcentajes_que_suman_100,
 )
+from app.modulos.indicadores.exportacion import TablaExportable
 from app.modulos.indicadores.periodo import Periodo
 
 
 @dataclass(frozen=True, slots=True)
 class ResumenDeActividad:
-    """Las cuatro cifras de la cabecera del panel, sobre las emergencias registradas en el periodo.
-
-    Una cifra en None significa "sin datos": su fuente todavia no existe o no respondio. Es
-    distinto de 0, y la interfaz lo muestra distinto.
-    """
+    """Las cuatro cifras de la cabecera del panel, sobre las emergencias del periodo."""
 
     emergencias_registradas: int
     # En curso: ni finalizadas ni canceladas.
     emergencias_activas: int
     emergencias_finalizadas: int
-    ongs_con_adjudicacion: int | None
+    ongs_con_adjudicacion: int
 
-    def a_diccionario(self) -> dict[str, int | None]:
+    def a_diccionario(self) -> dict[str, int]:
         return asdict(self)
+
+    def tabla(self) -> TablaExportable:
+        """Una fila por cifra: indicador y valor."""
+        return TablaExportable(
+            columnas=("indicador", "valor"),
+            filas=(
+                ("Emergencias registradas", self.emergencias_registradas),
+                ("Emergencias activas", self.emergencias_activas),
+                ("Emergencias finalizadas", self.emergencias_finalizadas),
+                ("ONGs con adjudicación", self.ongs_con_adjudicacion),
+            ),
+        )
 
 
 def obtener_resumen_de_actividad(periodo: Periodo) -> ResumenDeActividad:
@@ -152,6 +166,30 @@ class SeccionDeEmergencias:
             "por_estado": [fila.a_diccionario() for fila in self.por_estado],
             "cobertura": self.cobertura.a_diccionario(),
         }
+
+    def tabla_por_estado(self) -> TablaExportable:
+        """Una fila por estado, como las barras del grafico. Sin emergencias, vacia."""
+        return TablaExportable(
+            columnas=("estado", "emergencias"),
+            filas=tuple(
+                (etiqueta_estado_emergencia(fila.estado), fila.cantidad) for fila in self.por_estado
+            )
+            if self.registradas
+            else (),
+        )
+
+    def tabla_de_cobertura(self) -> TablaExportable:
+        """Las dos porciones de la torta de cobertura. Sin finalizadas evaluadas, vacia."""
+        cobertura = self.cobertura
+        return TablaExportable(
+            columnas=("cobertura", "emergencias", "porcentaje"),
+            filas=(
+                ("Cobertura total", cobertura.total.cantidad, cobertura.total.porcentaje),
+                ("Cobertura parcial", cobertura.parcial.cantidad, cobertura.parcial.porcentaje),
+            )
+            if cobertura.evaluadas
+            else (),
+        )
 
 
 def obtener_seccion_de_emergencias(

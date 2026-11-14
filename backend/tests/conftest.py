@@ -232,13 +232,19 @@ def crear_emergencias(app, base_de_datos: None) -> Callable[..., list[int]]:
 
 
 @pytest.fixture
-def cargar_necesidades(app, base_de_datos: None) -> Callable[..., None]:
-    """Carga a una emergencia un lote con sus items y lo que el Sistema Nacional habilito.
+def cargar_necesidades(app, base_de_datos: None) -> Callable[..., int]:
+    """Carga a una emergencia un lote con sus items, su evaluacion y su adjudicacion.
 
     Recibe el id de la emergencia y tuplas `(requerida, ofrecida)` o
     `(requerida, ofrecida, clasificacion)`, una por item del lote; sin clasificacion, la linea
-    queda como `principal` (habilitada). Con `ofrecida` en 0 el item no recibe ofertas. Arma una
-    convocatoria y una oferta presentada de la ONG del representante para colgar las lineas.
+    queda como `principal` (habilitada). Con `ofrecida` en 0 el item no recibe ofertas.
+
+    Arma una convocatoria adjudicada en `adjudicada_en` y una oferta con las lineas. Como en el
+    proceso real, el municipio solo selecciona lineas habilitadas: la oferta queda adjudicada si
+    tiene alguna. `categorias` elige el rubro de cada item, en orden (un item distinto del
+    catalogo por linea; sin ella se toman los primeros items). La oferta es de la ONG `ong` (por
+    nombre; sin ella, la del representante) y `consorcio` suma otras ONGs participantes
+    aceptadas. Devuelve el id de la oferta.
     """
     from datetime import UTC, datetime
 
@@ -247,10 +253,45 @@ def cargar_necesidades(app, base_de_datos: None) -> Callable[..., None]:
     from app.extensiones import db
     from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
     from app.modulos.emergencias.modelos import EstadoLote, Item, LoteItem, LoteNecesidad
-    from app.modulos.ofertas.modelos import EstadoOferta, Oferta, OfertaLinea, TipoAsignacion
+    from app.modulos.ofertas.modelos import (
+        EstadoOferta,
+        Oferta,
+        OfertaLinea,
+        OfertaOrganizacion,
+        TipoAsignacion,
+    )
+    from app.modulos.organizaciones.modelos import Organizacion
     from app.modulos.usuarios_roles.modelos import Usuario
 
-    def _cargar(emergencia_id: int, *items, estado_del_lote=EstadoLote.adjudicado_total) -> None:
+    habilitadas = (TipoAsignacion.principal, TipoAsignacion.apoyo)
+
+    def _items_del_catalogo(categorias) -> list:
+        catalogo = db.session.execute(select(Item).order_by(Item.id)).scalars().all()
+        if categorias is None:
+            return list(catalogo)
+        por_categoria: dict = {}
+        for item in catalogo:
+            por_categoria.setdefault(item.categoria, []).append(item)
+        usados: dict = {}
+        elegidos = []
+        for categoria in categorias:
+            indice = usados.get(categoria, 0)
+            elegidos.append(por_categoria[categoria][indice])
+            usados[categoria] = indice + 1
+        return elegidos
+
+    def _id_de_ong(nombre: str) -> int:
+        return db.session.execute(select(Organizacion.id).filter_by(nombre=nombre)).scalar_one()
+
+    def _cargar(
+        emergencia_id: int,
+        *items,
+        estado_del_lote=EstadoLote.adjudicado_total,
+        adjudicada_en: datetime = datetime(2025, 1, 3, tzinfo=UTC),
+        categorias=None,
+        ong: str | None = None,
+        consorcio: tuple[str, ...] = (),
+    ) -> int:
         with app.app_context():
             coordinador = db.session.execute(
                 select(Usuario).filter_by(email=EMAIL_COORDINADOR)
@@ -258,7 +299,6 @@ def cargar_necesidades(app, base_de_datos: None) -> Callable[..., None]:
             representante = db.session.execute(
                 select(Usuario).filter_by(email=EMAIL_REPRESENTANTE)
             ).scalar_one()
-            catalogo = db.session.execute(select(Item).order_by(Item.id)).scalars().all()
 
             convocatoria = Convocatoria(
                 emergencia_id=emergencia_id,
@@ -267,6 +307,7 @@ def cargar_necesidades(app, base_de_datos: None) -> Callable[..., None]:
                 fecha_cierre=datetime(2025, 1, 2, tzinfo=UTC),
                 resumen_situacion="Convocatoria creada por un test.",
                 estado=EstadoConvocatoria.adjudicada,
+                adjudicada_en=adjudicada_en,
             )
             lote = LoteNecesidad(
                 emergencia_id=emergencia_id, convocatoria=convocatoria, estado=estado_del_lote
@@ -277,20 +318,76 @@ def cargar_necesidades(app, base_de_datos: None) -> Callable[..., None]:
                 estado=EstadoOferta.presentada,
             )
             db.session.add_all([convocatoria, lote, oferta])
+            lider_id = _id_de_ong(ong) if ong else representante.organizacion_id
+            participantes = {lider_id: "lider", **{_id_de_ong(n): "aportante" for n in consorcio}}
+            for organizacion_id, rol in participantes.items():
+                db.session.add(
+                    OfertaOrganizacion(
+                        oferta=oferta,
+                        organizacion_id=organizacion_id,
+                        rol_consorcio=rol,
+                        estado_participacion="aceptada",
+                    )
+                )
 
-            for item, (requerida, ofrecida, *resto) in zip(catalogo, items, strict=False):
+            for item, (requerida, ofrecida, *resto) in zip(
+                _items_del_catalogo(categorias), items, strict=False
+            ):
                 lote_item = LoteItem(lote=lote, item_id=item.id, cantidad_solicitada=requerida)
                 db.session.add(lote_item)
                 if ofrecida:
+                    clasificacion = resto[0] if resto else TipoAsignacion.principal
+                    seleccionada = clasificacion in habilitadas
                     db.session.add(
                         OfertaLinea(
                             oferta=oferta,
                             lote_item=lote_item,
-                            organizacion_id=representante.organizacion_id,
+                            organizacion_id=lider_id,
                             cantidad_ofrecida=ofrecida,
-                            tipo_asignacion=resto[0] if resto else TipoAsignacion.principal,
+                            tipo_asignacion=clasificacion,
+                            seleccionada=seleccionada,
                         )
                     )
+                    if seleccionada:
+                        oferta.estado = EstadoOferta.adjudicada
             db.session.commit()
+            return oferta.id
 
     return _cargar
+
+
+@pytest.fixture
+def finalizar_actividad(app, base_de_datos: None) -> Callable[..., None]:
+    """Registra que una ONG (por nombre) finalizo su actividad de una oferta en `fecha_fin`.
+
+    Con `fecha_fin` en None la actividad queda abierta (en progreso), sin fecha de fin.
+    """
+    from sqlalchemy import select
+
+    from app.extensiones import db
+    from app.modulos.ejecucion_cierre.modelos import EstadoTareaEjecucion, TareaEjecucion
+    from app.modulos.ofertas.modelos import Oferta
+    from app.modulos.organizaciones.modelos import Organizacion
+
+    def _finalizar(oferta_id: int, ong: str, fecha_fin) -> None:
+        with app.app_context():
+            oferta = db.session.get(Oferta, oferta_id)
+            organizacion_id = db.session.execute(
+                select(Organizacion.id).filter_by(nombre=ong)
+            ).scalar_one()
+            tarea = TareaEjecucion(
+                emergencia_id=oferta.convocatoria.emergencia_id,
+                oferta_id=oferta_id,
+                organizacion_id=organizacion_id,
+                estado=(
+                    EstadoTareaEjecucion.finalizada
+                    if fecha_fin
+                    else EstadoTareaEjecucion.en_progreso
+                ),
+            )
+            tarea.fecha_inicio = oferta.convocatoria.adjudicada_en
+            tarea.fecha_fin = fecha_fin
+            db.session.add(tarea)
+            db.session.commit()
+
+    return _finalizar

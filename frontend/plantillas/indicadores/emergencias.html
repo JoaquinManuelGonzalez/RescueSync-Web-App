@@ -2,7 +2,7 @@
 {% from "componentes/alertas.html" import alerta %}
 {% from "componentes/diseno.html" import insignia %}
 {% from "componentes/iconos.html" import icono %}
-{% from "componentes/indicadores.html" import tarjeta_grafico %}
+{% from "componentes/indicadores.html" import tarjeta_grafico, encabezado_de_seccion, filtro_segmentado %}
 {% from "componentes/tablas.html" import tabla, celda %}
 
 {% block title %}Emergencias · Panel de auditoría{% endblock %}
@@ -35,32 +35,23 @@
 {%- set gravedad = seccion.gravedad %}
 {%- set con_gravedad = (" con gravedad " ~ (gravedad|etiqueta_gravedad)|lower) if gravedad else "" %}
 <section class="space-y-5" aria-labelledby="emergencias-titulo" data-seccion-emergencias>
-  <div class="seccion-cabecera">
-    <div>
-      <h2 id="emergencias-titulo" class="seccion-titulo">Emergencias</h2>
-      <p class="seccion-texto">Cuántas hay en cada estado y si las finalizadas cubrieron lo que pidieron.</p>
-    </div>
-
+  {%- set opciones_de_gravedad = [{"texto": "Todas", "url": url_for("indicadores.emergencias"), "activo": gravedad is none}] %}
+  {%- for nivel in filtros.gravedad.opciones %}
+  {%- set _ = opciones_de_gravedad.append({
+      "texto": nivel|etiqueta_gravedad,
+      "url": url_for("indicadores.emergencias", gravedad=nivel.value),
+      "activo": gravedad == nivel,
+      "punto": "gravedad-punto gravedad-punto-" ~ nivel.value,
+  }) %}
+  {%- endfor %}
+  {% call encabezado_de_seccion("emergencias-titulo", "Emergencias", "Cuántas hay en cada estado y si las finalizadas cubrieron lo que pidieron.") %}
     {#- Enlaces comunes: sin JavaScript cada uno recarga la seccion con su gravedad. -#}
-    <nav class="filtro-segmentado" aria-label="Filtrar por nivel de gravedad"
-         data-filtro-de-seccion data-panel-actualizable="filtro-gravedad">
-      {%- set todas_activa = gravedad is none %}
-      <a class="filtro-segmento{{ ' filtro-segmento-activo' if todas_activa }}" href="{{ url_for('indicadores.emergencias') }}"
-         {%- if todas_activa %} aria-current="true"{% endif %}>Todas</a>
-      {%- for nivel in niveles_de_gravedad %}
-      {%- set activo = gravedad == nivel %}
-      <a class="filtro-segmento{{ ' filtro-segmento-activo' if activo }}" href="{{ url_for('indicadores.emergencias', gravedad=nivel.value) }}"
-         {%- if activo %} aria-current="true"{% endif %}>
-        <span class="gravedad-punto gravedad-punto-{{ nivel.value }}" aria-hidden="true"></span>
-        {{ nivel|etiqueta_gravedad }}
-      </a>
-      {%- endfor %}
-    </nav>
-  </div>
+    {{ filtro_segmentado("Filtrar por nivel de gravedad", "filtro-gravedad", opciones_de_gravedad) }}
+  {% endcall %}
 
   <div class="space-y-5" aria-live="polite" data-panel-actualizable="seccion-emergencias">
-    {%- if filtro_de_gravedad.errors %}
-    {{ alerta("error", filtro_de_gravedad.gravedad.errors|first ~ " Se muestran todas.", titulo="El filtro de gravedad no se aplicó") }}
+    {%- if filtros.gravedad.errors %}
+    {{ alerta("error", filtros.gravedad.gravedad.errors|first ~ " Se muestran todas.", titulo="El filtro de gravedad no se aplicó") }}
     {%- endif %}
 
     <div class="graficos-grilla">
@@ -84,10 +75,11 @@
             "grafico-estados",
             "Emergencias por estado",
             "Registradas en el período" ~ con_gravedad ~ ", según en qué etapa están hoy.",
-            {"tipo": "barras", "etiquetas": etiquetas, "valores": valores, "tonos": tonos, "detalles": detalles, "unidad": ["emergencia", "emergencias"]},
+            {"tipo": "barras", "etiquetas": etiquetas, "valores": valores, "tonos": tonos, "detalles": detalles, "unidad": ["emergencia", "emergencias"], "mostrarValores": true},
             filas,
             vacio=("No hay emergencias registradas en este período" ~ con_gravedad ~ ".") if seccion.registradas == 0 else none,
             resumen=resumen_estados,
+            exportacion=exportacion("emergencias-por-estado"),
         ) }}
       </div>
 
@@ -122,6 +114,7 @@
             vacio=vacio_cobertura,
             resumen="Cobertura de las finalizadas: " ~ (filas_cobertura|map("join", " ")|join(", ")),
             centro=(cobertura.total.porcentaje ~ " %", "con cobertura total"),
+            exportacion=exportacion("cobertura-de-finalizadas"),
         ) %}
         {%- if cobertura.evaluadas %}
         <ul class="grafico-leyenda">
@@ -154,7 +147,7 @@
       {% call tabla(["Emergencia", "Gravedad", "Cobertura"]) %}
         {%- for emergencia in cobertura.con_faltantes %}
         <tr class="tabla-fila">
-          {% call celda("Emergencia") %}<span class="font-medium text-gray-900">{{ emergencia.titulo }}</span>{% endcall %}
+          <td class="tabla-celda tabla-celda-principal"><span class="font-medium text-gray-900">{{ emergencia.titulo }}</span></td>
           {% call celda("Gravedad") %}{{ insignia(emergencia.gravedad|etiqueta_gravedad, VARIANTE_POR_GRAVEDAD.get(emergencia.gravedad.value, "neutra")) }}{% endcall %}
           {% call celda("Cobertura") %}
           <div class="cobertura-barra-fila">

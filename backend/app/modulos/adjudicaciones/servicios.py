@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal
 
 from sqlalchemy import Select, case, func, or_, select
@@ -21,13 +22,14 @@ from app.core.errores import (
     SolicitudInvalida,
 )
 from app.extensiones import db
+from app.modulos.convocatorias import servicios as servicios_de_convocatorias
 from app.modulos.convocatorias.modelos import (
     Convocatoria,
     DecisionCobertura,
     EstadoConvocatoria,
 )
 from app.modulos.emergencias import servicios as servicios_de_emergencias
-from app.modulos.emergencias.modelos import Emergencia, EstadoEmergencia
+from app.modulos.emergencias.modelos import Emergencia, EstadoEmergencia, TipoNecesidad
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 from app.modulos.ofertas import servicios as servicios_de_ofertas
 from app.modulos.ofertas.modelos import EstadoOferta, Oferta, TipoAsignacion
@@ -185,6 +187,9 @@ def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[int]) -> list
     for oferta, adjudicada in resultados:
         servicios_de_notificaciones.notificar_resultado_adjudicacion(oferta, adjudicada)
     convocatoria.estado = EstadoConvocatoria.adjudicada
+    # El momento de la adjudicacion: desde aca miden los tiempos y las series mensuales del
+    # panel de auditoria.
+    convocatoria.adjudicada_en = datetime.now(UTC)
     db.session.commit()
     return [oferta for oferta in ofertas if any(linea.seleccionada for linea in oferta.items)]
 
@@ -291,21 +296,44 @@ class UnidadesDeEmergencia:
     adjudicadas: int
 
 
-def contar_ongs_con_adjudicacion(*, emergencia_ids: Select[tuple[int]]) -> int | None:
+def _ofertas_adjudicadas_de(emergencia_ids: Select[tuple[int]]):
+    """Subconsulta con las ofertas adjudicadas de esas emergencias y cuando se adjudicaron.
+
+    Columnas: `oferta_id`, `emergencia_id` y `adjudicada_en`. Cruza las convocatorias adjudicadas
+    con sus ofertas adjudicadas, cada una desde la capa de servicios de su modulo.
+    """
+    adjudicaciones = servicios_de_convocatorias.consultar_adjudicaciones(
+        emergencia_ids=emergencia_ids
+    ).subquery()
+    ofertas = servicios_de_ofertas.consultar_ofertas_adjudicadas(
+        convocatoria_ids=select(adjudicaciones.c.convocatoria_id)
+    ).subquery()
+    return (
+        select(
+            ofertas.c.oferta_id,
+            adjudicaciones.c.emergencia_id,
+            adjudicaciones.c.adjudicada_en,
+        )
+        .join(adjudicaciones, adjudicaciones.c.convocatoria_id == ofertas.c.convocatoria_id)
+        .subquery()
+    )
+
+
+def contar_ongs_con_adjudicacion(*, emergencia_ids: Select[tuple[int]]) -> int:
     """Cantidad de ONGs distintas con al menos una adjudicacion sobre esas emergencias.
 
     `emergencia_ids` es una subconsulta de ids de emergencia (por ejemplo, la que arma
     `emergencias.servicios.consultar_ids_de_emergencias_registradas`): la implementacion la usa
     como `emergencia_id.in_(emergencia_ids)` para resolver todo en una sola consulta.
 
-    Devuelve None mientras el modulo no registre adjudicaciones. El panel lo muestra como "sin
-    datos" y no como un 0, que un directivo leeria como "ninguna ONG fue adjudicada".
-
-    TODO(adjudicaciones): reemplazar el cuerpo cuando exista el modelo `Adjudicacion`. Se cuentan
-    las organizaciones de tipo `ong` (`COUNT(DISTINCT organizacion_id)`) y la firma no cambia, asi
-    que el panel no se toca.
+    Una ONG cuenta si participa aceptada de una oferta adjudicada. En un consorcio cuentan todas
+    sus participantes, igual que en el ranking de ONGs.
     """
-    return None
+    ofertas = _ofertas_adjudicadas_de(emergencia_ids)
+    participantes = servicios_de_ofertas.consultar_participantes_aceptados(
+        oferta_ids=select(ofertas.c.oferta_id)
+    ).subquery()
+    return db.session.scalar(select(func.count(func.distinct(participantes.c.organizacion_id))))
 
 
 def consultar_unidades_por_emergencia(
@@ -314,27 +342,21 @@ def consultar_unidades_por_emergencia(
     """Unidades requeridas y adjudicadas de cada una de esas emergencias, en una sola consulta.
 
     Las emergencias sin necesidades cargadas no aparecen: no tienen nada que cubrir.
-
-    Mientras no exista la adjudicacion, "adjudicadas" son las unidades que el Sistema Nacional
-    habilito en su evaluacion (aportes clasificados como principal o apoyo), que es lo que la
-    integracion con Bonita ya informa como cobertura.
-
-    TODO(adjudicaciones): cuando exista el modelo `Adjudicacion`, cambiar la subconsulta de
-    habilitadas por la de unidades adjudicadas por `lote_item_id`. La firma no cambia, asi que el
-    panel no se toca.
+    "Adjudicadas" son las unidades de las lineas que el municipio selecciono en ofertas
+    adjudicadas.
     """
     requeridas = servicios_de_emergencias.consultar_unidades_requeridas(
         emergencia_ids=emergencia_ids
     ).subquery()
-    habilitadas = servicios_de_ofertas.consultar_unidades_habilitadas(
+    seleccionadas = servicios_de_ofertas.consultar_unidades_seleccionadas(
         lote_item_ids=select(requeridas.c.lote_item_id)
     ).subquery()
 
-    cantidad_habilitada = func.coalesce(habilitadas.c.cantidad_habilitada, 0)
-    # min(habilitada, requerida) por item, escrito con CASE para que funcione igual en
+    cantidad_seleccionada = func.coalesce(seleccionadas.c.cantidad_seleccionada, 0)
+    # min(seleccionada, requerida) por item, escrito con CASE para que funcione igual en
     # PostgreSQL y en el SQLite de los tests (SQLite no tiene LEAST).
     cubiertas_del_item = case(
-        (cantidad_habilitada < requeridas.c.cantidad_requerida, cantidad_habilitada),
+        (cantidad_seleccionada < requeridas.c.cantidad_requerida, cantidad_seleccionada),
         else_=requeridas.c.cantidad_requerida,
     )
 
@@ -345,7 +367,7 @@ def consultar_unidades_por_emergencia(
             func.sum(cubiertas_del_item),
         )
         .select_from(requeridas)
-        .outerjoin(habilitadas, habilitadas.c.lote_item_id == requeridas.c.lote_item_id)
+        .outerjoin(seleccionadas, seleccionadas.c.lote_item_id == requeridas.c.lote_item_id)
         .group_by(requeridas.c.emergencia_id)
         .order_by(requeridas.c.emergencia_id)
     ).all()
@@ -355,4 +377,122 @@ def consultar_unidades_por_emergencia(
             emergencia_id=emergencia_id, requeridas=int(total), adjudicadas=int(cubiertas)
         )
         for emergencia_id, total, cubiertas in filas
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class OfertaAdjudicada:
+    """Una oferta adjudicada, con quienes la integran y que lotes cubre.
+
+    `organizacion_ids` son las ONGs que participan aceptadas (mas de una: consorcio) y `lote_ids`
+    los lotes en los que el municipio selecciono alguna de sus lineas. `adjudicada_en` es None
+    solo para adjudicaciones sin fecha registrada.
+    """
+
+    oferta_id: int
+    emergencia_id: int
+    adjudicada_en: datetime | None
+    organizacion_ids: tuple[int, ...]
+    lote_ids: frozenset[int]
+
+    @property
+    def es_de_consorcio(self) -> bool:
+        return len(self.organizacion_ids) > 1
+
+
+def listar_ofertas_adjudicadas(*, emergencia_ids: Select[tuple[int]]) -> list[OfertaAdjudicada]:
+    """Las ofertas adjudicadas de esas emergencias, ordenadas por id, en dos consultas.
+
+    Una trae a los participantes aceptados y la otra los lotes de las lineas seleccionadas;
+    se arman en memoria para no repetir cada participante por cada lote.
+    """
+    ofertas = _ofertas_adjudicadas_de(emergencia_ids)
+    ids_de_ofertas = select(ofertas.c.oferta_id)
+
+    participantes = servicios_de_ofertas.consultar_participantes_aceptados(
+        oferta_ids=ids_de_ofertas
+    ).subquery()
+    filas_de_participantes = db.session.execute(
+        select(
+            ofertas.c.oferta_id,
+            ofertas.c.emergencia_id,
+            ofertas.c.adjudicada_en,
+            participantes.c.organizacion_id,
+        ).outerjoin(participantes, participantes.c.oferta_id == ofertas.c.oferta_id)
+    ).all()
+
+    lineas = servicios_de_ofertas.consultar_lineas_seleccionadas(
+        oferta_ids=ids_de_ofertas
+    ).subquery()
+    requeridas = servicios_de_emergencias.consultar_unidades_requeridas(
+        emergencia_ids=emergencia_ids
+    ).subquery()
+    filas_de_lotes = db.session.execute(
+        select(lineas.c.oferta_id, requeridas.c.lote_id)
+        .join(requeridas, requeridas.c.lote_item_id == lineas.c.lote_item_id)
+        .distinct()
+    ).all()
+
+    lotes_por_oferta: dict[int, set[int]] = defaultdict(set)
+    for oferta_id, lote_id in filas_de_lotes:
+        lotes_por_oferta[oferta_id].add(lote_id)
+
+    datos: dict[int, tuple[int, datetime | None]] = {}
+    organizaciones_por_oferta: dict[int, set[int]] = defaultdict(set)
+    for oferta_id, emergencia_id, adjudicada_en, organizacion_id in filas_de_participantes:
+        datos[oferta_id] = (emergencia_id, adjudicada_en)
+        if organizacion_id is not None:
+            organizaciones_por_oferta[oferta_id].add(organizacion_id)
+
+    return [
+        OfertaAdjudicada(
+            oferta_id=oferta_id,
+            emergencia_id=emergencia_id,
+            adjudicada_en=adjudicada_en,
+            organizacion_ids=tuple(sorted(organizaciones_por_oferta[oferta_id])),
+            lote_ids=frozenset(lotes_por_oferta[oferta_id]),
+        )
+        for oferta_id, (emergencia_id, adjudicada_en) in sorted(datos.items())
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class UnidadesAdjudicadas:
+    """Unidades de un rubro adjudicadas en una misma adjudicacion (una convocatoria)."""
+
+    adjudicada_en: datetime
+    categoria: TipoNecesidad
+    unidades: int
+
+
+def listar_unidades_adjudicadas_por_categoria(
+    *, emergencia_ids: Select[tuple[int]]
+) -> list[UnidadesAdjudicadas]:
+    """Unidades adjudicadas a esas emergencias por adjudicacion y rubro, en una sola consulta.
+
+    Son las unidades de las lineas seleccionadas tal como se adjudicaron, sin recortarlas a lo
+    pedido: miden lo que la red movilizo. Las adjudicaciones sin fecha no aparecen, porque no
+    se pueden ubicar en el tiempo. Agrupar por mes queda para quien consume, que conoce la zona
+    horaria en la que se lee el reporte.
+    """
+    ofertas = _ofertas_adjudicadas_de(emergencia_ids)
+    lineas = servicios_de_ofertas.consultar_lineas_seleccionadas(
+        oferta_ids=select(ofertas.c.oferta_id)
+    ).subquery()
+    requeridas = servicios_de_emergencias.consultar_unidades_requeridas(
+        emergencia_ids=emergencia_ids
+    ).subquery()
+
+    filas = db.session.execute(
+        select(ofertas.c.adjudicada_en, requeridas.c.categoria, func.sum(lineas.c.cantidad))
+        .select_from(lineas)
+        .join(ofertas, ofertas.c.oferta_id == lineas.c.oferta_id)
+        .join(requeridas, requeridas.c.lote_item_id == lineas.c.lote_item_id)
+        .where(ofertas.c.adjudicada_en.is_not(None))
+        .group_by(ofertas.c.adjudicada_en, requeridas.c.categoria)
+        .order_by(ofertas.c.adjudicada_en, requeridas.c.categoria)
+    ).all()
+    return [
+        UnidadesAdjudicadas(adjudicada_en=adjudicada_en, categoria=categoria, unidades=int(total))
+        for adjudicada_en, categoria, total in filas
     ]

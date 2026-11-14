@@ -11,7 +11,8 @@ from app.core.integraciones.bonita.api import (
 NOMBRE_TAREA_PUBLICAR = "Gestionar emergencia y publicar convocatoria"
 NOMBRE_TAREA_SELECCIONAR = "Seleccionar ofertas"
 NOMBRE_TAREA_FINALIZAR = "Esperar finalizacion de tareas"
-NOMBRE_TAREA_DECIDIR_COBERTURA = "Decidir acción ante cobertura insuficiente"
+# Sin tilde: es el nombre exacto de la tarea en el BPMN y la busqueda de Bonita lo compara tal cual.
+NOMBRE_TAREA_DECIDIR_COBERTURA = "Decidir accion ante cobertura insuficiente"
 
 
 def iniciar_gestion(

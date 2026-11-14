@@ -95,19 +95,20 @@ def test_ca01_las_cifras_se_calculan_sobre_el_periodo_seleccionado(
         "emergencias_registradas": 5,
         "emergencias_activas": 3,
         "emergencias_finalizadas": 1,
-        "ongs_con_adjudicacion": None,
+        "ongs_con_adjudicacion": 0,
     }
 
 
-def test_ca01_sin_datos_de_adjudicacion_la_tarjeta_no_muestra_un_cero(
-    ingresar_por_formulario, navegar
+def test_ca01_la_tarjeta_de_ongs_cuenta_las_adjudicadas_del_periodo(
+    cliente_sembrado, ingresar, crear_emergencias, cargar_necesidades
 ) -> None:
-    ingresar_por_formulario(EMAIL_AUDITOR)
+    (emergencia,) = crear_emergencias((_al_mediodia(2025, 4, 10), EstadoEmergencia.activa))
+    cargar_necesidades(emergencia, (100, 100))
+    ingresar(EMAIL_AUDITOR)
 
-    cuerpo = _texto(navegar("/auditoria"))
+    datos = cliente_sembrado.get("/auditoria").get_json()
 
-    assert "Próximamente" in cuerpo
-    assert "Se calcula cuando se registren adjudicaciones." in cuerpo
+    assert datos["resumen"]["ongs_con_adjudicacion"] == 1
 
 
 # --- CA-02: acceso denegado a otros roles ----------------------------------------

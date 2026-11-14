@@ -1,0 +1,141 @@
+{% extends "indicadores/base.html" %}
+{% from "componentes/alertas.html" import alerta %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/indicadores.html" import tarjeta_indicador, tarjeta_grafico, encabezado_de_seccion, filtro_segmentado %}
+{% from "componentes/tablas.html" import tabla, celda %}
+
+{% block title %}Recursos · Panel de auditoría{% endblock %}
+
+{#- Seccion "Recursos" del panel de auditoria (indicadores/recursos.py):
+    - Recursos movilizados: unidades adjudicadas por mes, apiladas por rubro. El filtro de rubro
+      acota solo este grafico.
+    - Rubros: unidades que piden los lotes de cada rubro frente a la tasa de inhabilitacion del
+      Sistema Nacional sobre lo ofertado. -#}
+
+{% block seccion %}
+{%- set movilizados = seccion.movilizados %}
+{%- set rubros = seccion.rubros %}
+{%- set rubro_filtrado = movilizados.rubro_filtrado %}
+{%- set del_rubro = (" de " ~ (rubro_filtrado|etiqueta_tipo_necesidad)|lower) if rubro_filtrado else "" %}
+
+{#- --- Recursos movilizados -------------------------------------------------------- -#}
+<section class="space-y-5" aria-labelledby="movilizados-titulo">
+  {%- set opciones_de_rubro = [{"texto": "Todos", "url": url_for("indicadores.recursos"), "activo": rubro_filtrado is none}] %}
+  {%- for rubro in filtros.rubro.opciones %}
+  {%- set _ = opciones_de_rubro.append({
+      "texto": rubro|etiqueta_tipo_necesidad,
+      "url": url_for("indicadores.recursos", rubro=rubro.value),
+      "activo": rubro_filtrado == rubro,
+      "punto": "rubro-punto grafico-tono-" ~ movilizados.tono_de(rubro),
+  }) %}
+  {%- endfor %}
+  {% call encabezado_de_seccion("movilizados-titulo", "Recursos movilizados", "Unidades adjudicadas cada mes, separadas por rubro.", apilada=true) %}
+    {{ filtro_segmentado("Filtrar por rubro", "filtro-rubro", opciones_de_rubro) }}
+  {% endcall %}
+
+  <div class="space-y-5" aria-live="polite" data-panel-actualizable="seccion-recursos">
+    {%- if filtros.rubro.errors %}
+    {{ alerta("error", filtros.rubro.rubro.errors|first ~ " Se muestran todos.", titulo="El filtro de rubro no se aplicó") }}
+    {%- endif %}
+
+    <div class="kpi-grilla-tres animar-escalonado">
+      {{ tarjeta_indicador("Unidades movilizadas", movilizados.total, "capas", "primario", detalle="Adjudicadas a las emergencias del período" ~ del_rubro ~ ".") }}
+      {{ tarjeta_indicador("Rubro con más unidades", (movilizados.rubro_principal|etiqueta_tipo_necesidad) if movilizados.rubro_principal else none, "grafico", "info", detalle=((movilizados.total_del_rubro(movilizados.rubro_principal)|numero) ~ " unidades.") if movilizados.rubro_principal else none, pendiente="Todavía no hay adjudicaciones en el período.") }}
+      {{ tarjeta_indicador("Mes de mayor movilización", (movilizados.mes_pico.strftime("%m/%Y")) if movilizados.mes_pico else none, "calendario", "advertencia", detalle=((movilizados.total_del_mes(movilizados.mes_pico)|numero) ~ " unidades.") if movilizados.mes_pico else none, pendiente="Todavía no hay adjudicaciones en el período.") }}
+    </div>
+
+    {%- set encabezados = ["Mes"] %}
+    {%- for rubro in movilizados.rubros %}{% set _ = encabezados.append(rubro|etiqueta_tipo_necesidad) %}{% endfor %}
+    {%- set filas = [] %}
+    {%- for mes in movilizados.meses %}
+    {%- set fila = [mes.strftime("%m/%Y")] %}
+    {%- for rubro in movilizados.rubros %}{% set _ = fila.append(movilizados.unidades_de(mes, rubro)|numero) %}{% endfor %}
+    {%- set _ = filas.append(fila) %}
+    {%- endfor %}
+    {{ tarjeta_grafico(
+        "grafico-movilizados",
+        "Unidades adjudicadas por mes",
+        "Cada barra suma lo adjudicado en el mes; cada color es un rubro. Tocá un rubro de la leyenda para ocultarlo.",
+        movilizados.grafico(),
+        filas,
+        encabezados=encabezados,
+        vacio=("Todavía no se adjudicaron recursos" ~ del_rubro ~ " a las emergencias de este período.") if movilizados.total == 0 else none,
+        resumen="Unidades adjudicadas por mes y rubro, " ~ (movilizados.total|numero) ~ " en total.",
+        exportacion=exportacion("recursos-movilizados"),
+    ) }}
+  </div>
+</section>
+
+{#- --- Rubros: demanda vs. inhabilitacion ----------------------------------------------- -#}
+<section class="space-y-5" aria-labelledby="rubros-titulo">
+  {{ encabezado_de_seccion("rubros-titulo", "Rubros", "Qué rubros piden más unidades y qué parte de lo ofertado no habilitó el Sistema Nacional.") }}
+
+  <div class="space-y-5" data-panel-actualizable="seccion-rubros">
+    {%- set filas_demanda = [] %}
+    {%- set filas_tasa = [] %}
+    {%- for fila in rubros.filas %}
+    {%- set _ = filas_demanda.append((fila.etiqueta, fila.demandadas|numero)) %}
+    {%- set _ = filas_tasa.append((fila.etiqueta, fila.tasa_como_texto)) %}
+    {%- endfor %}
+    {%- set sin_demanda = "Las emergencias de este período no tienen lotes con unidades pedidas." if not rubros.filas else none %}
+    <div class="graficos-grilla-pareja">
+      {{ tarjeta_grafico(
+          "grafico-demanda",
+          "Unidades demandadas por rubro",
+          "Lo que piden los lotes de las emergencias del período, de mayor a menor.",
+          rubros.grafico_de_demanda(),
+          filas_demanda,
+          encabezados=["Rubro", "Unidades demandadas"],
+          vacio=sin_demanda,
+          resumen="Unidades demandadas por rubro, de mayor a menor.",
+          exportacion=exportacion("rubros-demanda-e-inhabilitacion"),
+      ) }}
+      {{ tarjeta_grafico(
+          "grafico-inhabilitacion",
+          "Tasa de inhabilitación por rubro",
+          "Qué parte de las unidades ofertadas y evaluadas no habilitó el Sistema Nacional. Mismo orden que la demanda.",
+          rubros.grafico_de_inhabilitacion(),
+          filas_tasa,
+          encabezados=["Rubro", "Tasa de inhabilitación"],
+          vacio=sin_demanda,
+          resumen="Tasa de inhabilitación del Sistema Nacional por rubro.",
+          exportacion=exportacion("rubros-demanda-e-inhabilitacion"),
+      ) }}
+    </div>
+
+    {%- if rubros.filas %}
+    {% call tabla(["Rubro", "Demandado", "Ofertado y evaluado", "No habilitado", "Tasa de inhabilitación"]) %}
+      {%- for fila in rubros.filas %}
+      <tr class="tabla-fila">
+        <td class="tabla-celda tabla-celda-principal">
+          <span class="ranking-ong"><span class="rubro-punto grafico-tono-{{ movilizados.tono_de(fila.rubro) }}" aria-hidden="true"></span>{{ fila.etiqueta }}</span>
+        </td>
+        {% call celda("Demandado") %}<span class="ranking-cifra">{{ fila.demandadas|numero }}</span>{% endcall %}
+        {% call celda("Ofertado y evaluado") %}<span class="ranking-cifra">{{ fila.evaluadas|numero }}</span>{% endcall %}
+        {% call celda("No habilitado") %}<span class="ranking-cifra">{{ fila.no_habilitadas|numero }}</span>{% endcall %}
+        {% call celda("Tasa de inhabilitación") %}
+        {%- if fila.tasa_de_inhabilitacion is none %}
+        <span class="ranking-sin-dato" title="Ninguna oferta de este rubro fue evaluada">—</span>
+        {%- else %}
+        <div class="cobertura-barra-fila">
+          <div class="cobertura-barra" role="presentation"><span class="cobertura-barra-relleno grafico-tono-{{ movilizados.tono_de(fila.rubro) }}" style="width: {{ fila.tasa_de_inhabilitacion }}%"></span></div>
+          <span class="cobertura-barra-valor">{{ fila.tasa_como_texto }}</span>
+        </div>
+        {%- endif %}
+        {% endcall %}
+      </tr>
+      {%- endfor %}
+    {% endcall %}
+    <p class="grafico-nota">
+      {{ icono("info", "size-4") }}
+      <span>Tasa de inhabilitación = unidades ofertadas que el Sistema Nacional evaluó como no habilitadas sobre las unidades ofertadas evaluadas. Un rubro sin ofertas evaluadas no tiene tasa (—).</span>
+    </p>
+    {%- endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts_de_la_seccion %}
+<script src="{{ url_for('static', filename='js/vendor/chart-4.4.9.umd.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/graficos.js') }}" defer></script>
+{% endblock %}

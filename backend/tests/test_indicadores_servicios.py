@@ -12,6 +12,7 @@ from app.modulos.emergencias.modelos import EstadoEmergencia
 from app.modulos.emergencias.servicios import ConteoDeEmergencias, contar_emergencias_registradas
 from app.modulos.indicadores.periodo import Periodo
 from app.modulos.indicadores.servicios import obtener_resumen_de_actividad
+from app.modulos.ofertas.modelos import TipoAsignacion
 
 MARZO_DE_2025 = Periodo(desde=date(2025, 3, 1), hasta=date(2025, 3, 31))
 
@@ -47,19 +48,32 @@ def test_el_periodo_respeta_los_bordes_del_dia_en_hora_argentina(app, crear_emer
     assert resumen.emergencias_registradas == 2
 
 
-def test_las_ongs_con_adjudicacion_quedan_sin_datos_mientras_no_haya_adjudicaciones(
-    app, crear_emergencias
-) -> None:
-    """None y no 0: el panel no puede afirmar que ninguna ONG fue adjudicada."""
+def test_sin_adjudicaciones_las_ongs_con_adjudicacion_son_cero(app, crear_emergencias) -> None:
     crear_emergencias((_en_argentina(2025, 3, 10, 12), EstadoEmergencia.finalizada))
 
     with app.app_context():
         resumen = obtener_resumen_de_actividad(MARZO_DE_2025)
 
-    assert resumen.ongs_con_adjudicacion is None
     assert resumen.a_diccionario() == {
         "emergencias_registradas": 1,
         "emergencias_activas": 0,
         "emergencias_finalizadas": 1,
-        "ongs_con_adjudicacion": None,
+        "ongs_con_adjudicacion": 0,
     }
+
+
+def test_cuenta_una_vez_cada_ong_adjudicada_en_el_periodo(
+    app, crear_emergencias, cargar_necesidades
+) -> None:
+    """Dos emergencias adjudicadas a la misma ONG cuentan una ONG; lo no adjudicado no suma."""
+    primera, segunda, sin_adjudicar = crear_emergencias(
+        *[(_en_argentina(2025, 3, 10, 12), EstadoEmergencia.finalizada)] * 3
+    )
+    cargar_necesidades(primera, (100, 100))
+    cargar_necesidades(segunda, (50, 50))
+    cargar_necesidades(sin_adjudicar, (10, 10, TipoAsignacion.rechazada))
+
+    with app.app_context():
+        resumen = obtener_resumen_de_actividad(MARZO_DE_2025)
+
+    assert resumen.ongs_con_adjudicacion == 1

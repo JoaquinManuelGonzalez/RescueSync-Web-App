@@ -1,10 +1,12 @@
-"""Datos semilla de ofertas: una demo para probar la interfaz y su trazabilidad, las pruebas
-de cobertura parcial y las ofertas ya evaluadas de las emergencias historicas, para que el
-panel de auditoria tenga cobertura que mostrar."""
+"""Datos semilla de ofertas: una demo para probar la interfaz y su trazabilidad, las pruebas de
+cobertura parcial, y las ofertas ya evaluadas y adjudicadas de las emergencias historicas, para
+que el panel de auditoria tenga que mostrar (cobertura, recursos por mes y rubro, consorcios,
+inhabilitacion y ranking de ONGs)."""
 
 from __future__ import annotations
 
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
@@ -29,25 +31,145 @@ MARCA_CONVOCATORIA_COBERTURA_INSUFICIENTE = "SEED_PRUEBA_COBERTURA_INSUFICIENTE"
 MARCA_CONVOCATORIA_HISTORICA = "SEED_COBERTURA_HISTORICA"
 DESCRIPCION_LOTE_HISTORICO = "Necesidades atendidas"
 
-# Emergencias finalizadas de emergencias/semillas_emergencias.py::EMERGENCIAS_HISTORICAS, con lo
-# que pidieron y lo que el Sistema Nacional habilito: (item, requerida, habilitada).
-# Dos se cubrieron completas y una al 60 % (1500 de 2500). La cuarta finalizada historica
-# ("Anegamiento de calles...") queda sin necesidades a proposito: el panel la informa aparte.
-COBERTURA_HISTORICA: tuple[tuple[str, str, tuple[tuple[str, int, int], ...]], ...] = (
-    (
-        "Granizo sobre la zona hortícola de La Plata",
-        "representante@cruzsolidaria.test",
-        (("Raciones de alimento no perecedero", 400, 400), ("Agua potable envasada", 1500, 1500)),
+
+@dataclass(frozen=True, slots=True)
+class LineaHistorica:
+    """Un aporte de una oferta: que item, cuanto, como lo clasifico el Sistema Nacional y, en un
+    consorcio, que ONG lo aporta (sin ella, la lider). Las lineas habilitadas se seleccionan."""
+
+    item: str
+    cantidad: int
+    clasificacion: TipoAsignacion = TipoAsignacion.principal
+    aporta: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OfertaHistorica:
+    """Una oferta: la presenta el representante de la ONG lider; `consorcio` son las demas ONGs
+    participantes (aceptadas). Con alguna linea habilitada queda adjudicada; si no, rechazada."""
+
+    representante: str
+    lineas: tuple[LineaHistorica, ...]
+    consorcio: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class AdjudicacionHistorica:
+    """Lo que pidio una emergencia historica, las ofertas que recibio y cuando se adjudico
+    (`horas_hasta_adjudicar` desde su registro)."""
+
+    emergencia: str
+    necesidades: tuple[tuple[str, int], ...]
+    horas_hasta_adjudicar: float
+    ofertas: tuple[OfertaHistorica, ...]
+
+
+CRUZ_SOLIDARIA = "representante@cruzsolidaria.test"
+MANOS_UNIDAS = "representante@manosunidas.test"
+CRUZ_ROJA = "representante@cruzroja.test"
+BOMBEROS = "Bomberos Voluntarios de La Plata"
+SCOUTS = "Grupo Scouts de Pergamino"
+NO_HABILITADA = TipoAsignacion.rechazada
+
+# Emergencias de emergencias/semillas_emergencias.py::EMERGENCIAS_HISTORICAS ya adjudicadas, para
+# que cada seccion del panel de auditoria tenga datos: adjudicaciones en varios meses y rubros,
+# consorcios, aportes que el Sistema Nacional no habilito y una cobertura parcial (la laguna).
+# La finalizada "Anegamiento de calles..." queda sin necesidades a proposito: el panel la informa
+# aparte. Lo que hizo cada ONG despues de la adjudicacion esta en ejecucion_cierre/semillas.py.
+ADJUDICACIONES_HISTORICAS: tuple[AdjudicacionHistorica, ...] = (
+    AdjudicacionHistorica(
+        emergencia="Granizo sobre la zona hortícola de La Plata",
+        necesidades=(
+            ("Raciones de alimento no perecedero", 400),
+            ("Agua potable envasada", 1500),
+            ("Frazadas", 200),
+        ),
+        horas_hasta_adjudicar=84,
+        ofertas=(
+            OfertaHistorica(
+                CRUZ_SOLIDARIA,
+                (
+                    LineaHistorica("Raciones de alimento no perecedero", 400),
+                    LineaHistorica("Agua potable envasada", 1500),
+                ),
+            ),
+            OfertaHistorica(
+                MANOS_UNIDAS,
+                (
+                    LineaHistorica("Frazadas", 120, aporta=BOMBEROS),
+                    LineaHistorica("Frazadas", 80),
+                ),
+                consorcio=(BOMBEROS,),
+            ),
+            OfertaHistorica(
+                CRUZ_ROJA, (LineaHistorica("Agua potable envasada", 300, NO_HABILITADA),)
+            ),
+        ),
     ),
-    (
-        "Desborde de la laguna de Chascomús",
-        "representante@manosunidas.test",
-        (("Agua potable envasada", 2000, 1500), ("Raciones de alimento no perecedero", 500, 0)),
+    AdjudicacionHistorica(
+        emergencia="Desborde de la laguna de Chascomús",
+        necesidades=(
+            ("Agua potable envasada", 2000),
+            ("Raciones de alimento no perecedero", 500),
+            ("Colchones", 80),
+        ),
+        horas_hasta_adjudicar=50,
+        ofertas=(
+            OfertaHistorica(
+                MANOS_UNIDAS,
+                (LineaHistorica("Agua potable envasada", 1500), LineaHistorica("Colchones", 60)),
+            ),
+            OfertaHistorica(
+                CRUZ_ROJA,
+                (LineaHistorica("Raciones de alimento no perecedero", 300, NO_HABILITADA),),
+            ),
+        ),
     ),
-    (
-        "Incendio de pastizales en el periurbano de La Plata",
-        "representante@cruzsolidaria.test",
-        (("Paramédicos", 6, 6), ("Agua potable envasada", 800, 1000)),
+    AdjudicacionHistorica(
+        emergencia="Incendio de pastizales en el periurbano de La Plata",
+        necesidades=(
+            ("Paramédicos", 6),
+            ("Agua potable envasada", 800),
+            ("Botiquines de primeros auxilios", 50),
+        ),
+        horas_hasta_adjudicar=36,
+        ofertas=(
+            OfertaHistorica(
+                CRUZ_SOLIDARIA,
+                (
+                    LineaHistorica("Paramédicos", 6),
+                    LineaHistorica("Agua potable envasada", 1000, TipoAsignacion.apoyo, BOMBEROS),
+                ),
+                consorcio=(BOMBEROS,),
+            ),
+            OfertaHistorica(CRUZ_ROJA, (LineaHistorica("Botiquines de primeros auxilios", 50),)),
+        ),
+    ),
+    AdjudicacionHistorica(
+        emergencia="Temporal de viento y lluvia en Pergamino",
+        necesidades=(
+            ("Rescatistas", 20),
+            ("Generadores eléctricos", 5),
+            ("Raciones de alimento no perecedero", 600),
+            ("Retroexcavadoras", 2),
+        ),
+        horas_hasta_adjudicar=20,
+        ofertas=(
+            OfertaHistorica(
+                CRUZ_ROJA,
+                (
+                    LineaHistorica("Rescatistas", 20),
+                    LineaHistorica("Generadores eléctricos", 5, aporta=SCOUTS),
+                ),
+                consorcio=(SCOUTS,),
+            ),
+            OfertaHistorica(
+                MANOS_UNIDAS, (LineaHistorica("Raciones de alimento no perecedero", 600),)
+            ),
+            OfertaHistorica(
+                CRUZ_SOLIDARIA, (LineaHistorica("Retroexcavadoras", 2, NO_HABILITADA),)
+            ),
+        ),
     ),
 )
 
@@ -199,68 +321,133 @@ def _buscar_por(modelo: type, **claves):
 
 @registrar("cobertura_historica")
 def sembrar_cobertura_historica() -> list[ResultadoSemilla]:
-    """Lote, convocatoria adjudicada y oferta evaluada de cada emergencia historica finalizada."""
+    """Lotes, convocatoria adjudicada y ofertas evaluadas de cada emergencia historica.
+
+    Las filas de esta semilla llevan su marca y se reescriben en cada corrida (fecha de
+    adjudicacion, clasificacion y seleccion de cada linea): asi una base sembrada antes de que
+    existiera la fecha de adjudicacion queda igual que una nueva.
+    """
     coordinador = _buscar_por(Usuario, email="coordinador@rescuesync.test")
     resultado_lotes = ResultadoSemilla("lotes_historicos")
     resultado_lineas = ResultadoSemilla("oferta_items_historicos")
 
-    for titulo, email_representante, items in COBERTURA_HISTORICA:
-        emergencia = _buscar_por(Emergencia, titulo=titulo)
-        representante = _buscar_por(Usuario, email=email_representante)
-        cubre_todo = all(habilitada >= requerida for _, requerida, habilitada in items)
-        estado_del_lote = (
-            EstadoLote.adjudicado_total if cubre_todo else EstadoLote.adjudicado_parcial
-        )
+    for historica in ADJUDICACIONES_HISTORICAS:
+        emergencia = _buscar_por(Emergencia, titulo=historica.emergencia)
+        adjudicada_en = emergencia.creado_en + timedelta(hours=historica.horas_hasta_adjudicar)
 
         convocatoria, _ = obtener_o_crear(
             Convocatoria,
             claves={"emergencia_id": emergencia.id, "observaciones": MARCA_CONVOCATORIA_HISTORICA},
             valores={
                 "coordinador_id": coordinador.id,
-                "fecha_inicio": emergencia.creado_en + timedelta(days=1),
-                "fecha_cierre": emergencia.creado_en + timedelta(days=4),
+                "fecha_inicio": emergencia.creado_en + timedelta(hours=6),
+                "fecha_cierre": adjudicada_en - timedelta(hours=4),
                 "resumen_situacion": emergencia.descripcion,
                 "estado": EstadoConvocatoria.adjudicada,
             },
         )
+        convocatoria.estado = EstadoConvocatoria.adjudicada
+        convocatoria.adjudicada_en = adjudicada_en
+        convocatoria.cobertura_evaluada_en = adjudicada_en - timedelta(hours=2)
+
         lote, lote_creado = obtener_o_crear(
             LoteNecesidad,
             claves={"emergencia_id": emergencia.id, "descripcion": DESCRIPCION_LOTE_HISTORICO},
-            valores={
-                "convocatoria_id": convocatoria.id,
-                "estado": estado_del_lote,
-            },
+            valores={"convocatoria_id": convocatoria.id, "estado": EstadoLote.adjudicado_total},
         )
         resultado_lotes.contar(lote_creado)
-        oferta, _ = obtener_o_crear(
-            Oferta,
-            claves={"convocatoria_id": convocatoria.id, "usuario_id": representante.id},
-            valores={"estado": EstadoOferta.adjudicada},
-        )
-        obtener_o_crear(
-            OfertaOrganizacion,
-            claves={"oferta_id": oferta.id, "organizacion_id": representante.organizacion_id},
-            valores={"rol_consorcio": "lider", "estado_participacion": "aceptada"},
-        )
 
-        for nombre_item, requerida, habilitada in items:
+        lote_items = {}
+        for nombre_item, requerida in historica.necesidades:
             item = _buscar_por(Item, nombre=nombre_item)
             lote_item, _ = obtener_o_crear(
                 LoteItem,
                 claves={"lote_id": lote.id, "item_id": item.id},
                 valores={"cantidad_solicitada": requerida},
             )
-            if not habilitada:
-                continue
-            _, linea_creada = obtener_o_crear(
-                OfertaLinea,
-                claves={"oferta_id": oferta.id, "lote_item_id": lote_item.id},
-                valores={
-                    "organizacion_id": representante.organizacion_id,
-                    "cantidad_ofrecida": habilitada,
-                    "tipo_asignacion": TipoAsignacion.principal,
-                },
+            lote_item.cantidad_solicitada = requerida
+            lote_items[nombre_item] = lote_item
+
+        adjudicadas: dict[str, int] = {}
+        for oferta_historica in historica.ofertas:
+            lineas_creadas = _sembrar_oferta(
+                convocatoria, oferta_historica, lote_items, adjudicada_en
             )
-            resultado_lineas.contar(linea_creada)
+            for creada in lineas_creadas:
+                resultado_lineas.contar(creada)
+            for linea in oferta_historica.lineas:
+                if linea.clasificacion != NO_HABILITADA:
+                    adjudicadas[linea.item] = adjudicadas.get(linea.item, 0) + linea.cantidad
+
+        cubre_todo = all(
+            adjudicadas.get(nombre, 0) >= requerida for nombre, requerida in historica.necesidades
+        )
+        lote.estado = EstadoLote.adjudicado_total if cubre_todo else EstadoLote.adjudicado_parcial
 
     return [resultado_lotes, resultado_lineas]
+
+
+def _sembrar_oferta(
+    convocatoria: Convocatoria,
+    historica: OfertaHistorica,
+    lote_items: dict[str, LoteItem],
+    adjudicada_en: datetime,
+) -> list[bool]:
+    """Crea o actualiza una oferta historica con sus participantes y lineas.
+
+    Devuelve, por linea, si se creo (para el resumen del comando).
+    """
+    representante = _buscar_por(Usuario, email=historica.representante)
+    lider_id = representante.organizacion_id
+    organizacion_por_nombre = {
+        nombre: _buscar_por(Organizacion, nombre=nombre).id for nombre in historica.consorcio
+    }
+    habilitada = any(linea.clasificacion != NO_HABILITADA for linea in historica.lineas)
+
+    oferta, _ = obtener_o_crear(
+        Oferta,
+        claves={"convocatoria_id": convocatoria.id, "usuario_id": representante.id},
+        valores={"estado": EstadoOferta.adjudicada},
+    )
+    oferta.estado = EstadoOferta.adjudicada if habilitada else EstadoOferta.rechazada
+    # La seleccion es lo ultimo que toca la oferta: su ultima modificacion es la adjudicacion.
+    oferta.actualizado_en = adjudicada_en
+
+    participantes = {lider_id: "lider"}
+    participantes.update(dict.fromkeys(organizacion_por_nombre.values(), "aportante"))
+    for organizacion_id, rol in participantes.items():
+        participacion, _ = obtener_o_crear(
+            OfertaOrganizacion,
+            claves={"oferta_id": oferta.id, "organizacion_id": organizacion_id},
+            valores={"rol_consorcio": rol, "estado_participacion": "aceptada"},
+        )
+        participacion.estado_participacion = "aceptada"
+
+    creadas = []
+    declaradas: set[int] = set()
+    for linea in historica.lineas:
+        organizacion_id = organizacion_por_nombre[linea.aporta] if linea.aporta else lider_id
+        oferta_linea, creada = obtener_o_crear(
+            OfertaLinea,
+            claves={
+                "oferta_id": oferta.id,
+                "lote_item_id": lote_items[linea.item].id,
+                "organizacion_id": organizacion_id,
+            },
+            valores={"cantidad_ofrecida": linea.cantidad},
+        )
+        oferta_linea.cantidad_ofrecida = linea.cantidad
+        oferta_linea.tipo_asignacion = linea.clasificacion
+        oferta_linea.seleccionada = linea.clasificacion != NO_HABILITADA
+        creadas.append(creada)
+        declaradas.add(oferta_linea.id)
+
+    # Una linea que la semilla ya no declara (de una version anterior) sobra: la oferta es de
+    # una convocatoria historica marcada, asi que no hay datos de nadie mas en juego.
+    for sobrante in db.session.scalars(
+        select(OfertaLinea).where(
+            OfertaLinea.oferta_id == oferta.id, OfertaLinea.id.not_in(declaradas)
+        )
+    ):
+        db.session.delete(sobrante)
+    return creadas

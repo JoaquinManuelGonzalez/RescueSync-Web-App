@@ -1,0 +1,115 @@
+{#- Datos de Bonita de la seccion "Proceso" (rutas.py::proceso_datos). Es un fragmento: lo inserta
+    indicadores.js en la region de carga diferida de indicadores/proceso.html, o lo incluye esa
+    misma plantilla cuando los datos vienen con la pantalla (sin JavaScript).
+
+    - Etapas del proceso: tiempo promedio de cada tarea humana, sobre los casos terminados.
+    - Resolucion en termino: por gravedad, porcentaje de casos terminados dentro del plazo
+      objetivo y tiempo medio de resolucion.
+
+    `seccion` es None cuando Bonita no respondio: en su lugar va `mensaje_de_error`. -#}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/indicadores.html" import tarjeta_grafico, encabezado_de_seccion, aviso_de_error %}
+
+{%- if mensaje_de_error %}
+{{ aviso_de_error("Etapas del proceso y resolución en término", mensaje_de_error ~ " El resto del panel sigue disponible.", url_sin_javascript) }}
+{%- else %}
+{%- set etapas = seccion.etapas %}
+{%- set resolucion = seccion.resolucion %}
+{%- set con_gravedad = (" con gravedad " ~ (etapas.gravedad|etiqueta_gravedad)|lower) if etapas.gravedad else "" %}
+
+{#- --- Etapas del proceso ------------------------------------------------------------ -#}
+<section class="space-y-5" aria-labelledby="etapas-titulo">
+  {{ encabezado_de_seccion("etapas-titulo", "Etapas del proceso", "Cuánto tarda en promedio cada tarea humana del proceso, desde que queda disponible hasta que se completa, sobre los casos terminados" ~ con_gravedad ~ ".") }}
+
+  {%- set filas_etapas = [] %}
+  {%- for fila in etapas.filas %}
+  {%- set _ = filas_etapas.append((fila.etapa.etiqueta, fila.casos, fila.promedio_como_texto)) %}
+  {%- endfor %}
+  {% call tarjeta_grafico(
+      "grafico-etapas",
+      "Tiempo promedio por etapa",
+      "Si una tarea se ejecutó más de una vez en un caso (por ejemplo, tras una reapertura), se suman sus ejecuciones. Una etapa por la que no pasó ningún caso figura como «Sin ocurrencias».",
+      etapas.grafico(),
+      filas_etapas,
+      encabezados=["Etapa", "Casos", "Tiempo promedio"],
+      vacio=("Ningún caso" ~ con_gravedad ~ " de las emergencias del período terminó en el motor de procesos.") if not etapas.casos_terminados else none,
+      resumen="Tiempo promedio por etapa del proceso, sobre " ~ etapas.casos_terminados ~ " casos terminados.",
+      exportacion=exportacion("etapas-del-proceso"),
+  ) %}
+  <p class="grafico-nota">
+    {{ icono("info", "size-4") }}
+    <span>{{ etapas.casos_terminados }} {{ "caso terminado" if etapas.casos_terminados == 1 else "casos terminados" }}{{ con_gravedad }}. «Ejecución y finalización de actividades» es la tarea «Esperar finalización de tareas» del proceso: se completa cuando todas las ONGs terminan.</span>
+  </p>
+  {% endcall %}
+</section>
+
+{#- --- Resolucion en termino --------------------------------------------------------- -#}
+<section class="space-y-5" aria-labelledby="resolucion-titulo">
+  {{ encabezado_de_seccion("resolucion-titulo", "Resolución en término", "Qué parte de los casos terminados de cada gravedad se resolvió dentro del plazo objetivo y cuánto tardó en promedio, desde el inicio hasta el fin del caso en Bonita.") }}
+
+  <p class="kpi-nota">
+    {{ icono("info", "size-5") }}
+    <span>
+      {{ resolucion.casos_terminados }} {{ "caso terminado entra" if resolucion.casos_terminados == 1 else "casos terminados entran" }} en el cálculo.
+      {%- if resolucion.casos_abiertos %}
+      {{ resolucion.casos_abiertos }} {{ "caso sigue abierto" if resolucion.casos_abiertos == 1 else "casos siguen abiertos" }} en el motor de procesos y no {{ "entra" if resolucion.casos_abiertos == 1 else "entran" }}.
+      {%- else %}
+      No quedan casos abiertos de las emergencias del período.
+      {%- endif %}
+    </span>
+  </p>
+
+  {%- set sin_casos = "Ningún caso de las emergencias del período terminó en el motor de procesos." if not resolucion.casos_terminados else none %}
+  {%- set filas_en_termino = [] %}
+  {%- set filas_tiempo = [] %}
+  {%- for fila in resolucion.filas %}
+  {%- set _ = filas_en_termino.append((fila.etiqueta, (fila.porcentaje_en_termino ~ " %") if fila.porcentaje_en_termino is not none else "Sin casos")) %}
+  {%- set _ = filas_tiempo.append((fila.etiqueta, ((fila.tiempo_medio|numero(1)) ~ " días") if fila.tiempo_medio is not none else "Sin casos", fila.plazo_dias ~ " días")) %}
+  {%- endfor %}
+  <div class="graficos-grilla-pareja">
+    {{ tarjeta_grafico(
+        "grafico-en-termino",
+        "Casos resueltos en término",
+        "Porcentaje de los casos terminados de cada gravedad que duró menos que su plazo objetivo.",
+        resolucion.grafico_en_termino(),
+        filas_en_termino,
+        encabezados=["Gravedad", "En término"],
+        vacio=sin_casos,
+        resumen="Porcentaje de casos resueltos en término, por gravedad.",
+        exportacion=exportacion("resolucion-en-termino"),
+    ) }}
+    {{ tarjeta_grafico(
+        "grafico-tiempo-medio",
+        "Tiempo medio de resolución",
+        "Días promedio desde el inicio hasta el fin del caso. La raya marca el plazo objetivo de cada gravedad.",
+        resolucion.grafico_de_tiempo_medio(),
+        filas_tiempo,
+        encabezados=["Gravedad", "Tiempo medio", "Plazo objetivo"],
+        vacio=sin_casos,
+        resumen="Tiempo medio de resolución por gravedad, comparado con su plazo objetivo.",
+        exportacion=exportacion("resolucion-en-termino"),
+    ) }}
+  </div>
+
+  <ul class="gravedad-tarjetas" aria-label="Resolución en término por gravedad">
+    {%- for fila in resolucion.filas %}
+    {%- set porcentaje = fila.porcentaje_en_termino %}
+    <li class="tarjeta gravedad-tarjeta">
+      <div class="gravedad-tarjeta-cabecera">
+        <span class="gravedad-tarjeta-nombre"><span class="gravedad-punto gravedad-punto-{{ fila.gravedad.value }}" aria-hidden="true"></span>{{ fila.etiqueta }}</span>
+        <span class="gravedad-tarjeta-plazo">Plazo: {{ fila.plazo_dias }} días</span>
+      </div>
+      {%- if fila.casos %}
+      <p class="gravedad-tarjeta-cifra">{{ porcentaje }} %</p>
+      <p class="gravedad-tarjeta-texto">En término: {{ porcentaje }} % <span class="text-gray-400">({{ fila.en_termino }} de {{ fila.casos }})</span></p>
+      <div class="kpi-barra" aria-hidden="true"><span class="kpi-barra-relleno gravedad-relleno-{{ fila.gravedad.value }}" style="width: {{ porcentaje }}%"></span></div>
+      <p class="gravedad-tarjeta-texto">Tiempo medio: <strong>{{ fila.tiempo_medio|numero(1) }} días</strong></p>
+      {%- else %}
+      <p class="gravedad-tarjeta-cifra gravedad-tarjeta-sin-dato">—</p>
+      <p class="gravedad-tarjeta-texto">Sin casos terminados de esta gravedad.</p>
+      {%- endif %}
+    </li>
+    {%- endfor %}
+  </ul>
+</section>
+{%- endif %}

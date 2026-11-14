@@ -78,3 +78,40 @@ conexión en desarrollo y fija la versión exacta en el control de versiones.
   `vendor/chart-<versión>.umd.js`, borrar el anterior, actualizar la referencia en las plantillas
   y esta tabla.
 - Ninguna plantilla carga scripts desde dominios externos.
+
+## Actualización: tipos agregados para el resto de la épica
+
+Para las secciones de recursos, red de ONGs, tiempos y proceso, `graficos.js` suma, siempre detrás
+del mismo contrato JSON (documentado en su encabezado):
+
+- **Barras apiladas** (`series` + `apilado`): recursos movilizados por mes y rubro, con leyenda
+  que permite ocultar un rubro y un tooltip que suma el total del mes.
+- **Barras horizontales** (`orientacion: "horizontal"`): para etiquetas largas (ranking de ONGs,
+  rubros, etapas del proceso). Toman la altura que necesitan sus barras.
+- **Valores sobre las barras** (`mostrarValores`): el gráfico se lee sin pasar el mouse ni abrir
+  la tabla.
+- **Marcas de referencia** (`marcadores`): una raya por barra sobre el mismo eje (el plazo
+  objetivo de cada gravedad junto al tiempo medio de resolución).
+- **Sin dato** (`sinDato`): un valor `null` no dibuja barra y escribe el texto indicado
+  ("Sin ocurrencias"), para que no se lea como un cero.
+- **Imagen PNG**: el menú de exportación de cada gráfico descarga la imagen del lienzo (con fondo
+  blanco) para usarla en informes.
+
+Las definiciones se arman del lado del servidor (`app/modulos/indicadores/graficos.py`), no en las
+plantillas: así se verifican en pytest sin navegador.
+
+**Paleta categórica.** Los rubros usan los tonos `serie-1` a `serie-8`, en un orden fijo validado
+para daltonismo (peor par adyacente: ΔE 16,2 con protanopía o deuteranopía y 30,3 con visión
+normal). El color sigue a la entidad: un rubro conserva su color con cualquier filtro y en todos los
+gráficos; las gravedades usan los mismos colores que sus puntos en los filtros. Tres tonos
+(amarillo, aqua y rosa) tienen menos de 3:1 de contraste sobre blanco; por eso todo gráfico lleva su
+tabla de respaldo, su leyenda o sus valores escritos.
+
+**Sin doble eje.** Dos HUs pedían un segundo eje (demanda por rubro con la tasa de inhabilitación,
+y resolución en término con el porcentaje y los días). Un doble eje invita a comparar alturas que
+no son comparables, así que, con el acuerdo del equipo, cada medida va en su propio gráfico, uno al
+lado del otro y con las categorías en el mismo orden. Es una regla para todo gráfico nuevo del panel.
+
+**Responsive.** Las etiquetas largas se acortan (horizontal; el tooltip muestra la completa) o se
+parten en líneas (vertical) según el ancho del lienzo, la tipografía baja un punto por debajo de
+640 px y los gráficos con leyenda ganan altura en el teléfono.

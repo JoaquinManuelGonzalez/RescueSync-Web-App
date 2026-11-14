@@ -1,0 +1,158 @@
+{% extends "indicadores/base.html" %}
+{% from "componentes/alertas.html" import alerta %}
+{% from "componentes/iconos.html" import icono %}
+{% from "componentes/indicadores.html" import tarjeta_indicador, tarjeta_grafico, encabezado_de_seccion, encabezado_ordenable %}
+{% from "componentes/tablas.html" import celda %}
+
+{% block title %}Red de ONGs · Panel de auditoría{% endblock %}
+
+{#- Seccion "Red de ONGs" del panel de auditoria (indicadores/red_de_ongs.py):
+    - Consorcios: ofertas adjudicadas de consorcio e individuales, y emergencias que contaron con
+      al menos un consorcio.
+    - Ranking de ONGs: lotes adjudicados (grafico, las 10 primeras) y tiempo medio de ejecucion
+      (tabla, ordenable por volumen o por tiempo). -#}
+
+{% macro _cantidad(n, singular, plural) -%}
+{{ n|numero }} {{ singular if n == 1 else plural }}
+{%- endmacro %}
+
+{% block seccion %}
+{%- set consorcios = seccion.consorcios %}
+{%- set ranking = seccion.ranking %}
+
+{#- --- Consorcios -------------------------------------------------------------------- -#}
+<section class="space-y-5" aria-labelledby="consorcios-titulo">
+  {{ encabezado_de_seccion("consorcios-titulo", "Consorcios", "Qué parte de las adjudicaciones se resolvió con ofertas de varias ONGs y qué parte con ofertas individuales.") }}
+
+  <div class="graficos-grilla" data-panel-actualizable="seccion-consorcios">
+    {%- set porciones = consorcios.porciones() %}
+    {%- set filas = [] %}
+    {%- for etiqueta, cantidad, porcentaje, _tono in porciones %}
+    {%- set _ = filas.append((etiqueta, cantidad ~ " (" ~ porcentaje ~ " %)")) %}
+    {%- endfor %}
+    <div class="graficos-grilla-angosta">
+      {% call tarjeta_grafico(
+          "grafico-consorcios",
+          "Ofertas adjudicadas",
+          "De consorcio (más de una ONG participante aceptada) o individuales.",
+          consorcios.grafico(),
+          filas,
+          vacio="No hay ofertas adjudicadas para las emergencias de este período." if not consorcios.adjudicadas else none,
+          resumen="Ofertas adjudicadas: " ~ (filas|map("join", " ")|join(", ")),
+          centro=(consorcios.porcentajes[0] ~ " %", "de consorcio"),
+          exportacion=exportacion("consorcios"),
+      ) %}
+      {%- if consorcios.adjudicadas %}
+      <ul class="grafico-leyenda">
+        {%- for etiqueta, cantidad, porcentaje, tono in porciones %}
+        <li class="grafico-leyenda-item">
+          <span class="grafico-leyenda-marca grafico-tono-{{ tono }}" aria-hidden="true"></span>
+          <span class="grafico-leyenda-texto">{{ etiqueta }}:</span>
+          <span class="grafico-leyenda-valor">{{ cantidad }} ({{ porcentaje }} %)</span>
+        </li>
+        {%- endfor %}
+      </ul>
+      {%- endif %}
+      {% endcall %}
+    </div>
+
+    <div class="graficos-grilla-ancha grid content-start gap-4 sm:grid-cols-2">
+      {%- set con_consorcio = consorcios.porcentaje_de_emergencias_con_consorcio %}
+      {{ tarjeta_indicador(
+          "Emergencias con consorcio",
+          (con_consorcio ~ " %") if con_consorcio is not none else none,
+          "organizaciones",
+          "primario",
+          detalle="de las emergencias contó con al menos un consorcio (" ~ consorcios.emergencias_con_consorcio ~ " de " ~ consorcios.emergencias_con_adjudicacion ~ ").",
+          pendiente="Ninguna emergencia del período tiene adjudicaciones.",
+      ) }}
+      {{ tarjeta_indicador(
+          "Ofertas adjudicadas",
+          consorcios.adjudicadas,
+          "exito",
+          "exito",
+          detalle=_cantidad(consorcios.de_consorcio, "de consorcio", "de consorcio") ~ " y " ~ _cantidad(consorcios.individuales, "individual", "individuales") ~ ".",
+      ) }}
+      <p class="grafico-nota sm:col-span-2">
+        {{ icono("info", "size-4") }}
+        <span>Una oferta es de consorcio si tiene más de una ONG participante aceptada. El porcentaje de emergencias se calcula sobre las que tienen al menos una oferta adjudicada.</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+{#- --- Ranking de ONGs --------------------------------------------------------------- -#}
+<section class="space-y-5" aria-labelledby="ranking-titulo">
+  {{ encabezado_de_seccion("ranking-titulo", "Ranking de ONGs", "Lotes adjudicados a cada ONG y cuánto tarda, en promedio, en finalizar sus actividades.") }}
+
+  <div class="space-y-5" aria-live="polite" data-panel-actualizable="seccion-ranking">
+    {%- if filtros.orden.errors %}
+    {{ alerta("error", filtros.orden.orden.errors|first ~ " Se ordena por lotes adjudicados.", titulo="El orden no se aplicó") }}
+    {%- endif %}
+
+    {%- set primeras = ranking.primeras_por_volumen %}
+    {%- set filas_grafico = [] %}
+    {%- for fila in primeras %}
+    {%- set _ = filas_grafico.append((fila.nombre, fila.lotes_adjudicados, fila.tiempo_como_texto)) %}
+    {%- endfor %}
+    {{ tarjeta_grafico(
+        "grafico-ranking",
+        "Lotes adjudicados por ONG",
+        "Las " ~ primeras|length ~ " ONGs con más lotes adjudicados en el período. En un consorcio, el lote cuenta para cada ONG participante.",
+        ranking.grafico(),
+        filas_grafico,
+        encabezados=["ONG", "Lotes adjudicados", "Tiempo medio de ejecución"],
+        vacio="Ninguna ONG tiene lotes adjudicados en las emergencias de este período." if not ranking.filas else none,
+        resumen="Ranking de ONGs por lotes adjudicados.",
+        exportacion=exportacion("ranking-de-ongs"),
+    ) }}
+
+    {%- if ranking.filas %}
+    {%- set por_tiempo = ranking.orden.value == "tiempo" %}
+    <div class="tabla-contenedor" data-filtro-de-seccion>
+      <table class="tabla">
+        <caption class="sr-only">Ranking de ONGs, ordenado por {{ "tiempo medio de ejecución, de menor a mayor" if por_tiempo else "lotes adjudicados, de mayor a menor" }}</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="tabla-encabezado w-16">#</th>
+            <th scope="col" class="tabla-encabezado">ONG</th>
+            {{ encabezado_ordenable("Lotes adjudicados", url_for("indicadores.red_de_ongs"), not por_tiempo, "descending") }}
+            <th scope="col" class="tabla-encabezado">Actividades finalizadas</th>
+            {{ encabezado_ordenable("Tiempo medio de ejecución", url_for("indicadores.red_de_ongs", orden="tiempo"), por_tiempo, "ascending") }}
+          </tr>
+        </thead>
+        <tbody>
+          {%- for fila in ranking.filas %}
+          <tr class="tabla-fila">
+            {%- set clase_posicion = "ranking-posicion" ~ (" ranking-posicion-podio" if loop.index <= 3 else "") %}
+            <td class="tabla-celda tabla-celda-escritorio"><span class="{{ clase_posicion }}">{{ loop.index }}</span></td>
+            <td class="tabla-celda tabla-celda-principal">
+              <span class="ranking-ong"><span class="{{ clase_posicion }} md:hidden" aria-hidden="true">{{ loop.index }}</span>{{ fila.nombre }}</span>
+            </td>
+            {% call celda("Lotes adjudicados") %}<span class="ranking-cifra">{{ fila.lotes_adjudicados|numero }}</span>{% endcall %}
+            {% call celda("Actividades finalizadas") %}<span class="ranking-cifra">{{ fila.actividades_finalizadas|numero }}</span>{% endcall %}
+            {% call celda("Tiempo medio de ejecución") %}
+            {%- if fila.tiempo_medio_de_ejecucion is none %}
+            <span class="ranking-sin-dato" title="Todavía no finalizó ninguna actividad">—</span>
+            {%- else %}
+            <span class="ranking-cifra">{{ fila.tiempo_como_texto }}</span>
+            {%- endif %}
+            {% endcall %}
+          </tr>
+          {%- endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="grafico-nota">
+      {{ icono("info", "size-4") }}
+      <span>Tiempo medio de ejecución: días entre la adjudicación y el momento en que la ONG marcó cada actividad como finalizada. "—" indica que todavía no finalizó ninguna.</span>
+    </p>
+    {%- endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts_de_la_seccion %}
+<script src="{{ url_for('static', filename='js/vendor/chart-4.4.9.umd.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/graficos.js') }}" defer></script>
+{% endblock %}
