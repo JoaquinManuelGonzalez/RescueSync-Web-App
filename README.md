@@ -540,9 +540,12 @@ integrar, cada organización y aporte incluye `identificador_nacional`, y cada �
 `lote_item_id`) sirven para trazabilidad en la web; no son claves de las tablas de la API Nacional.
 
 `codigo_recurso` es único y se guarda en el catálogo web. Los códigos iniciales se generan
-normalizando el nombre del recurso y quedan persistidos en la base. Para que la API Nacional pueda
-resolverlos, su catálogo deberá adoptar los mismos códigos para los recursos equivalentes; este
-cambio todavía se realiza solo en la web.
+normalizando el nombre del recurso y quedan persistidos en la base. La API Nacional siembra el
+mismo catálogo (los 46 ítems, con el mismo código, categoría, unidad y consumible), porque Bonita
+le reenvía los códigos sin traducirlos y uno que no conozca hace fallar la evaluación con 404.
+`backend/tests/test_catalogo_compartido.py` compara las semillas de la web con una copia del
+catálogo que la API verifica con la misma prueba: si se agrega o cambia un ítem, hay que
+replicarlo en las semillas de la API y en las dos copias.
 
 ### Instalación
 
