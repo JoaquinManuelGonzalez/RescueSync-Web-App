@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import enum
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.extensiones import db
@@ -30,6 +31,12 @@ class EstadoConvocatoria(enum.Enum):
     cerrada = "cerrada"
     adjudicada = "adjudicada"
     cancelada = "cancelada"
+
+
+class DecisionCobertura(enum.StrEnum):
+    pendiente = "pendiente"
+    aceptada_parcialmente = "aceptada_parcialmente"
+    convocatoria_reabierta = "convocatoria_reabierta"
 
 
 class Convocatoria(db.Model):
@@ -99,6 +106,18 @@ class Convocatoria(db.Model):
     cobertura_evaluada_en: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
+    )
+    porcentaje_cobertura: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2),
+        default=Decimal("0.00"),
+        nullable=False,
+        comment="Porcentaje ponderado de cantidades habilitadas sobre las solicitadas.",
+    )
+    decision_cobertura: Mapped[str] = mapped_column(
+        String(30),
+        default=DecisionCobertura.pendiente,
+        server_default=DecisionCobertura.pendiente.value,
+        nullable=False,
     )
 
     # --- relaciones -----------------------------------------------------------

@@ -7,8 +7,12 @@ from sqlalchemy import func, select
 from app.core.acceso.permisos import CATALOGO_DE_PERMISOS, PERMISOS_POR_ROL, NombreRol
 from app.core.semillas import SEEDERS, importar_seeders
 from app.extensiones import db
-from app.modulos.convocatorias.modelos import Convocatoria
-from app.modulos.emergencias.modelos import Emergencia
+from app.modulos.convocatorias.modelos import (
+    Convocatoria,
+    DecisionCobertura,
+    EstadoConvocatoria,
+)
+from app.modulos.emergencias.modelos import Emergencia, EstadoEmergencia
 from app.modulos.notificaciones.modelos import Notificacion
 from app.modulos.ofertas.modelos import Oferta, TipoAsignacion
 from app.modulos.organizaciones.modelos import Inventario, InventarioItem, Organizacion
@@ -34,7 +38,7 @@ def test_la_semilla_carga_el_catalogo_completo(app, base_de_datos: None) -> None
         assert _contar(Inventario) == 5
         assert _contar(InventarioItem) == 53
         assert _contar(Usuario) == 11
-        assert _contar(Notificacion) == 7
+        assert _contar(Notificacion) == 8
 
 
 def test_la_semilla_incluye_el_caso_de_prueba_de_seleccion_sin_bonita(
@@ -58,6 +62,58 @@ def test_la_semilla_incluye_el_caso_de_prueba_de_seleccion_sin_bonita(
             TipoAsignacion.principal,
             TipoAsignacion.apoyo,
         }
+
+
+def test_la_semilla_incluye_cobertura_insuficiente_pendiente(app, base_de_datos: None) -> None:
+    with app.app_context():
+        emergencia = Emergencia.query.filter_by(
+            titulo="PRUEBA - Cobertura parcial pendiente en Chascomús"
+        ).one()
+        convocatoria = Convocatoria.query.filter_by(
+            observaciones="SEED_PRUEBA_COBERTURA_INSUFICIENTE"
+        ).one()
+
+        assert emergencia.estado == EstadoEmergencia.activa
+        assert convocatoria.estado == EstadoConvocatoria.cerrada
+        assert convocatoria.cobertura_completa is False
+        assert convocatoria.cobertura_evaluada_en is not None
+        assert convocatoria.porcentaje_cobertura == 75
+        assert convocatoria.decision_cobertura == DecisionCobertura.pendiente
+
+        lote_items = [linea for lote in convocatoria.lotes for linea in lote.lote_items]
+        assert len(lote_items) == 1
+        assert lote_items[0].cantidad_solicitada == 1000
+
+        ofertas = Oferta.query.filter_by(convocatoria_id=convocatoria.id).all()
+        lineas = [linea for oferta in ofertas for linea in oferta.items]
+        assert len(ofertas) == 1
+        assert len(lineas) == 1
+        assert lineas[0].cantidad_ofrecida == 750
+        assert lineas[0].tipo_asignacion == TipoAsignacion.principal
+
+        centro = Organizacion.query.filter_by(
+            nombre="Centro Coordinador Regional Buenos Aires"
+        ).one()
+        notificacion = Notificacion.query.filter_by(
+            organizacion_id=centro.id,
+            titulo="Cobertura insuficiente: decisión pendiente",
+        ).one()
+        assert notificacion.enlace == (f"/convocatorias/{convocatoria.id}/cobertura-insuficiente")
+
+
+def test_la_semilla_activa_una_emergencia_de_cobertura_insuficiente_existente(
+    app, base_de_datos: None
+) -> None:
+    with app.app_context():
+        emergencia = Emergencia.query.filter_by(
+            titulo="PRUEBA - Cobertura parcial pendiente en Chascomús"
+        ).one()
+        emergencia.estado = EstadoEmergencia.registrada
+        db.session.flush()
+
+        _volver_a_sembrar()
+
+        assert emergencia.estado == EstadoEmergencia.activa
 
 
 def test_volver_a_sembrar_no_duplica_nada(app, base_de_datos: None) -> None:

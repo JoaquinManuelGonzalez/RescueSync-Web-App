@@ -53,6 +53,17 @@
         ) }}
       </div>
       {% endif %}
+      {% if convocatoria.estado.value == "cerrada"
+        and convocatoria.cobertura_evaluada_en
+        and not convocatoria.cobertura_completa
+        and convocatoria.decision_cobertura == "pendiente"
+        and puede("cobertura_insuficiente:gestionar") %}
+      <div class="border-t border-gray-100 pt-4">
+        <a class="btn btn-primario" href="{{ url_for('convocatorias.cobertura_insuficiente', convocatoria_id=convocatoria.id) }}">
+          {{ icono("ver") }} Revisar cobertura insuficiente
+        </a>
+      </div>
+      {% endif %}
     </div>
   </section>
 </div>

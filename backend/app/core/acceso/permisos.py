@@ -154,6 +154,7 @@ CONVOCATORIAS_CREAR = "convocatorias:crear"
 CONVOCATORIAS_PUBLICAR = "convocatorias:publicar"
 CONVOCATORIAS_CERRAR = "convocatorias:cerrar"
 CONVOCATORIAS_LISTAR = "convocatorias:listar"
+COBERTURA_INSUFICIENTE_GESTIONAR = "cobertura_insuficiente:gestionar"
 
 # Etapa 3: ofertas de ayuda de las ONG.
 OFERTAS_CREAR = "ofertas:crear"
@@ -209,6 +210,9 @@ CATALOGO_DE_PERMISOS: dict[str, str] = {
     CONVOCATORIAS_PUBLICAR: "Publicar una convocatoria y abrir su ventana de ofertas.",
     CONVOCATORIAS_CERRAR: "Cerrar anticipadamente la ventana de ofertas de una convocatoria.",
     CONVOCATORIAS_LISTAR: "Ver las convocatorias publicadas.",
+    COBERTURA_INSUFICIENTE_GESTIONAR: (
+        "Resolver coberturas insuficientes: aceptar la cobertura parcial o reabrir la ronda."
+    ),
     OFERTAS_CREAR: "Presentar una oferta de ayuda, individual o en consorcio.",
     OFERTAS_EDITAR: "Modificar una oferta propia dentro de la ventana vigente.",
     OFERTAS_RETIRAR: "Retirar una oferta propia dentro de la ventana vigente.",
@@ -262,6 +266,7 @@ PERMISOS_POR_ROL: dict[NombreRol, frozenset[str]] = {
             CONVOCATORIAS_PUBLICAR,
             CONVOCATORIAS_CERRAR,
             CONVOCATORIAS_LISTAR,
+            COBERTURA_INSUFICIENTE_GESTIONAR,
             OFERTAS_LISTAR,
             ADJUDICACIONES_REGISTRAR,
             ADJUDICACIONES_LISTAR,

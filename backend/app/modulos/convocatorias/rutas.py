@@ -9,19 +9,28 @@ from flask_login import current_user
 from sqlalchemy import select
 
 from app.core.acceso.autorizacion import requiere_permiso
-from app.core.acceso.permisos import CONVOCATORIAS_CERRAR, CONVOCATORIAS_CREAR, CONVOCATORIAS_LISTAR
+from app.core.acceso.permisos import (
+    COBERTURA_INSUFICIENTE_GESTIONAR,
+    CONVOCATORIAS_CERRAR,
+    CONVOCATORIAS_CREAR,
+    CONVOCATORIAS_LISTAR,
+)
 from app.core.errores import ErrorDeAplicacion, RecursoNoEncontrado, SolicitudInvalida
 from app.core.interfaz.navegacion import EntradaDeMenu
 from app.core.interfaz.paginacion import parametros_de_paginacion
 from app.core.interfaz.plantillas import ZONA_HORARIA_DE_LA_INTERFAZ
-from app.core.interfaz.vistas import pide_json, redirigir
+from app.core.interfaz.vistas import ERROR, pide_json, redirigir
 from app.extensiones import db
 from app.modulos.convocatorias import servicios
 from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 from app.modulos.convocatorias.servicios import (
+    aceptar_cobertura_parcial,
     cerrar_convocatoria,
     cerrar_convocatorias_vencidas,
     crear_convocatoria,
+    obtener_convocatoria_con_cobertura_insuficiente,
+    puede_aceptar_cobertura_parcial,
+    reabrir_convocatoria_por_cobertura_insuficiente,
 )
 from app.modulos.emergencias import servicios as servicios_emergencias
 from app.modulos.emergencias.modelos import EstadoEmergencia
@@ -252,6 +261,14 @@ def obtener(convocatoria_id: int):
                 "resumen_situacion": convocatoria.resumen_situacion,
                 "estado": convocatoria.estado.value,
                 "observaciones": convocatoria.observaciones,
+                "cobertura_completa": convocatoria.cobertura_completa,
+                "cobertura_evaluada_en": (
+                    convocatoria.cobertura_evaluada_en.isoformat()
+                    if convocatoria.cobertura_evaluada_en
+                    else None
+                ),
+                "porcentaje_cobertura": float(convocatoria.porcentaje_cobertura),
+                "decision_cobertura": convocatoria.decision_cobertura,
             }
         )
     return render_template(
@@ -259,6 +276,94 @@ def obtener(convocatoria_id: int):
         convocatoria=convocatoria,
         ong_puede_presentar_oferta=_ong_puede_presentar_oferta(convocatoria),
         oferta_de_ong=_oferta_activa_de_ong(convocatoria),
+    )
+
+
+@blueprint_convocatorias.get("/<int:convocatoria_id>/cobertura-insuficiente")
+@requiere_permiso(COBERTURA_INSUFICIENTE_GESTIONAR)
+def cobertura_insuficiente(convocatoria_id: int):
+    """Panel de decisión disponible mientras la cobertura incompleta esté pendiente."""
+    convocatoria = obtener_convocatoria_con_cobertura_insuficiente(convocatoria_id)
+    aceptacion_parcial_habilitada = puede_aceptar_cobertura_parcial(convocatoria)
+    if pide_json():
+        return jsonify(
+            {
+                "convocatoria_id": convocatoria.id,
+                "emergencia_id": convocatoria.emergencia_id,
+                "porcentaje_cobertura": float(convocatoria.porcentaje_cobertura),
+                "aceptacion_parcial_habilitada": aceptacion_parcial_habilitada,
+                "ofertas": [
+                    {
+                        "id": oferta.id,
+                        "estado": oferta.estado.value,
+                        "items": [
+                            {
+                                "item": linea.lote_item.item.nombre,
+                                "organizacion": linea.organizacion.nombre,
+                                "cantidad": linea.cantidad_ofrecida,
+                                "clasificacion": linea.tipo_asignacion.value,
+                            }
+                            for linea in oferta.items
+                        ],
+                    }
+                    for oferta in convocatoria.ofertas
+                ],
+            }
+        )
+    return render_template(
+        "convocatorias/cobertura_insuficiente.html",
+        convocatoria=convocatoria,
+        aceptacion_parcial_habilitada=aceptacion_parcial_habilitada,
+    )
+
+
+@blueprint_convocatorias.post("/<int:convocatoria_id>/cobertura-insuficiente/aceptar-parcial")
+@requiere_permiso(COBERTURA_INSUFICIENTE_GESTIONAR)
+def aceptar_cobertura_insuficiente(convocatoria_id: int):
+    """Acepta la cobertura parcial si alcanza el mínimo y habilita la selección municipal."""
+    try:
+        convocatoria = aceptar_cobertura_parcial(convocatoria_id)
+    except ErrorDeAplicacion as error:
+        if pide_json():
+            raise
+        flash(error.mensaje, ERROR)
+        return redirigir(
+            "convocatorias.cobertura_insuficiente",
+            convocatoria_id=convocatoria_id,
+        )
+    return redirigir(
+        "convocatorias.obtener",
+        "Cobertura parcial aceptada. El municipio ya puede seleccionar las ofertas.",
+        convocatoria_id=convocatoria.id,
+        datos_json={
+            "mensaje": "Cobertura parcial aceptada.",
+            "convocatoria_id": convocatoria.id,
+        },
+    )
+
+
+@blueprint_convocatorias.post("/<int:convocatoria_id>/cobertura-insuficiente/reabrir")
+@requiere_permiso(COBERTURA_INSUFICIENTE_GESTIONAR)
+def reabrir_por_cobertura_insuficiente(convocatoria_id: int):
+    """Devuelve la emergencia al registro sin modificar la convocatoria cerrada."""
+    try:
+        emergencia = reabrir_convocatoria_por_cobertura_insuficiente(convocatoria_id)
+    except ErrorDeAplicacion as error:
+        if pide_json():
+            raise
+        flash(error.mensaje, ERROR)
+        return redirigir(
+            "convocatorias.cobertura_insuficiente",
+            convocatoria_id=convocatoria_id,
+        )
+    return redirigir(
+        "emergencias.obtener",
+        "Emergencia reabierta. Podés crear nuevos lotes para otra convocatoria.",
+        datos_json={
+            "mensaje": "Emergencia reabierta.",
+            "emergencia_id": emergencia.id,
+        },
+        emergencia_id=emergencia.id,
     )
 
 

@@ -186,7 +186,7 @@
           </div>
         </div>
         <div class="modal-acciones">
-          <button type="button" class="btn btn-secundario" data-modal-cancelar>Cancelar</button>
+          <button type="button" class="btn btn-cancelar" data-modal-cancelar>Cancelar</button>
           <button type="button" class="btn btn-primario" data-modal-aceptar></button>
         </div>
       </div>`;

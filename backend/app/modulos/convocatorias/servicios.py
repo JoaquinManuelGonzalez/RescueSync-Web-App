@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from sqlalchemy import Select, or_, select
+from sqlalchemy.orm import selectinload
 
 from app.core.errores import (
     ConflictoDeEstado,
@@ -16,15 +19,23 @@ from app.core.errores import (
 from app.core.interfaz.paginacion import Pagina, paginar
 from app.core.logging import registrar_evento
 from app.extensiones import db
-from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
+from app.modulos.convocatorias.modelos import (
+    Convocatoria,
+    DecisionCobertura,
+    EstadoConvocatoria,
+)
 from app.modulos.emergencias.modelos import (
     Emergencia,
     EstadoEmergencia,
     EstadoLote,
+    LoteItem,
     LoteNecesidad,
 )
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
+from app.modulos.ofertas.modelos import Oferta, OfertaLinea, TipoAsignacion
 from app.modulos.usuarios_roles.modelos import Usuario
+
+PORCENTAJE_MINIMO_COBERTURA_PARCIAL = Decimal("75.00")
 
 
 def _consulta_de_convocatorias(
@@ -280,6 +291,125 @@ def crear_convocatoria(
     # --- Integración con Bonita: enviar el timer de la ventana temporal -------
     _notificar_bonita_timer(emergencia, convocatoria, coordinador.email)
 
+    return convocatoria
+
+
+def obtener_convocatoria_con_cobertura_insuficiente(convocatoria_id: int) -> Convocatoria:
+    """Obtiene una convocatoria que todavía espera una decisión del coordinador."""
+    convocatoria = db.session.scalar(
+        select(Convocatoria)
+        .where(Convocatoria.id == convocatoria_id)
+        .options(
+            selectinload(Convocatoria.emergencia),
+            selectinload(Convocatoria.ofertas)
+            .selectinload(Oferta.items)
+            .selectinload(OfertaLinea.organizacion),
+            selectinload(Convocatoria.ofertas)
+            .selectinload(Oferta.items)
+            .selectinload(OfertaLinea.lote_item)
+            .selectinload(LoteItem.item),
+        )
+    )
+    if (
+        convocatoria is None
+        or convocatoria.estado != EstadoConvocatoria.cerrada
+        or convocatoria.cobertura_evaluada_en is None
+        or convocatoria.cobertura_completa
+        or convocatoria.decision_cobertura != DecisionCobertura.pendiente
+        or convocatoria.emergencia.estado
+        not in (EstadoEmergencia.registrada, EstadoEmergencia.activa)
+    ):
+        raise RecursoNoEncontrado("No encontramos una cobertura insuficiente pendiente.")
+    return convocatoria
+
+
+def puede_aceptar_cobertura_parcial(convocatoria: Convocatoria) -> bool:
+    """Compara cantidades exactas para que el redondeo de pantalla no habilite un 74,99%."""
+    lote_items = db.session.scalars(
+        select(LoteItem).join(LoteNecesidad).where(LoteNecesidad.convocatoria_id == convocatoria.id)
+    ).all()
+    cantidades_requeridas = {
+        lote_item.id: int(lote_item.cantidad_solicitada) for lote_item in lote_items
+    }
+    cantidad_total_solicitada = sum(cantidades_requeridas.values())
+    if not cantidad_total_solicitada:
+        return False
+
+    cantidades_habilitadas: defaultdict[int, int] = defaultdict(int)
+    lineas_habilitadas = db.session.scalars(
+        select(OfertaLinea)
+        .join(Oferta)
+        .where(
+            Oferta.convocatoria_id == convocatoria.id,
+            OfertaLinea.tipo_asignacion.in_((TipoAsignacion.principal, TipoAsignacion.apoyo)),
+        )
+    ).all()
+    for linea in lineas_habilitadas:
+        cantidades_habilitadas[linea.lote_item_id] += int(linea.cantidad_ofrecida)
+    cantidad_total_cubierta = sum(
+        min(cantidad, cantidades_habilitadas[lote_item_id])
+        for lote_item_id, cantidad in cantidades_requeridas.items()
+    )
+    return (
+        cantidad_total_cubierta * 100
+        >= cantidad_total_solicitada * PORCENTAJE_MINIMO_COBERTURA_PARCIAL
+    )
+
+
+def _obtener_cobertura_pendiente_para_actualizar(convocatoria_id: int) -> Convocatoria:
+    convocatoria = db.session.execute(
+        select(Convocatoria).where(Convocatoria.id == convocatoria_id).with_for_update()
+    ).scalar_one_or_none()
+    if (
+        convocatoria is None
+        or convocatoria.estado != EstadoConvocatoria.cerrada
+        or convocatoria.cobertura_evaluada_en is None
+        or convocatoria.cobertura_completa
+        or convocatoria.decision_cobertura != DecisionCobertura.pendiente
+    ):
+        raise RecursoNoEncontrado("No encontramos una cobertura insuficiente pendiente.")
+    return convocatoria
+
+
+def reabrir_convocatoria_por_cobertura_insuficiente(convocatoria_id: int) -> Emergencia:
+    """Devuelve la emergencia al registro y conserva esta convocatoria como historial."""
+    convocatoria = _obtener_cobertura_pendiente_para_actualizar(convocatoria_id)
+    emergencia = db.session.execute(
+        select(Emergencia).where(Emergencia.id == convocatoria.emergencia_id).with_for_update()
+    ).scalar_one()
+    if emergencia.estado not in (EstadoEmergencia.registrada, EstadoEmergencia.activa):
+        raise ConflictoDeEstado("La emergencia no está disponible para reabrir la convocatoria.")
+    convocatoria.decision_cobertura = DecisionCobertura.convocatoria_reabierta
+    if emergencia.estado != EstadoEmergencia.registrada:
+        estado_anterior = emergencia.estado
+        emergencia.estado = EstadoEmergencia.registrada
+        servicios_de_notificaciones.notificar_cambio_estado_emergencia(emergencia, estado_anterior)
+    db.session.commit()
+    return emergencia
+
+
+def aceptar_cobertura_parcial(convocatoria_id: int) -> Convocatoria:
+    """Aprueba una cobertura de al menos 75% y habilita la selección municipal."""
+    convocatoria = _obtener_cobertura_pendiente_para_actualizar(convocatoria_id)
+    if not puede_aceptar_cobertura_parcial(convocatoria):
+        raise ReglaDeNegocioIncumplida(
+            "La cobertura parcial solo se puede aceptar cuando alcanza al menos el 75%.",
+            detalle={"porcentaje_cobertura": str(convocatoria.porcentaje_cobertura)},
+            codigo="COBERTURA_PARCIAL_MENOR_AL_MINIMO",
+        )
+
+    emergencia = db.session.execute(
+        select(Emergencia).where(Emergencia.id == convocatoria.emergencia_id).with_for_update()
+    ).scalar_one()
+    if emergencia.estado not in (EstadoEmergencia.registrada, EstadoEmergencia.activa):
+        raise ConflictoDeEstado("La emergencia no está disponible para seleccionar ofertas.")
+    convocatoria.decision_cobertura = DecisionCobertura.aceptada_parcialmente
+    if emergencia.estado != EstadoEmergencia.activa:
+        estado_anterior = emergencia.estado
+        emergencia.estado = EstadoEmergencia.activa
+        servicios_de_notificaciones.notificar_cambio_estado_emergencia(emergencia, estado_anterior)
+    servicios_de_notificaciones.notificar_cobertura_parcial_aceptada(convocatoria)
+    db.session.commit()
     return convocatoria
 
 
