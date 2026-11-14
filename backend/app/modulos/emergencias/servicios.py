@@ -209,7 +209,7 @@ def crear_emergencia(
         _notificar_instanciacion_bonita(case_id, emergencia.id)
     except Exception:
         # No diferencia entre SistemaExternoRechazo,
-        # ServicioExternoNoDisponible y RuntimeError.
+        # ServicioExternoNoDisponible ni ningún otro error.
         # Lo importante es que aunque falle Bonita,
         # la emergencia se registre.
         # Puede volver a intentar conectar a la hora

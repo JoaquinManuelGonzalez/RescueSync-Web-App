@@ -5,7 +5,7 @@ import threading
 
 import httpx
 
-from app.core.errores import SistemaExternoRechazo
+from app.core.errores import RespuestaExternaInvalida, SistemaExternoRechazo
 from app.core.integraciones.cliente_http import (
     COMPONENTE_BONITA,
     ejecutar_solicitud,
@@ -49,8 +49,11 @@ def iniciar_sesion(username: str) -> httpx.Client:
     token = cliente.cookies.get(NOMBRE_COOKIE_TOKEN)
 
     if not token:
+        # Bonita acepto el login pero no devolvio X-Bonita-API-Token.
         cliente.close()
-        raise RuntimeError("Bonita inició sesión pero no devolvió X-Bonita-API-Token.")
+        raise RespuestaExternaInvalida(
+            detalle={"componente": "bonita", "falta": NOMBRE_COOKIE_TOKEN}
+        )
 
     cliente.headers[NOMBRE_COOKIE_TOKEN] = token
 

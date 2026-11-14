@@ -1076,6 +1076,146 @@ def test_reabrir_cobertura_conserva_historial_y_permite_otra_ronda(
         assert nueva_convocatoria.id != convocatoria_anterior.id
 
 
+# --- La decision viaja a Bonita ------------------------------------------------------
+
+CASO_DE_BONITA = "4001"
+
+
+@pytest.fixture
+def decisiones_enviadas(monkeypatch) -> list[dict[str, str]]:
+    """Reemplaza el envio de la decision a Bonita y devuelve las llamadas que recibio."""
+    from app.modulos.convocatorias import servicios as servicios_convocatorias
+
+    llamadas: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        servicios_convocatorias,
+        "decidir_cobertura_insuficiente",
+        lambda **argumentos: llamadas.append(argumentos),
+    )
+    return llamadas
+
+
+def _asociar_caso_de_bonita(app, emergencia_id: int) -> None:
+    with app.app_context():
+        db.session.get(Emergencia, emergencia_id).bonita_case_id = CASO_DE_BONITA
+        db.session.commit()
+
+
+@pytest.mark.parametrize(
+    ("accion", "decision_en_bonita", "decision_local"),
+    [
+        ("aceptar-parcial", "continuar", DecisionCobertura.aceptada_parcialmente),
+        ("reabrir", "reiniciar", DecisionCobertura.convocatoria_reabierta),
+    ],
+)
+def test_la_decision_de_cobertura_completa_la_tarea_de_bonita(
+    app,
+    cliente_sembrado,
+    datos_ofertas_web,
+    ingresar,
+    enviar_formulario,
+    decisiones_enviadas,
+    accion,
+    decision_en_bonita,
+    decision_local,
+):
+    convocatoria_id, emergencia_id = _evaluar_cobertura(
+        app, cliente_sembrado, datos_ofertas_web, (1500, 375)
+    )
+    _asociar_caso_de_bonita(app, emergencia_id)
+    ingresar(EMAIL_COORDINADOR)
+
+    respuesta = enviar_formulario(
+        f"/convocatorias/{convocatoria_id}/cobertura-insuficiente/{accion}"
+    )
+
+    assert respuesta.status_code == 302
+    assert decisiones_enviadas == [
+        {
+            "username": EMAIL_COORDINADOR,
+            "case_id": CASO_DE_BONITA,
+            "decision": decision_en_bonita,
+        }
+    ]
+    with app.app_context():
+        assert db.session.get(Convocatoria, convocatoria_id).decision_cobertura == decision_local
+
+
+def test_si_bonita_no_recibe_la_decision_no_se_guarda_ningun_cambio(
+    app,
+    cliente_sembrado,
+    datos_ofertas_web,
+    ingresar,
+    enviar_formulario,
+    monkeypatch,
+):
+    from app.core.errores import ServicioExternoNoDisponible
+    from app.modulos.convocatorias import servicios as servicios_convocatorias
+
+    def _bonita_caido(**_argumentos):
+        raise ServicioExternoNoDisponible(detalle={"componente": "bonita"})
+
+    monkeypatch.setattr(servicios_convocatorias, "decidir_cobertura_insuficiente", _bonita_caido)
+    convocatoria_id, emergencia_id = _evaluar_cobertura(
+        app, cliente_sembrado, datos_ofertas_web, (1500, 375)
+    )
+    _asociar_caso_de_bonita(app, emergencia_id)
+    ingresar(EMAIL_COORDINADOR)
+
+    respuesta = enviar_formulario(
+        f"/convocatorias/{convocatoria_id}/cobertura-insuficiente/aceptar-parcial"
+    )
+
+    assert respuesta.status_code == 302
+    assert respuesta.headers["Location"].endswith(
+        f"/convocatorias/{convocatoria_id}/cobertura-insuficiente"
+    )
+    pantalla = cliente_sembrado.get(
+        respuesta.headers["Location"], headers={"Accept": "text/html,application/xhtml+xml"}
+    )
+    assert "No pudimos comunicar la decisión al motor de procesos" in pantalla.get_data(
+        as_text=True
+    )
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, convocatoria_id)
+        emergencia = db.session.get(Emergencia, emergencia_id)
+        assert convocatoria.decision_cobertura == DecisionCobertura.pendiente
+        assert emergencia.estado == EstadoEmergencia.registrada
+        assert (
+            db.session.execute(
+                db.select(Notificacion).where(
+                    Notificacion.titulo
+                    == "Cobertura parcial aprobada: ofertas listas para seleccionar"
+                )
+            ).first()
+            is None
+        )
+
+
+def test_sin_caso_en_bonita_la_decision_se_guarda_sin_llamar_al_motor(
+    app,
+    cliente_sembrado,
+    datos_ofertas_web,
+    ingresar,
+    enviar_formulario,
+    decisiones_enviadas,
+):
+    convocatoria_id, _ = _evaluar_cobertura(app, cliente_sembrado, datos_ofertas_web, (1000, 250))
+    ingresar(EMAIL_COORDINADOR)
+
+    respuesta = enviar_formulario(
+        f"/convocatorias/{convocatoria_id}/cobertura-insuficiente/reabrir"
+    )
+
+    assert respuesta.status_code == 302
+    assert decisiones_enviadas == []
+    with app.app_context():
+        assert (
+            db.session.get(Convocatoria, convocatoria_id).decision_cobertura
+            == DecisionCobertura.convocatoria_reabierta
+        )
+
+
 def test_historial_oferta_ruta(cliente_sembrado, cabecera_csrf, ingresar, datos_ofertas_web):
     """Verifica que el endpoint GET /ofertas/<id>/historial retorne las versiones anteriores."""
     ingresar(EMAIL_REPRESENTANTE)

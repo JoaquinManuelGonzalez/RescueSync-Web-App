@@ -121,13 +121,3 @@ def test_una_respuesta_con_otra_forma_es_invalida(bonita, registro) -> None:
 
     with pytest.raises(RespuestaExternaInvalida):
         consultas.listar_casos_archivados(["7"])
-
-
-def test_una_sesion_sin_token_es_una_respuesta_invalida(monkeypatch) -> None:
-    def _sin_token(**_kwargs):
-        raise RuntimeError("Bonita inició sesión pero no devolvió X-Bonita-API-Token.")
-
-    monkeypatch.setattr(consultas, "ejecutar_solicitud_bonita", _sin_token)
-
-    with pytest.raises(RespuestaExternaInvalida):
-        consultas.listar_definiciones_del_proceso("RescueSync")

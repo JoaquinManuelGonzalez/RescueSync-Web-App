@@ -92,18 +92,14 @@ def _fecha(valor: Any) -> datetime | None:
 def _paginar(endpoint: str, filtros: list[tuple[str, str]]) -> Iterator[dict[str, Any]]:
     """Recorre todas las paginas de una busqueda de la REST API de Bonita."""
     for pagina in range(MAXIMO_DE_PAGINAS):
-        try:
-            respuesta = ejecutar_solicitud_bonita(
-                username=BONITA_USER,
-                metodo="GET",
-                endpoint_normalizado=endpoint,
-                url=f"{BONITA_BASE_URL}{endpoint}",
-                idempotente=True,
-                params=[("p", str(pagina)), ("c", str(TAMANO_DE_PAGINA)), *filtros],
-            )
-        except RuntimeError as error:
-            # La sesion de Bonita se abrio sin devolver su token (sesion.iniciar_sesion).
-            raise RespuestaExternaInvalida(detalle={"componente": "bonita"}) from error
+        respuesta = ejecutar_solicitud_bonita(
+            username=BONITA_USER,
+            metodo="GET",
+            endpoint_normalizado=endpoint,
+            url=f"{BONITA_BASE_URL}{endpoint}",
+            idempotente=True,
+            params=[("p", str(pagina)), ("c", str(TAMANO_DE_PAGINA)), *filtros],
+        )
         try:
             registros = respuesta.json()
         except ValueError as error:
