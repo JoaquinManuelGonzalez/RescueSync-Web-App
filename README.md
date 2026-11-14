@@ -347,6 +347,7 @@ Todos se corren desde la raíz del repositorio.
 | Ver la revisión actual | `docker compose exec web flask db current` |
 | Cargar datos semilla | `docker compose exec web flask seed` |
 | Crear la primera cuenta de administrador | `docker compose exec web flask crear-administrador --email <email> --nombre "<nombre>"` |
+| Diagnosticar la conexión con Bonita | `docker compose exec web flask bonita-diagnostico` |
 | Correr los tests | `docker compose exec web pytest` |
 | Formatear el código | `docker compose exec web ruff format .` |
 | Verificar formato y lint | `docker compose exec web ruff format --check . && docker compose exec web ruff check .` |

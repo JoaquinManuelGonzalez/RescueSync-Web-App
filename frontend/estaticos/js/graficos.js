@@ -279,7 +279,8 @@
       if (url) seguirEnlace(url);
     };
     opciones.onHover = (evento, elementos) => {
-      evento.native.target.style.cursor = elementos.length ? "pointer" : "default";
+      const lienzo = evento.native?.target;
+      if (lienzo) lienzo.style.cursor = elementos.length ? "pointer" : "default";
     };
   }
 
