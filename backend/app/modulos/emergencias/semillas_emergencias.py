@@ -14,6 +14,8 @@ from app.modulos.emergencias.modelos import (
 from app.modulos.organizaciones.modelos import Organizacion
 from app.modulos.usuarios_roles.modelos import Usuario
 
+TITULO_EMERGENCIA_COBERTURA_INSUFICIENTE = "PRUEBA - Cobertura parcial pendiente en Chascomús"
+
 # # # # # # # # # # # # Emergencias # # # # # # # # # # # #
 EMERGENCIAS: list[dict] = [
     {
@@ -80,6 +82,19 @@ EMERGENCIAS: list[dict] = [
         "usuario_email": "operador@pergamino.test",
         "tipo_emergencia": TipoEmergencia.otros,
         # Caso local de prueba: no tiene bonita_case_id ni integración con Bonita.
+    },
+    {
+        "titulo": TITULO_EMERGENCIA_COBERTURA_INSUFICIENTE,
+        "descripcion": (
+            "Caso de prueba para validar el panel de cobertura insuficiente y la "
+            "aceptación de cobertura parcial desde el 75%."
+        ),
+        "nivel_gravedad": NivelGravedad.media,
+        "zona_afectada": "Casco urbano de Chascomús",
+        "estado": EstadoEmergencia.activa,
+        "municipio_nombre": "Municipio de Chascomús",
+        "usuario_email": "operador@chascomus.test",
+        "tipo_emergencia": TipoEmergencia.otros,
     },
 ]
 

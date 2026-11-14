@@ -1,0 +1,127 @@
+{% extends "layout.html" %}
+{% from "componentes/diseno.html" import encabezado_pagina, insignia %}
+{% from "componentes/formularios.html" import formulario_accion %}
+{% from "componentes/iconos.html" import icono %}
+
+{% block title %}Cobertura insuficiente{% endblock %}
+
+{% block content %}
+<div class="pagina space-y-6">
+  <a class="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primario" href="{{ url_for('convocatorias.obtener', convocatoria_id=convocatoria.id) }}">
+    {{ icono("volver", "size-4") }} Volver a la convocatoria
+  </a>
+  {% call encabezado_pagina("Cobertura insuficiente", convocatoria.emergencia.titulo) %}
+  {% endcall %}
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo space-y-3">
+      <h2 class="tarjeta-titulo">Resultado de la evaluación</h2>
+      <p class="text-sm text-gray-600">
+        Se recibieron {{ convocatoria.ofertas|length }} oferta{{ "s" if convocatoria.ofertas|length != 1 else "" }}.
+        La cobertura ponderada es:
+      </p>
+      <p class="text-3xl font-semibold text-gray-900">{{ "%.2f"|format(convocatoria.porcentaje_cobertura) }}%</p>
+      <p class="text-sm text-gray-600">
+        Si la cobertura alcanza el 75%, podés enviar las ofertas igualmente y el municipio las seleccionará con las reglas habituales.
+      </p>
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo space-y-4">
+      <h2 class="tarjeta-titulo">Necesidades solicitadas</h2>
+      {% for lote in convocatoria.lotes %}
+      <article class="rounded-lg border border-gray-200 p-4">
+        <h3 class="font-semibold text-gray-900">{{ lote.descripcion or ("Lote " ~ loop.index) }}</h3>
+        {% if lote.lote_items %}
+        <ul class="mt-3 divide-y divide-gray-100">
+          {% for lote_item in lote.lote_items %}
+          <li class="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+            <span class="text-gray-700">{{ lote_item.item.nombre }}</span>
+            <span class="font-medium text-gray-900">
+              {{ lote_item.cantidad_solicitada|int }} {{ lote_item.item.unidad_medida }}
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="mt-2 text-sm text-gray-500">El lote no contiene ítems solicitados.</p>
+        {% endif %}
+      </article>
+      {% else %}
+      <p class="text-sm text-gray-500">La convocatoria no tiene necesidades asociadas.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo space-y-4">
+      <h2 class="tarjeta-titulo">Ofertas recibidas</h2>
+      {% for oferta in convocatoria.ofertas %}
+      <article class="rounded-lg border border-gray-200 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="font-semibold text-gray-900">Oferta #{{ oferta.id }}</h3>
+          {{ insignia(oferta.estado.value|replace("_", " ")|capitalize, "exito" if oferta.estado.value == "presentada" else "neutra") }}
+        </div>
+        {% if oferta.items %}
+        <ul class="mt-3 divide-y divide-gray-100">
+          {% for linea in oferta.items %}
+          <li class="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+            <span class="text-gray-700">
+              {{ linea.lote_item.item.nombre }} · {{ linea.organizacion.nombre }}
+            </span>
+            <span class="font-medium text-gray-900">
+              {{ linea.cantidad_ofrecida|int }} {{ linea.lote_item.item.unidad_medida }}
+              ({{ linea.tipo_asignacion.value|replace("_", " ")|capitalize }})
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="mt-2 text-sm text-gray-500">La oferta no contiene ítems.</p>
+        {% endif %}
+      </article>
+      {% else %}
+      <p class="text-sm text-gray-500">No se recibieron ofertas para esta convocatoria.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tarjeta-cuerpo space-y-4">
+      <h2 class="tarjeta-titulo">Cómo continuar</h2>
+      <div class="flex flex-wrap gap-3">
+        {{ formulario_accion(
+          url_for("convocatorias.reabrir_por_cobertura_insuficiente", convocatoria_id=convocatoria.id),
+          "Reiniciar convocatoria",
+          variante="secundario",
+          confirmar="La emergencia volverá al registro. La convocatoria y sus lotes actuales se conservarán como historial.",
+          confirmar_titulo="¿Reiniciar la convocatoria?",
+          confirmar_boton="Reiniciar convocatoria",
+          icono_nombre="reiniciar"
+        ) }}
+        {% if aceptacion_parcial_habilitada %}
+        {{ formulario_accion(
+          url_for("convocatorias.aceptar_cobertura_insuficiente", convocatoria_id=convocatoria.id),
+          "Enviar ofertas igualmente",
+          variante="primario",
+          confirmar="Se notificará al municipio para que seleccione las ofertas disponibles.",
+          confirmar_titulo="¿Enviar las ofertas igualmente?",
+          confirmar_boton="Enviar ofertas igualmente",
+          icono_nombre="exito"
+        ) }}
+        {% else %}
+        <button class="btn btn-primario" type="button" disabled title="Se requiere al menos 75% de cobertura">
+          {{ icono("exito") }} Enviar ofertas igualmente
+        </button>
+        {% endif %}
+      </div>
+      {% if not aceptacion_parcial_habilitada %}
+      <p class="text-sm text-gray-500">
+        El envío de ofertas se habilitará al alcanzar el 75% de cobertura.
+      </p>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

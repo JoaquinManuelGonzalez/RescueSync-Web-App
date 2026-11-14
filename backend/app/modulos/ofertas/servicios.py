@@ -13,7 +13,7 @@ import json
 import logging
 from collections import defaultdict
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
 from sqlalchemy import Select, func, select
@@ -27,7 +27,7 @@ from app.core.errores import (
 )
 from app.core.logging import registrar_evento
 from app.extensiones import db
-from app.modulos.convocatorias.modelos import Convocatoria
+from app.modulos.convocatorias.modelos import Convocatoria, DecisionCobertura
 from app.modulos.convocatorias.servicios import cerrar_convocatorias_vencidas
 from app.modulos.emergencias.modelos import (
     Emergencia,
@@ -1028,10 +1028,27 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
     for linea, clasificacion in actualizaciones.values():
         linea.tipo_asignacion = clasificacion
 
+    cobertura_previa = convocatoria.cobertura_completa
+    evaluacion_previa = convocatoria.cobertura_evaluada_en is not None
     cobertura_completa = all(item["cantidad_faltante"] == 0 for item in detalle)
-    cobertura_se_completo = cobertura_completa and not convocatoria.cobertura_completa
+    cobertura_se_completo = cobertura_completa and not cobertura_previa
+    cobertura_se_volvio_insuficiente = not cobertura_completa and (
+        not evaluacion_previa or cobertura_previa
+    )
+    cantidad_total_solicitada = sum(item["cantidad_requerida"] for item in detalle)
+    cantidad_total_cubierta = sum(
+        min(item["cantidad_habilitada"], item["cantidad_requerida"]) for item in detalle
+    )
+    porcentaje_cobertura = (
+        (
+            Decimal(cantidad_total_cubierta) * Decimal("100") / Decimal(cantidad_total_solicitada)
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if cantidad_total_solicitada
+        else Decimal("0.00")
+    )
     convocatoria.cobertura_completa = cobertura_completa
     convocatoria.cobertura_evaluada_en = datetime.now(UTC)
+    convocatoria.porcentaje_cobertura = porcentaje_cobertura
     emergencia = db.session.get(Emergencia, emergencia_id)
     estado_anterior = emergencia.estado
     if emergencia.estado in (EstadoEmergencia.activa, EstadoEmergencia.registrada):
@@ -1044,12 +1061,18 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
             )
     if cobertura_se_completo:
         servicios_de_notificaciones.notificar_cobertura_completa(convocatoria)
+    elif (
+        cobertura_se_volvio_insuficiente
+        and convocatoria.decision_cobertura == DecisionCobertura.pendiente
+    ):
+        servicios_de_notificaciones.notificar_cobertura_insuficiente(convocatoria)
     db.session.commit()
 
     return {
         "emergencia_id": emergencia_id,
         "convocatoria_id": convocatoria_id,
         "cobertura_completa": cobertura_completa,
+        "porcentaje_cobertura": float(porcentaje_cobertura),
         "lotes": detalle,
     }
 

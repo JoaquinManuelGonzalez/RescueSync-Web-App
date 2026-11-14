@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.core.errores import RecursoNoEncontrado
+from app.core.errores import RecursoNoEncontrado, ReglaDeNegocioIncumplida
 from app.extensiones import db
 from app.modulos.notificaciones.modelos import Notificacion
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
@@ -117,6 +117,39 @@ def notificar_cobertura_completa(convocatoria) -> Notificacion:
         mensaje=(
             f"La cobertura de la emergencia «{convocatoria.emergencia.titulo}» fue confirmada. "
             "Ya podés seleccionar las ofertas de ayuda."
+        ),
+        enlace=f"/adjudicaciones/convocatoria/{convocatoria.id}",
+    )
+
+
+def notificar_cobertura_insuficiente(convocatoria) -> Notificacion:
+    """Avisa al centro coordinador que debe resolver una cobertura incompleta."""
+    organizacion_id = convocatoria.coordinador.organizacion_id
+    if organizacion_id is None:
+        raise ReglaDeNegocioIncumplida(
+            "El coordinador de la convocatoria no tiene una organización asociada.",
+            codigo="COORDINADOR_SIN_ORGANIZACION",
+        )
+    return crear(
+        organizacion_id=organizacion_id,
+        titulo="Cobertura insuficiente: decisión pendiente",
+        mensaje=(
+            f"La cobertura de la emergencia «{convocatoria.emergencia.titulo}» es de "
+            f"{convocatoria.porcentaje_cobertura}%. Revisá las ofertas y elegí cómo continuar."
+        ),
+        enlace=f"/convocatorias/{convocatoria.id}/cobertura-insuficiente",
+    )
+
+
+def notificar_cobertura_parcial_aceptada(convocatoria) -> Notificacion:
+    """Avisa al municipio que puede seleccionar ofertas con cobertura parcial."""
+    return crear(
+        organizacion_id=convocatoria.emergencia.municipio_id,
+        titulo="Cobertura parcial aprobada: ofertas listas para seleccionar",
+        mensaje=(
+            f"El coordinador aceptó una cobertura del {convocatoria.porcentaje_cobertura}% "
+            f"para la emergencia «{convocatoria.emergencia.titulo}». Ya podés seleccionar "
+            "las ofertas de ayuda."
         ),
         enlace=f"/adjudicaciones/convocatoria/{convocatoria.id}",
     )

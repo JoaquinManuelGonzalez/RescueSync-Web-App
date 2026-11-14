@@ -18,6 +18,11 @@
         La selección ya fue confirmada y no puede modificarse.
       </p>
       {% endif %}
+      {% if convocatoria.decision_cobertura == "aceptada_parcialmente" %}
+      <p class="mb-2 text-sm font-medium text-amber-700">
+        El coordinador aceptó una cobertura parcial del {{ convocatoria.porcentaje_cobertura }}%.
+      </p>
+      {% endif %}
       <p class="text-sm text-gray-600">
         {% if solo_lectura %}
         Estas son las líneas seleccionadas para esta convocatoria.
