@@ -170,6 +170,17 @@
     vacio.style.display = container.children.length === 0 ? '' : 'none';
   }
 
+  // Renumera las filas en el orden de la pantalla: items[0], items[1], ... sin huecos, como
+  // la pantalla de edición. El backend igual tolera huecos, pero así los avisos de "fila N"
+  // coinciden con lo que se ve.
+  function reindexar() {
+    container.querySelectorAll('.fila-item').forEach((fila, idx) => {
+      fila.querySelectorAll('[name]').forEach((el) => {
+        el.name = el.name.replace(/^items\[\d+\]/, `items[${idx}]`);
+      });
+    });
+  }
+
   function agregarFila() {
     const html = template.replaceAll('__INDEX__', index++);
     const wrapper = document.createElement('div');
@@ -187,10 +198,12 @@
 
     fila.querySelector('.btn-eliminar-item').addEventListener('click', () => {
       fila.remove();
+      reindexar();
       actualizarVacio();
     });
 
     container.appendChild(fila);
+    reindexar();
     actualizarVacio();
     select.focus();
   }

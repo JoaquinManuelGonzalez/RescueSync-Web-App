@@ -7,6 +7,7 @@ Permite al Centro Coordinador Regional:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from flask import Blueprint, flash, jsonify, render_template, request
@@ -20,6 +21,8 @@ from app.modulos.emergencias.lotes import servicios
 from app.modulos.emergencias.modelos import EstadoLote
 
 blueprint_lotes = Blueprint("lotes", __name__)
+
+_PATRON_FILA_DE_ITEM = re.compile(r"^items\[(\d+)\]\[item_id\]$")
 
 
 def _contexto_de_formulario(emergencia) -> dict[str, Any]:
@@ -71,28 +74,29 @@ def _contexto_de_formulario_edicion(lote, valores_items=None) -> dict[str, Any]:
 
 def _extraer_items_del_formulario() -> list[dict]:
     """
-    Extrae las filas de ítems desde el form.
+    Extrae las filas de ítems desde el form, en el orden de la pantalla.
 
     El template envía arrays con nombres:
         items[0][item_id], items[0][cantidad_solicitada], items[0][observaciones]
         items[1][item_id], ...
+
+    Los índices pueden llegar con huecos (al quitar una fila en la pantalla) o desordenados, así
+    que no se corta en el primer índice que falta: eso perdía en silencio las filas siguientes.
+    Se toman todos los índices presentes, de menor a mayor.
     """
-    items: list[dict] = []
-    indice = 0
-    while True:
-        prefijo = f"items[{indice}]"
-        item_id = request.form.get(f"{prefijo}[item_id]")
-        if item_id is None:
-            break
-        items.append(
-            {
-                "item_id": item_id,
-                "cantidad_solicitada": request.form.get(f"{prefijo}[cantidad_solicitada]"),
-                "observaciones": request.form.get(f"{prefijo}[observaciones]"),
-            }
-        )
-        indice += 1
-    return items
+    indices = sorted(
+        int(coincidencia.group(1))
+        for clave in request.form
+        if (coincidencia := _PATRON_FILA_DE_ITEM.match(clave))
+    )
+    return [
+        {
+            "item_id": request.form.get(f"items[{indice}][item_id]"),
+            "cantidad_solicitada": request.form.get(f"items[{indice}][cantidad_solicitada]"),
+            "observaciones": request.form.get(f"items[{indice}][observaciones]"),
+        }
+        for indice in indices
+    ]
 
 
 @blueprint_lotes.get("/emergencias/<int:emergencia_id>/lotes/nuevo")
