@@ -6,6 +6,63 @@
 {% block title %}Nuevo lote de necesidades{% endblock %}
 
 {% block content %}
+{#- Una fila de ítem. La usan las filas que vuelven tras un error (con `fila` cargada) y la
+    fila modelo del <template> que clona el script (con indice "__INDEX__" y sin datos). -#}
+{% macro fila_item(indice, fila={}) %}
+  <div class="fila-item rounded-lg border border-gray-100 p-4">
+    <div class="grid gap-4 sm:grid-cols-12">
+
+      <div class="sm:col-span-5">
+        <label class="campo-etiqueta">Ítem</label>
+        <select name="items[{{ indice }}][item_id]" class="campo-control" required>
+          <option value="">-- Seleccioná --</option>
+          {% for item in items_catalogo %}
+            <option value="{{ item.id }}" data-unidad="{{ item.unidad_medida }}"
+                    {%- if fila.item_id|string == item.id|string %} selected{% endif %}>
+              {{ item.nombre }} — {{ item.categoria.value|replace("_", " ")|capitalize }}
+            </option>
+          {% endfor %}
+        </select>
+        <p class="mt-1 text-xs text-gray-500 ayuda-unidad"></p>
+      </div>
+
+      <div class="sm:col-span-3">
+        <label class="campo-etiqueta">Cantidad</label>
+        <input
+          type="number"
+          step="1"
+          min="1"
+          required
+          name="items[{{ indice }}][cantidad_solicitada]"
+          value="{{ fila.cantidad_solicitada or '' }}"
+          class="campo-control"
+          placeholder="0"
+        >
+      </div>
+
+      <div class="sm:col-span-3">
+        <label class="campo-etiqueta">Observaciones</label>
+        <input
+          type="text"
+          maxlength="255"
+          name="items[{{ indice }}][observaciones]"
+          value="{{ fila.observaciones or '' }}"
+          class="campo-control"
+          placeholder="Ej: aptas para celíacos"
+        >
+      </div>
+
+      <div class="flex items-end justify-end sm:col-span-1">
+        <button type="button"
+                class="btn btn-fantasma-peligro btn-icono btn-eliminar-item transition-transform hover:rotate-6"
+                title="Quitar ítem"
+                aria-label="Quitar ítem">
+          {{ icono("eliminar", "size-5") }}
+        </button>
+      </div>
+    </div>
+  </div>
+{% endmacro %}
 <div class="pagina-angosta space-y-6">
   <a class="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primario" href="{{ url_for('emergencias.obtener', emergencia_id=emergencia.id) }}">
     {{ icono("volver", "size-4") }} Volver a la emergencia
@@ -80,7 +137,11 @@
           <p class="text-xs text-red-600">{{ errores_por_campo['items'] }}</p>
         {% endif %}
 
-        <div id="items-container" class="space-y-3" data-items-unicos></div>
+        <div id="items-container" class="space-y-3" data-items-unicos>
+          {%- for fila in valores_items %}
+          {{ fila_item(loop.index0, fila) }}
+          {%- endfor %}
+        </div>
 
         <p id="items-vacio"
            class="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
@@ -106,56 +167,7 @@
 
 {# --- Template de fila de ítem --- #}
 <template id="fila-item-template">
-  <div class="fila-item rounded-lg border border-gray-100 p-4">
-    <div class="grid gap-4 sm:grid-cols-12">
-
-      <div class="sm:col-span-5">
-        <label class="campo-etiqueta">Ítem</label>
-        <select name="items[__INDEX__][item_id]" class="campo-control" required>
-          <option value="">-- Seleccioná --</option>
-          {% for item in items_catalogo %}
-            <option value="{{ item.id }}" data-unidad="{{ item.unidad_medida }}">
-              {{ item.nombre }} — {{ item.categoria.value|replace("_", " ")|capitalize }}
-            </option>
-          {% endfor %}
-        </select>
-        <p class="mt-1 text-xs text-gray-500 ayuda-unidad"></p>
-      </div>
-
-      <div class="sm:col-span-3">
-        <label class="campo-etiqueta">Cantidad</label>
-        <input
-          type="number"
-          step="1"
-          min="1"
-          required
-          name="items[__INDEX__][cantidad_solicitada]"
-          class="campo-control"
-          placeholder="0"
-        >
-      </div>
-
-      <div class="sm:col-span-3">
-        <label class="campo-etiqueta">Observaciones</label>
-        <input
-          type="text"
-          maxlength="255"
-          name="items[__INDEX__][observaciones]"
-          class="campo-control"
-          placeholder="Ej: aptas para celíacos"
-        >
-      </div>
-
-      <div class="flex items-end justify-end sm:col-span-1">
-        <button type="button"
-                class="btn btn-fantasma-peligro btn-icono btn-eliminar-item transition-transform hover:rotate-6"
-                title="Quitar ítem"
-                aria-label="Quitar ítem">
-          {{ icono("eliminar", "size-5") }}
-        </button>
-      </div>
-    </div>
-  </div>
+{{ fila_item("__INDEX__") }}
 </template>
 
 <script src="{{ url_for('static', filename='js/items_unicos_de_lote.js') }}" defer></script>
@@ -164,10 +176,11 @@
   const container = document.getElementById('items-container');
   const vacio = document.getElementById('items-vacio');
   const template = document.getElementById('fila-item-template').innerHTML;
-  let index = 0;
+  // Las filas que vuelven tras un error ya ocupan los primeros índices.
+  let index = container.querySelectorAll('.fila-item').length;
 
   function actualizarVacio() {
-    vacio.style.display = container.children.length === 0 ? '' : 'none';
+    vacio.style.display = container.querySelector('.fila-item') ? 'none' : '';
   }
 
   // Renumera las filas en el orden de la pantalla: items[0], items[1], ... sin huecos, como
@@ -181,54 +194,46 @@
     });
   }
 
-  function agregarFila() {
-    const html = template.replaceAll('__INDEX__', index++);
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = html.trim();
-    const fila = wrapper.firstElementChild;
-
+  function conectarFila(fila) {
     const select = fila.querySelector('select');
     const ayuda = fila.querySelector('.ayuda-unidad');
-    select.addEventListener('change', () => {
+    const actualizarAyuda = () => {
       const opt = select.selectedOptions[0];
       ayuda.textContent = opt && opt.dataset.unidad
         ? `Unidad de medida: ${opt.dataset.unidad}`
         : '';
-    });
+    };
+    select.addEventListener('change', actualizarAyuda);
+    actualizarAyuda();
 
     fila.querySelector('.btn-eliminar-item').addEventListener('click', () => {
       fila.remove();
       reindexar();
       actualizarVacio();
     });
+  }
 
+  function agregarFila() {
+    const html = template.replaceAll('__INDEX__', index++);
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html.trim();
+    const fila = wrapper.firstElementChild;
+    conectarFila(fila);
     container.appendChild(fila);
     reindexar();
     actualizarVacio();
-    select.focus();
+    fila.querySelector('select').focus();
   }
 
   document.getElementById('btn-agregar-item').addEventListener('click', agregarFila);
 
-  // Arranca con una fila si no hay valores previos (alta limpia).
-  const hayValores = {{ 'true' if valores.get('descripcion') or valores.get('items') else 'false' }};
-  if (!hayValores) {
-    agregarFila();
-  } else {
-    // Rehidratar filas desde `valores` en caso de error de validación.
-    // Los inputs se llaman items[0][item_id], items[1][item_id], etc.
-    let i = 0;
-    while (true) {
-      const selName = `items[${i}][item_id]`;
-      const sel = document.querySelector(`[name="${selName}"]`);
-      // Si el navegador conserva los inputs del POST anterior, ya están;
-      // si no, los recreamos leyendo `valores`.
-      if (!sel && !('{{ valores.get("items[" ~ i ~ "][item_id]", "") }}')) {
-        break;
-      }
-      i++;
-    }
+  // Filas que volvieron del servidor tras un error de validación; en un alta limpia no hay
+  // ninguna y se arranca con una vacía.
+  container.querySelectorAll('.fila-item').forEach(conectarFila);
+  if (container.querySelector('.fila-item')) {
     actualizarVacio();
+  } else {
+    agregarFila();
   }
 })();
 </script>

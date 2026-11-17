@@ -25,11 +25,13 @@ blueprint_lotes = Blueprint("lotes", __name__)
 _PATRON_FILA_DE_ITEM = re.compile(r"^items\[(\d+)\]\[item_id\]$")
 
 
-def _contexto_de_formulario(emergencia) -> dict[str, Any]:
+def _contexto_de_formulario(emergencia, valores_items: list[dict] | None = None) -> dict[str, Any]:
+    """`valores_items` son las filas a volver a mostrar; vacío en un alta limpia."""
     return {
         "emergencia": emergencia,
         "items_catalogo": servicios.listar_items(),
         "estados_lote": list(EstadoLote),
+        "valores_items": valores_items or [],
     }
 
 
@@ -46,11 +48,12 @@ def _formulario_con_error(emergencia, error: ErrorDeAplicacion):
     else:
         errores_por_campo = {}
 
+    # Vuelve con las filas que mandó el usuario, para que corrija sin cargar todo de nuevo.
     return render_template(
         "lotes/formulario.html",
         errores_por_campo=errores_por_campo,
         valores=request.form,
-        **_contexto_de_formulario(emergencia),
+        **_contexto_de_formulario(emergencia, _extraer_items_del_formulario()),
     )
 
 
@@ -197,11 +200,12 @@ def editar_desde_formulario(emergencia_id: int, lote_id: int):
         if pide_json():
             raise
         flash(error.mensaje, "error")
+        # Vuelve con lo que cargó el usuario, no con lo guardado: si no, se pierden sus cambios.
         return render_template(
             "lotes/editar.html",
             errores_por_campo=error.detalle if isinstance(error.detalle, dict) else {},
             valores=request.form,
-            **_contexto_de_formulario_edicion(lote),
+            **_contexto_de_formulario_edicion(lote, _extraer_items_del_formulario()),
         )
 
     if pide_json():
