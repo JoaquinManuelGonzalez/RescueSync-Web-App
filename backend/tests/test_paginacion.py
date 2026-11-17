@@ -23,6 +23,7 @@ def muchas_organizaciones(app, base_de_datos) -> int:
             servicios.crear(
                 nombre=f"ONG de prueba {numero:02d}",
                 tipo="ong",
+                identificador_nacional=f"33-{numero:08d}-0",
                 zonas=[{"provincia": "Buenos Aires"}],
             )
         return len(servicios.listar(tipo="ong"))

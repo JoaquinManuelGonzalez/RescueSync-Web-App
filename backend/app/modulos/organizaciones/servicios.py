@@ -32,6 +32,7 @@ Nacional llegara a informar otro resultado, lo guarda con `registrar_resultado_d
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -62,6 +63,12 @@ MENSAJE_SIN_ORGANIZACION = "Tu cuenta no pertenece a ninguna organización."
 MENSAJE_ONG_SIN_ZONAS = (
     "Una ONG tiene que declarar al menos una zona de cobertura o marcar que opera en todo el país."
 )
+MENSAJE_ONG_SIN_CUIT = (
+    "Una ONG tiene que tener su CUIT: el Sistema Nacional la identifica por ese dato."
+)
+MENSAJE_CUIT_INVALIDO = (
+    "El CUIT tiene que tener 11 dígitos, con o sin guiones (por ejemplo 30-12345678-9)."
+)
 # Limites de la cobertura. Una localidad cabe en la columna `localidad` (String(150)); el campo
 # del formulario puede traer varias separadas por comas, hasta un largo razonable; y el total por
 # organizacion tiene un techo para que un campo con cientos de comas no genere cientos de filas.
@@ -81,6 +88,27 @@ def _normalizar_texto(valor: str | None) -> str | None:
         return None
     limpio = valor.strip()
     return limpio or None
+
+
+def _resolver_identificador(tipo: TipoOrganizacion, valor: str | None) -> str | None:
+    """El identificador nacional que corresponde guardar.
+
+    Una ONG tiene que tener CUIT: Bonita lo manda al Sistema Nacional para evaluar sus ofertas y
+    liberar sus compromisos, y sin el la API no la encuentra en el padron. Se guarda siempre como
+    NN-NNNNNNNN-N, el formato del padron, aunque se cargue sin guiones; asi tampoco pasan como
+    distintos dos CUIT iguales escritos de otra forma. Para municipios y el centro coordinador
+    sigue siendo opcional y de texto libre. No se valida el digito verificador, igual que en la
+    API: los CUIT de demostracion son ficticios.
+    """
+    identificador = _normalizar_texto(valor)
+    if tipo is not TipoOrganizacion.ong:
+        return identificador
+    if identificador is None:
+        raise SolicitudInvalida(detalle={"identificador_nacional": [MENSAJE_ONG_SIN_CUIT]})
+    digitos = re.sub(r"[\s-]", "", identificador)
+    if not re.fullmatch(r"\d{11}", digitos):
+        raise SolicitudInvalida(detalle={"identificador_nacional": [MENSAJE_CUIT_INVALIDO]})
+    return f"{digitos[:2]}-{digitos[2:10]}-{digitos[10]}"
 
 
 def convertir_tipo(valor: str | TipoOrganizacion) -> TipoOrganizacion:
@@ -593,8 +621,8 @@ def crear(
     Con `cobertura_nacional=True` las zonas se ignoran: opera en todo el pais.
     """
     nombre_limpio = nombre.strip()
-    identificador = _normalizar_texto(identificador_nacional)
     tipo_convertido = convertir_tipo(tipo)
+    identificador = _resolver_identificador(tipo_convertido, identificador_nacional)
 
     _verificar_nombre_disponible(nombre_limpio)
     _verificar_identificador_disponible(identificador)
@@ -653,8 +681,8 @@ def editar(
     organizacion = obtener(organizacion_id)
 
     nombre_limpio = nombre.strip()
-    identificador = _normalizar_texto(identificador_nacional)
     tipo_nuevo = convertir_tipo(tipo)
+    identificador = _resolver_identificador(tipo_nuevo, identificador_nacional)
     nacional = organizacion.cobertura_nacional if cobertura_nacional is None else cobertura_nacional
 
     _verificar_nombre_disponible(nombre_limpio, excluir_id=organizacion.id)

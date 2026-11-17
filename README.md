@@ -539,6 +539,10 @@ integrar, cada organización y aporte incluye `identificador_nacional`, y cada �
 `codigo_recurso`. Los IDs locales (`convocatoria_id`, `oferta_id`, `organizacion_id` y
 `lote_item_id`) sirven para trazabilidad en la web; no son claves de las tablas de la API Nacional.
 
+`identificador_nacional` es el CUIT, y la API Nacional lo usa para encontrar a cada ONG en su
+padrón. Por eso es obligatorio para las ONG y se guarda siempre como `NN-NNNNNNNN-N`, aunque se
+cargue sin guiones. Para municipios y el centro coordinador sigue siendo opcional.
+
 `codigo_recurso` es único y se guarda en el catálogo web. Los códigos iniciales se generan
 normalizando el nombre del recurso y quedan persistidos en la base. La API Nacional siembra el
 mismo catálogo (los 46 ítems, con el mismo código, categoría, unidad y consumible), porque Bonita
