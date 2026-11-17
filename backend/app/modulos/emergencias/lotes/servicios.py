@@ -81,6 +81,50 @@ def _parsear_cantidad(valor: str | int | float | Decimal | None) -> int:
     return int(cantidad)
 
 
+def _armar_lote_items(items: list[dict]) -> list[LoteItem]:
+    """Valida las filas del formulario y arma los LoteItem del lote.
+
+    Cada ítem va una sola vez por lote: si hace falta más cantidad, se suma en la misma fila.
+    Repetirlo dejaba dos líneas de necesidad para el mismo recurso, y en la evaluación del
+    Sistema Nacional una ONG que ofrecía en las dos aparecía dos veces con ese recurso.
+    """
+    lote_items: list[LoteItem] = []
+    fila_por_item: dict[int, int] = {}
+    for indice, fila in enumerate(items):
+        item_id = fila.get("item_id")
+        if not item_id:
+            raise SolicitudInvalida(
+                f"Falta el ítem en la fila {indice + 1}.",
+                detalle={"campo": f"items[{indice}].item_id"},
+            )
+
+        item = db.session.get(Item, int(item_id))
+        if not item:
+            raise RecursoNoEncontrado(
+                f"No existe el ítem con id {item_id}.",
+                detalle={"campo": f"items[{indice}].item_id"},
+            )
+        if item.id in fila_por_item:
+            raise SolicitudInvalida(
+                f"El ítem «{item.nombre}» ya está en la fila {fila_por_item[item.id] + 1}. "
+                "Cargalo una sola vez, con la cantidad total.",
+                detalle={"campo": f"items[{indice}].item_id"},
+            )
+        fila_por_item[item.id] = indice
+
+        cantidad = _parsear_cantidad(fila.get("cantidad_solicitada"))
+        observaciones = (fila.get("observaciones") or "").strip() or None
+
+        lote_items.append(
+            LoteItem(
+                item_id=item.id,
+                cantidad_solicitada=cantidad,
+                observaciones=observaciones,
+            )
+        )
+    return lote_items
+
+
 def crear_lotes(
     *,
     emergencia_id: int,
@@ -112,33 +156,7 @@ def crear_lotes(
             detalle={"campo": "descripcion"},
         )
 
-    # Validar ítems y armar los LoteItem
-    lote_items: list[LoteItem] = []
-    for indice, fila in enumerate(items):
-        item_id = fila.get("item_id")
-        if not item_id:
-            raise SolicitudInvalida(
-                f"Falta el ítem en la fila {indice + 1}.",
-                detalle={"campo": f"items[{indice}].item_id"},
-            )
-
-        item = db.session.get(Item, int(item_id))
-        if not item:
-            raise RecursoNoEncontrado(
-                f"No existe el ítem con id {item_id}.",
-                detalle={"campo": f"items[{indice}].item_id"},
-            )
-
-        cantidad = _parsear_cantidad(fila.get("cantidad_solicitada"))
-        observaciones = (fila.get("observaciones") or "").strip() or None
-
-        lote_items.append(
-            LoteItem(
-                item_id=item.id,
-                cantidad_solicitada=cantidad,
-                observaciones=observaciones,
-            )
-        )
+    lote_items = _armar_lote_items(items)
 
     # Crear el lote con sus ítems (cascade="all, delete-orphan" en LoteNecesidad.lote_items)
     lote = LoteNecesidad(
@@ -274,32 +292,7 @@ def editar_lote(
             detalle={"campo": "descripcion"},
         )
 
-    nuevos_items: list[LoteItem] = []
-    for indice, fila in enumerate(items):
-        item_id = fila.get("item_id")
-        if not item_id:
-            raise SolicitudInvalida(
-                f"Falta el ítem en la fila {indice + 1}.",
-                detalle={"campo": f"items[{indice}].item_id"},
-            )
-
-        item = db.session.get(Item, int(item_id))
-        if not item:
-            raise RecursoNoEncontrado(
-                f"No existe el ítem con id {item_id}.",
-                detalle={"campo": f"items[{indice}].item_id"},
-            )
-
-        cantidad = _parsear_cantidad(fila.get("cantidad_solicitada"))
-        observaciones = (fila.get("observaciones") or "").strip() or None
-
-        nuevos_items.append(
-            LoteItem(
-                item_id=item.id,
-                cantidad_solicitada=cantidad,
-                observaciones=observaciones,
-            )
-        )
+    nuevos_items = _armar_lote_items(items)
 
     # Reemplazo total de los ítems(*)
     lote.descripcion = descripcion

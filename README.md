@@ -543,6 +543,10 @@ integrar, cada organización y aporte incluye `identificador_nacional`, y cada �
 padrón. Por eso es obligatorio para las ONG y se guarda siempre como `NN-NNNNNNNN-N`, aunque se
 cargue sin guiones. Para municipios y el centro coordinador sigue siendo opcional.
 
+Un lote no admite el mismo ítem dos veces: la cantidad se suma en una sola fila. El mismo ítem sí
+puede aparecer en dos lotes de una convocatoria; si una ONG lo ofrece en los dos, la API Nacional
+controla el stock entre las dos líneas y compromete la suma.
+
 `codigo_recurso` es único y se guarda en el catálogo web. Los códigos iniciales se generan
 normalizando el nombre del recurso y quedan persistidos en la base. La API Nacional siembra el
 mismo catálogo (los 46 ítems, con el mismo código, categoría, unidad y consumible), porque Bonita
