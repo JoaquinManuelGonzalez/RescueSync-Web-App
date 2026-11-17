@@ -7,8 +7,13 @@ ven y editan la misma oferta.
 from __future__ import annotations
 
 import re
+import uuid
 
 import pytest
+from sqlalchemy import select
+
+from app.extensiones import db
+from app.modulos.organizaciones.modelos import Organizacion
 
 from .conftest import (
     CABECERA_NAVEGADOR,
@@ -182,7 +187,7 @@ def test_el_representante_no_ve_otras_organizaciones(cliente_sembrado, ingresar)
     ingresar(EMAIL_REPRESENTANTE)
 
     assert cliente_sembrado.get("/organizaciones").status_code == 403
-    assert cliente_sembrado.get("/organizaciones/1").status_code == 403
+    assert cliente_sembrado.get(f"/organizaciones/{uuid.uuid7()}").status_code == 403
 
 
 @pytest.mark.parametrize("email", [EMAIL_ADMINISTRADOR, EMAIL_AUDITOR])
@@ -476,7 +481,7 @@ def test_alta_por_formulario_con_localidades_separadas_por_comas(
     )
     assert alta.status_code == 302
 
-    organizacion_id = int(alta.headers["Location"].rstrip("/").rsplit("/", 1)[1])
+    organizacion_id = alta.headers["Location"].rstrip("/").rsplit("/", 1)[1]
     cuerpo = cliente_sembrado.get(f"/organizaciones/{organizacion_id}").get_json()
     assert [zona["localidad"] for zona in cuerpo["zonas_de_cobertura"]] == [
         "Berisso",
@@ -537,11 +542,14 @@ def test_el_navbar_del_representante_marca_solo_la_pantalla_actual(
 
 
 @pytest.mark.parametrize(
-    "pantalla", ["/organizaciones", "/organizaciones/nueva", "/organizaciones/1"]
+    "pantalla", ["/organizaciones", "/organizaciones/nueva", "/organizaciones/{id}"]
 )
 def test_el_navbar_del_administrador_marca_organizaciones(
-    ingresar_por_formulario, navegar, pantalla
+    app, ingresar_por_formulario, navegar, pantalla
 ) -> None:
+    with app.app_context():
+        primera = db.session.scalar(select(Organizacion.id).order_by(Organizacion.id))
+    pantalla = pantalla.format(id=primera)
     ingresar_por_formulario(EMAIL_ADMINISTRADOR)
 
     assert _secciones_activas(_texto(navegar(pantalla))) == {"/organizaciones"}

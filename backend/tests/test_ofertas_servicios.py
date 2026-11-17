@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -650,7 +651,7 @@ def test_listar_ofertas_por_convocatoria(app, datos_base):
 def test_obtener_oferta_por_id_no_existente(app, datos_base):
     with app.app_context():
         with pytest.raises(RecursoNoEncontrado):
-            obtener_oferta_por_id(999999)
+            obtener_oferta_por_id(uuid.uuid7())
 
 
 def test_obtener_ofertas_consolidadas_para_bonita(app, datos_base):

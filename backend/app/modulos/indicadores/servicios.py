@@ -12,6 +12,7 @@ exportacion. `secciones.py` las reune.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -121,7 +122,7 @@ class PorcionDeCobertura:
 class EmergenciaConFaltantes:
     """Una emergencia que se cerro sin cubrir todo lo que pidio."""
 
-    id: int
+    id: uuid.UUID
     titulo: str
     gravedad: NivelGravedad
     porcentaje: int

@@ -10,6 +10,7 @@ Implementa el eslabón 1 y 2 del enunciado del TP:
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -20,11 +21,13 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Uuid,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
+from app.core.identificadores import nuevo_id
 from app.extensiones import db
 
 if TYPE_CHECKING:
@@ -88,7 +91,7 @@ class Emergencia(db.Model):
 
     __tablename__ = "emergencia"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
     titulo: Mapped[str] = mapped_column(
         String(200),
@@ -128,16 +131,16 @@ class Emergencia(db.Model):
     )
 
     # Municipio que originó la alerta
-    municipio_id: Mapped[int] = mapped_column(
-        Integer,
+    municipio_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("organizacion.id"),
         nullable=False,
         index=True,
     )
 
     # Usuario operador municipal que cargó el formulario
-    usuario_id: Mapped[int] = mapped_column(
-        Integer,
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("usuarios.id"),
         nullable=False,
     )
@@ -180,7 +183,7 @@ class Item(db.Model):
 
     __tablename__ = "item"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
     codigo_recurso: Mapped[str] = mapped_column(
         String(200),
         unique=True,
@@ -228,16 +231,16 @@ class LoteNecesidad(db.Model):
 
     __tablename__ = "lote_necesidad"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
-    emergencia_id: Mapped[int] = mapped_column(
-        Integer,
+    emergencia_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("emergencia.id"),
         nullable=False,
         index=True,
     )
-    convocatoria_id: Mapped[int | None] = mapped_column(
-        Integer,
+    convocatoria_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
         ForeignKey("convocatoria.id"),
         nullable=True,
         index=True,
@@ -282,16 +285,16 @@ class LoteItem(db.Model):
 
     __tablename__ = "lote_item"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
-    lote_id: Mapped[int] = mapped_column(
-        Integer,
+    lote_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("lote_necesidad.id"),
         nullable=False,
         index=True,
     )
-    item_id: Mapped[int] = mapped_column(
-        Integer,
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("item.id"),
         nullable=False,
         index=True,

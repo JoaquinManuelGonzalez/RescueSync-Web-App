@@ -539,6 +539,14 @@ integrar, cada organización y aporte incluye `identificador_nacional`, y cada �
 `codigo_recurso`. Los IDs locales (`convocatoria_id`, `oferta_id`, `organizacion_id` y
 `lote_item_id`) sirven para trazabilidad en la web; no son claves de las tablas de la API Nacional.
 
+Todos los ids son UUID, en el JSON y en las variables que la web le pasa al proceso
+(`emergenciaIdInput`, `convocatoriaIdInput`, `adjudicacionIdInput`). El `emergencia_id` sí es la
+clave de los compromisos en la API Nacional, y como todas las webs locales usan la misma API, con
+enteros la emergencia `1` de un entorno pisaba los compromisos de la emergencia `1` de otro.
+Bonita los tiene que tratar como texto: un `Integer.parseInt` o un `as Long` en un script del
+proceso falla con un UUID. `POST /ofertas/evaluaciones` también los espera como texto y responde
+400 si llega un entero.
+
 `identificador_nacional` es el CUIT, y la API Nacional lo usa para encontrar a cada ONG en su
 padrón. Por eso es obligatorio para las ONG y se guarda siempre como `NN-NNNNNNNN-N`, aunque se
 cargue sin guiones. Para municipios y el centro coordinador sigue siendo opcional.

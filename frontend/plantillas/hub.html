@@ -61,7 +61,7 @@
       <a class="dashboard-item" href="{{ url_for('ofertas.obtener', oferta_id=item.id) }}">
         <span class="dashboard-item-icono">{{ icono("lista", "size-5") }}</span>
         <span class="dashboard-item-cuerpo">
-          <strong>Oferta #{{ item.id }}</strong>
+          <strong>Oferta #{{ item.id|id_corto }}</strong>
           <span>{{ item.convocatoria.emergencia.titulo }}</span>
         </span>
         <span class="dashboard-estado dashboard-estado-{{ item.estado.value }}">{{ item.estado.value|replace("_", " ")|capitalize }}</span>

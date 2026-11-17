@@ -8,6 +8,7 @@ con nivel de gravedad, zona afectada y descripción.
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
@@ -41,7 +42,7 @@ from app.modulos.usuarios_roles.modelos import Usuario
 ESTADOS_CERRADOS = (EstadoEmergencia.finalizada, EstadoEmergencia.cancelada)
 
 
-def _validar_municipio(municipio_id: int) -> Organizacion:
+def _validar_municipio(municipio_id: uuid.UUID) -> Organizacion:
     """Valida que la organización exista, esté activa y sea de tipo municipio."""
     if not municipio_id:
         raise SolicitudInvalida(
@@ -128,8 +129,8 @@ def crear_emergencia(
     descripcion: str,
     nivel_gravedad: str,
     zona_afectada: str,
-    municipio_id: int,
-    usuario_id: int,
+    municipio_id: uuid.UUID,
+    usuario_id: uuid.UUID,
     tipo_emergencia: str,
 ) -> Emergencia:
     """Registra una nueva emergencia."""
@@ -230,7 +231,7 @@ def crear_emergencia(
     return emergencia
 
 
-def obtener_emergencia_por_id(emergencia_id: int) -> Emergencia:
+def obtener_emergencia_por_id(emergencia_id: uuid.UUID) -> Emergencia:
     emergencia = db.session.get(Emergencia, emergencia_id)
     if not emergencia:
         raise RecursoNoEncontrado(f"Emergencia con id {emergencia_id} no encontrada.")
@@ -249,7 +250,7 @@ _NIVEL_GRAVEDAD = {
 
 def listar_emergencias(
     *,
-    municipio_id: int | None = None,
+    municipio_id: uuid.UUID | None = None,
 ) -> list[Emergencia]:
     """Lista emergencias ordenadas por gravedad, desempata por fecha."""
     expresion_gravedad = case(
@@ -354,7 +355,7 @@ def consultar_ids_de_emergencias_registradas(
     hasta: datetime,
     gravedad: NivelGravedad | None = None,
     estado: EstadoEmergencia | None = None,
-) -> Select[tuple[int]]:
+) -> Select[tuple[uuid.UUID]]:
     """Subconsulta con los ids de las emergencias registradas en `[desde, hasta)`.
 
     Es la forma en que los demas modulos filtran "las emergencias del periodo" sin conocer esta
@@ -365,8 +366,8 @@ def consultar_ids_de_emergencias_registradas(
 
 
 def consultar_unidades_requeridas(
-    *, emergencia_ids: Select[tuple[int]]
-) -> Select[tuple[int, int, int, int, TipoNecesidad]]:
+    *, emergencia_ids: Select[tuple[uuid.UUID]]
+) -> Select[tuple[uuid.UUID, uuid.UUID, uuid.UUID, int, TipoNecesidad]]:
     """Subconsulta con las unidades que pide cada item de lote de esas emergencias.
 
     Columnas: `lote_item_id`, `emergencia_id`, `lote_id`, `cantidad_requerida` y `categoria` (el
@@ -399,7 +400,7 @@ class RegistroDeEmergencia:
     proceso en Bonita, o None si la emergencia nunca llego a instanciarlo.
     """
 
-    id: int
+    id: uuid.UUID
     nivel_gravedad: NivelGravedad
     estado: EstadoEmergencia
     creado_en: datetime
@@ -428,12 +429,12 @@ def listar_registros_de_emergencias(
 class DatosBasicosDeEmergencia:
     """Lo minimo para nombrar una emergencia en un reporte, sin exponer el modelo."""
 
-    id: int
+    id: uuid.UUID
     titulo: str
     nivel_gravedad: NivelGravedad
 
 
-def obtener_datos_basicos(ids: Iterable[int]) -> dict[int, DatosBasicosDeEmergencia]:
+def obtener_datos_basicos(ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, DatosBasicosDeEmergencia]:
     """Titulo y gravedad de cada emergencia indicada, por id."""
     ids = list(ids)
     if not ids:

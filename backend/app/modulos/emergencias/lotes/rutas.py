@@ -8,6 +8,7 @@ Permite al Centro Coordinador Regional:
 from __future__ import annotations
 
 import re
+import uuid
 from typing import Any
 
 from flask import Blueprint, flash, jsonify, render_template, request
@@ -102,9 +103,9 @@ def _extraer_items_del_formulario() -> list[dict]:
     ]
 
 
-@blueprint_lotes.get("/emergencias/<int:emergencia_id>/lotes/nuevo")
+@blueprint_lotes.get("/emergencias/<uuid:emergencia_id>/lotes/nuevo")
 @requiere_permiso(LOTES_CREAR)
-def formulario_de_alta(emergencia_id: int):
+def formulario_de_alta(emergencia_id: uuid.UUID):
     """
     Pantalla para cargar los ítems del nuevo lote.
     """
@@ -117,9 +118,9 @@ def formulario_de_alta(emergencia_id: int):
     )
 
 
-@blueprint_lotes.post("/emergencias/<int:emergencia_id>/lotes/nuevo")
+@blueprint_lotes.post("/emergencias/<uuid:emergencia_id>/lotes/nuevo")
 @requiere_permiso(LOTES_CREAR)
-def crear_desde_formulario(emergencia_id: int):
+def crear_desde_formulario(emergencia_id: uuid.UUID):
     """
     Persiste los lotes enviados desde el formulario.
     """
@@ -152,9 +153,9 @@ def crear_desde_formulario(emergencia_id: int):
     )
 
 
-@blueprint_lotes.get("/emergencias/<int:emergencia_id>/lotes/<int:lote_id>/editar")
+@blueprint_lotes.get("/emergencias/<uuid:emergencia_id>/lotes/<uuid:lote_id>/editar")
 @requiere_permiso(LOTES_EDITAR)
-def formulario_de_edicion(emergencia_id: int, lote_id: int):
+def formulario_de_edicion(emergencia_id: uuid.UUID, lote_id: uuid.UUID):
     """
     Pantalla para editar un lote que aún no tiene convocatoria asociada.
     """
@@ -180,9 +181,9 @@ def formulario_de_edicion(emergencia_id: int, lote_id: int):
     )
 
 
-@blueprint_lotes.post("/emergencias/<int:emergencia_id>/lotes/<int:lote_id>/editar")
+@blueprint_lotes.post("/emergencias/<uuid:emergencia_id>/lotes/<uuid:lote_id>/editar")
 @requiere_permiso(LOTES_EDITAR)
-def editar_desde_formulario(emergencia_id: int, lote_id: int):
+def editar_desde_formulario(emergencia_id: uuid.UUID, lote_id: uuid.UUID):
     """
     Persiste los cambios de un lote enviados desde el formulario de edición.
     """
@@ -226,9 +227,9 @@ def editar_desde_formulario(emergencia_id: int, lote_id: int):
     )
 
 
-@blueprint_lotes.get("/emergencias/<int:emergencia_id>/lotes")
+@blueprint_lotes.get("/emergencias/<uuid:emergencia_id>/lotes")
 @requiere_permiso(LOTES_LISTAR)
-def listar_por_emergencia(emergencia_id: int):
+def listar_por_emergencia(emergencia_id: uuid.UUID):
     """Listado de lotes de una emergencia (JSON o vista)."""
     emergencia = servicios.obtener_emergencia(emergencia_id)
     if (

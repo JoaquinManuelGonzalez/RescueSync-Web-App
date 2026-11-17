@@ -341,7 +341,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "{{ item.categoria.value }}": [
             {% for item_categoria in items if item_categoria.categoria == item.categoria %}
             {
-                id: {{ item_categoria.id }},
+                id: {{ item_categoria.id|string|tojson }},
                 nombre: {{ item_categoria.nombre | tojson }},
                 unidad: {{ item_categoria.unidad_medida | tojson }},
                 descripcion: {{ (item_categoria.descripcion or "") | tojson }}
@@ -459,7 +459,8 @@ document.addEventListener("DOMContentLoaded", () => {
     itemSelect.addEventListener("change", () => {
 
         const categoria = categoriaSelect.value;
-        const itemId = Number(itemSelect.value);
+        // Los ids son UUID: se comparan como texto, igual que el value del select.
+        const itemId = itemSelect.value;
 
 
         if (!itemId) {

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 from unittest.mock import patch
 
@@ -540,7 +541,7 @@ def test_ruta_finalizar_tarea_no_pasa_credenciales_de_bonita(
         "app.modulos.ejecucion_cierre.rutas.servicios.finalizar_tarea_ong"
     ) as mock_finalizar:
         respuesta = enviar_formulario(
-            "/ejecucion/tareas/1/finalizar",
+            f"/ejecucion/tareas/{uuid.uuid7()}/finalizar",
             {"confirmacion": "y"},
         )
 

@@ -279,7 +279,7 @@ def test_ong_puede_ver_convocatorias_cerradas(app, cliente_sembrado, ingresar, d
     )
 
     assert respuesta.status_code == 200
-    assert convocatoria_cerrada_id in {
+    assert str(convocatoria_cerrada_id) in {
         convocatoria["id"] for convocatoria in respuesta.get_json()["convocatorias"]
     }
 
@@ -347,11 +347,11 @@ def test_crear_oferta_simple_exitosa(cliente_sembrado, cabecera_csrf, ingresar, 
 
     cuerpo = resp.get_json()
     assert cuerpo["id"] is not None
-    assert cuerpo["convocatoria_id"] == datos_ofertas_web["convocatoria_id"]
+    assert cuerpo["convocatoria_id"] == str(datos_ofertas_web["convocatoria_id"])
     assert cuerpo["version"] == 1
     assert cuerpo["estado"] == "presentada"
     assert cuerpo["observaciones"] == "Entrega en camión propio dentro de las 24 horas"
-    assert cuerpo["organizacion"]["id"] == datos_ofertas_web["ong_id"]
+    assert cuerpo["organizacion"]["id"] == str(datos_ofertas_web["ong_id"])
     assert len(cuerpo["items"]) == 1
     assert cuerpo["items"][0]["cantidad_ofrecida"] == 500.0
 
@@ -649,8 +649,8 @@ def test_integracion_bonita_consolidadas_autenticacion(cliente_sembrado, datos_o
     )
     assert resp_valido.status_code == 200
     cuerpo = resp_valido.get_json()
-    assert cuerpo["convocatoria_id"] == cid
-    assert cuerpo["emergencia_id"] == datos_ofertas_web["emergencia_id"]
+    assert cuerpo["convocatoria_id"] == str(cid)
+    assert cuerpo["emergencia_id"] == str(datos_ofertas_web["emergencia_id"])
     assert "ofertas" in cuerpo
     assert isinstance(cuerpo["ofertas"], list)
 
@@ -755,6 +755,38 @@ def test_cierre_de_bonita_actualiza_convocatoria_y_cobertura_habilita_seleccion(
         assert convocatoria.cobertura_completa is True
         assert emergencia.estado == EstadoEmergencia.activa
         assert obtener_convocatoria(convocatoria_id, emergencia.municipio_id) is convocatoria
+
+
+@pytest.mark.parametrize(
+    "ids_enteros",
+    [
+        {"convocatoria_id": 1},
+        {"emergencia_id": 1},
+    ],
+    ids=["convocatoria", "emergencia"],
+)
+def test_evaluacion_rechaza_ids_enteros(app, cliente_sembrado, datos_ofertas_web, ids_enteros):
+    # Los ids que viajan a Bonita y a la API son UUID: un entero ya no identifica nada.
+    evaluacion = {
+        "convocatoria_id": str(datos_ofertas_web["convocatoria_id"]),
+        "resultado_evaluacion": {
+            "emergencia_id": str(datos_ofertas_web["emergencia_id"]),
+            "ofertas": [],
+        },
+    }
+    if "convocatoria_id" in ids_enteros:
+        evaluacion["convocatoria_id"] = ids_enteros["convocatoria_id"]
+    else:
+        evaluacion["resultado_evaluacion"]["emergencia_id"] = ids_enteros["emergencia_id"]
+
+    respuesta = cliente_sembrado.post(
+        "/ofertas/evaluaciones",
+        json=evaluacion,
+        headers={"Authorization": "Bearer token-de-prueba"},
+    )
+
+    assert respuesta.status_code == 400
+    assert respuesta.get_json()["error"]["mensaje"] == "La evaluación recibida es inválida."
 
 
 def test_evaluacion_con_cobertura_incompleta_habilita_nueva_ronda(
@@ -1324,7 +1356,7 @@ def test_operador_ve_convocatorias_y_ofertas_de_su_municipio(
     assert ingresar(EMAIL_OPERADOR).status_code == 200
 
     convocatorias = cliente_sembrado.get("/convocatorias").get_json()["convocatorias"]
-    assert convocatoria_id in [c["id"] for c in convocatorias]
+    assert str(convocatoria_id) in [c["id"] for c in convocatorias]
     assert cliente_sembrado.get(f"/convocatorias/{convocatoria_id}").status_code == 200
 
     ofertas = cliente_sembrado.get("/ofertas").get_json()["ofertas"]
@@ -1368,7 +1400,7 @@ def test_coordinador_sigue_viendo_convocatorias_y_ofertas_de_todos_los_municipio
     assert ingresar(EMAIL_COORDINADOR).status_code == 200
 
     convocatorias = cliente_sembrado.get("/convocatorias").get_json()["convocatorias"]
-    assert datos_ofertas_web["convocatoria_id"] in [c["id"] for c in convocatorias]
+    assert str(datos_ofertas_web["convocatoria_id"]) in [c["id"] for c in convocatorias]
     ofertas = cliente_sembrado.get("/ofertas").get_json()["ofertas"]
     assert oferta_id in [o["id"] for o in ofertas]
     assert cliente_sembrado.get(f"/ofertas/{oferta_id}").status_code == 200

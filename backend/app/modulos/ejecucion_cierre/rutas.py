@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 
 from flask import Blueprint, flash, redirect, render_template, url_for
 from flask_login import current_user, login_required
@@ -66,10 +67,10 @@ def listar_tareas():
     )
 
 
-@blueprint_ejecucion.post("/tareas/<int:tarea_id>/finalizar")
+@blueprint_ejecucion.post("/tareas/<uuid:tarea_id>/finalizar")
 @login_required
 @requiere_permiso(EJECUCION_MARCAR_ACTIVIDAD)
-def finalizar_tarea(tarea_id: int):
+def finalizar_tarea(tarea_id: uuid.UUID):
     """Registra localmente que la ONG terminó una tarea."""
     organizacion_id = getattr(current_user, "organizacion_id", None)
     if not organizacion_id:

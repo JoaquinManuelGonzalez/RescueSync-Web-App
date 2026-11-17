@@ -8,6 +8,7 @@ Permite:
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from flask import Blueprint, flash, jsonify, render_template, request
@@ -151,9 +152,9 @@ def crear_desde_formulario():
     )
 
 
-@blueprint_emergencias.get("/<int:emergencia_id>")
+@blueprint_emergencias.get("/<uuid:emergencia_id>")
 @requiere_permiso(EMERGENCIAS_LISTAR)
-def obtener(emergencia_id: int):
+def obtener(emergencia_id: uuid.UUID):
     """Detalle de una emergencia."""
     cerrar_convocatorias_vencidas(emergencia_id=emergencia_id)
     emergencia = servicios.obtener_emergencia_por_id(emergencia_id)

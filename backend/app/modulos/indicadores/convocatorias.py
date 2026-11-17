@@ -14,6 +14,7 @@ aparte, para que los totales cierren.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -41,7 +42,7 @@ TONO_POR_DECISION = {
 class EmergenciaConDecision:
     """Una emergencia del periodo que tuvo al menos una cobertura insuficiente."""
 
-    emergencia_id: int
+    emergencia_id: uuid.UUID
     titulo: str
     gravedad: NivelGravedad
     convocatorias_publicadas: int

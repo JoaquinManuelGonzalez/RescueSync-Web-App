@@ -174,19 +174,19 @@ La misma ruta atiende al navegador y a los clientes JSON; `pide_json()` decide s
 ([`errores.md`](./errores.md) sección 2.1).
 
 ```python
-@blueprint_usuarios.get("/<int:usuario_id>")
+@blueprint_usuarios.get("/<uuid:usuario_id>")
 @requiere_permiso(USUARIOS_LISTAR)
-def ver(usuario_id: int):
+def ver(usuario_id: uuid.UUID):
     datos = servicios.a_diccionario(servicios.obtener_usuario(usuario_id))
     if pide_json():
         return jsonify(datos)
     return render_template("usuarios/detalle.html", usuario=datos)
 
 
-@blueprint_usuarios.post("/<int:usuario_id>/edicion")
+@blueprint_usuarios.post("/<uuid:usuario_id>/edicion")
 @requiere_permiso(USUARIOS_EDITAR)
 @plantilla_ante_error("usuarios/formulario.html", contexto=_contexto_del_formulario)
-def editar(usuario_id: int):
+def editar(usuario_id: uuid.UUID):
     formulario = construir_formulario(FormularioEdicionDeUsuario)
     validar_o_fallar(formulario)
     usuario = servicios.editar_usuario(usuario_id, ...)

@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from app.core.integraciones.bonita.api import (
@@ -21,7 +22,7 @@ ACTOR_CENTRO_COORDINADOR = "Empleado centro coordinador"
 
 
 def iniciar_gestion(
-    emergencia_id: int,
+    emergencia_id: uuid.UUID,
     username: str,
 ) -> str:
     return instanciar_proceso(
@@ -35,7 +36,7 @@ def iniciar_gestion(
 def publicar_convocatoria(
     username: str,
     case_id: str,
-    convocatoria_id: int,
+    convocatoria_id: uuid.UUID,
     fecha_cierre: datetime,
 ) -> None:
     task_id = buscar_tarea_humana(
@@ -65,7 +66,7 @@ def publicar_convocatoria(
 def confirmar_seleccion_ofertas(
     username: str,
     case_id: str,
-    adjudicacion_id: int,
+    adjudicacion_id: uuid.UUID,
     compromisos_json: str,
     ongs_no_seleccionadas_json: str,
 ) -> None:

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.identificadores import nuevo_id
 from app.extensiones import db
 
 if TYPE_CHECKING:
@@ -19,9 +21,9 @@ class Notificacion(db.Model):
 
     __tablename__ = "notificacion"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    organizacion_id: Mapped[int] = mapped_column(
-        Integer,
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
+    organizacion_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("organizacion.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

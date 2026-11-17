@@ -184,7 +184,7 @@ def test_ca03_con_gravedad_alta_la_torta_muestra_solo_esas_finalizadas(
     assert datos["registradas"] == 1
     assert datos["cobertura"]["total"] == {"cantidad": 0, "porcentaje": 0}
     assert datos["cobertura"]["parcial"] == {"cantidad": 1, "porcentaje": 100}
-    assert [e["id"] for e in datos["cobertura"]["con_faltantes"]] == [escenario_de_la_hu]
+    assert [e["id"] for e in datos["cobertura"]["con_faltantes"]] == [str(escenario_de_la_hu)]
 
 
 def test_ca03_la_pastilla_de_la_gravedad_elegida_queda_marcada(

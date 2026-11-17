@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from sqlalchemy import select
 
 from app.core.semillas import ResultadoSemilla, obtener_o_crear, registrar
@@ -94,7 +96,7 @@ def sembrar_notificaciones() -> list[ResultadoSemilla]:
 
 
 def _obtener_o_actualizar(
-    *, organizacion_id: int, titulo: str, mensaje: str, enlace: str
+    *, organizacion_id: uuid.UUID, titulo: str, mensaje: str, enlace: str
 ) -> tuple[Notificacion, bool]:
     """Mantiene actualizados los enlaces de los avisos demo sin duplicarlos."""
     notificacion = db.session.execute(

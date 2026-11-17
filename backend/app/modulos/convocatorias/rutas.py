@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 
 from flask import Blueprint, flash, jsonify, render_template, request
@@ -196,9 +197,9 @@ def listar():
     )
 
 
-@blueprint_convocatorias.get("/emergencias/<int:emergencia_id>/nueva")
+@blueprint_convocatorias.get("/emergencias/<uuid:emergencia_id>/nueva")
 @requiere_permiso(CONVOCATORIAS_CREAR)
-def formulario_de_alta(emergencia_id: int):
+def formulario_de_alta(emergencia_id: uuid.UUID):
     """Pantalla para abrir una convocatoria sobre una emergencia."""
     cerrar_convocatorias_vencidas(emergencia_id=emergencia_id)
     emergencia = servicios_emergencias.obtener_emergencia_por_id(emergencia_id)
@@ -210,9 +211,9 @@ def formulario_de_alta(emergencia_id: int):
     )
 
 
-@blueprint_convocatorias.post("/emergencias/<int:emergencia_id>/nueva")
+@blueprint_convocatorias.post("/emergencias/<uuid:emergencia_id>/nueva")
 @requiere_permiso(CONVOCATORIAS_CREAR)
-def crear_desde_formulario(emergencia_id: int):
+def crear_desde_formulario(emergencia_id: uuid.UUID):
     """Persiste una convocatoria vinculada a la emergencia seleccionada."""
     emergencia = servicios_emergencias.obtener_emergencia_por_id(emergencia_id)
     try:
@@ -237,9 +238,9 @@ def crear_desde_formulario(emergencia_id: int):
     )
 
 
-@blueprint_convocatorias.get("/<int:convocatoria_id>")
+@blueprint_convocatorias.get("/<uuid:convocatoria_id>")
 @requiere_permiso(CONVOCATORIAS_LISTAR)
-def obtener(convocatoria_id: int):
+def obtener(convocatoria_id: uuid.UUID):
     """Detalle de una convocatoria."""
     cerrar_convocatorias_vencidas()
     convocatoria = db.session.get(Convocatoria, convocatoria_id)
@@ -279,9 +280,9 @@ def obtener(convocatoria_id: int):
     )
 
 
-@blueprint_convocatorias.get("/<int:convocatoria_id>/cobertura-insuficiente")
+@blueprint_convocatorias.get("/<uuid:convocatoria_id>/cobertura-insuficiente")
 @requiere_permiso(COBERTURA_INSUFICIENTE_GESTIONAR)
-def cobertura_insuficiente(convocatoria_id: int):
+def cobertura_insuficiente(convocatoria_id: uuid.UUID):
     """Panel de decisión disponible mientras la cobertura incompleta esté pendiente."""
     convocatoria = obtener_convocatoria_con_cobertura_insuficiente(convocatoria_id)
     aceptacion_parcial_habilitada = puede_aceptar_cobertura_parcial(convocatoria)
@@ -317,9 +318,9 @@ def cobertura_insuficiente(convocatoria_id: int):
     )
 
 
-@blueprint_convocatorias.post("/<int:convocatoria_id>/cobertura-insuficiente/aceptar-parcial")
+@blueprint_convocatorias.post("/<uuid:convocatoria_id>/cobertura-insuficiente/aceptar-parcial")
 @requiere_permiso(COBERTURA_INSUFICIENTE_GESTIONAR)
-def aceptar_cobertura_insuficiente(convocatoria_id: int):
+def aceptar_cobertura_insuficiente(convocatoria_id: uuid.UUID):
     """Acepta la cobertura parcial si alcanza el mínimo y habilita la selección municipal."""
     try:
         convocatoria = aceptar_cobertura_parcial(convocatoria_id)
@@ -342,9 +343,9 @@ def aceptar_cobertura_insuficiente(convocatoria_id: int):
     )
 
 
-@blueprint_convocatorias.post("/<int:convocatoria_id>/cobertura-insuficiente/reabrir")
+@blueprint_convocatorias.post("/<uuid:convocatoria_id>/cobertura-insuficiente/reabrir")
 @requiere_permiso(COBERTURA_INSUFICIENTE_GESTIONAR)
-def reabrir_por_cobertura_insuficiente(convocatoria_id: int):
+def reabrir_por_cobertura_insuficiente(convocatoria_id: uuid.UUID):
     """Devuelve la emergencia al registro sin modificar la convocatoria cerrada."""
     try:
         emergencia = reabrir_convocatoria_por_cobertura_insuficiente(convocatoria_id)
@@ -367,9 +368,9 @@ def reabrir_por_cobertura_insuficiente(convocatoria_id: int):
     )
 
 
-@blueprint_convocatorias.post("/<int:convocatoria_id>/cerrar")
+@blueprint_convocatorias.post("/<uuid:convocatoria_id>/cerrar")
 @requiere_permiso(CONVOCATORIAS_CERRAR)
-def cerrar(convocatoria_id: int):
+def cerrar(convocatoria_id: uuid.UUID):
     """Cierra la ventana de ofertas para habilitar una revisión de necesidades."""
     convocatoria = cerrar_convocatoria(convocatoria_id)
     if pide_json():

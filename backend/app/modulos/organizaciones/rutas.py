@@ -18,6 +18,7 @@ sus errores. Ver docs/contratos/interfaz.md.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from flask import Blueprint, jsonify, render_template, request
@@ -169,7 +170,7 @@ def _datos_para_el_formulario(organizacion: dict[str, Any]) -> dict[str, Any]:
     return {**organizacion, "zonas": zonas or [{}]}
 
 
-def _contexto_del_formulario(organizacion_id: int | None = None) -> dict[str, Any]:
+def _contexto_del_formulario(organizacion_id: uuid.UUID | None = None) -> dict[str, Any]:
     return {
         "modo": "alta" if organizacion_id is None else "edicion",
         "organizacion": (
@@ -228,9 +229,9 @@ def formulario_de_alta():
     )
 
 
-@blueprint_organizaciones.get("/<int:organizacion_id>")
+@blueprint_organizaciones.get("/<uuid:organizacion_id>")
 @requiere_permiso(ORGANIZACIONES_LISTAR)
-def ver(organizacion_id: int):
+def ver(organizacion_id: uuid.UUID):
     """Detalle de una organizacion, con sus zonas de cobertura y las cuentas vinculadas."""
     datos = servicios.a_diccionario(servicios.obtener(organizacion_id))
     miembros = servicios.miembros(organizacion_id)
@@ -266,9 +267,9 @@ def crear():
     )
 
 
-@blueprint_organizaciones.get("/<int:organizacion_id>/edicion")
+@blueprint_organizaciones.get("/<uuid:organizacion_id>/edicion")
 @requiere_permiso(ORGANIZACIONES_EDITAR)
-def formulario_de_edicion(organizacion_id: int):
+def formulario_de_edicion(organizacion_id: uuid.UUID):
     """Pantalla de edicion de una organizacion, precargada con sus datos actuales."""
     contexto = _contexto_del_formulario(organizacion_id)
     return render_template(
@@ -278,10 +279,10 @@ def formulario_de_edicion(organizacion_id: int):
     )
 
 
-@blueprint_organizaciones.post("/<int:organizacion_id>/edicion")
+@blueprint_organizaciones.post("/<uuid:organizacion_id>/edicion")
 @requiere_permiso(ORGANIZACIONES_EDITAR)
 @plantilla_ante_error("organizaciones/formulario.html", contexto=_contexto_del_formulario)
-def editar(organizacion_id: int):
+def editar(organizacion_id: uuid.UUID):
     """Edicion de los datos de una organizacion."""
     formulario = construir_formulario(FormularioOrganizacion)
     validar_o_fallar(formulario)
@@ -305,9 +306,9 @@ def editar(organizacion_id: int):
     )
 
 
-@blueprint_organizaciones.post("/<int:organizacion_id>/estado")
+@blueprint_organizaciones.post("/<uuid:organizacion_id>/estado")
 @requiere_permiso(ORGANIZACIONES_CAMBIAR_ESTADO)
-def cambiar_estado(organizacion_id: int):
+def cambiar_estado(organizacion_id: uuid.UUID):
     """Alta o baja logica de una organizacion.
 
     En el navegador vuelve a la pantalla desde la que se hizo (el listado o el detalle).
@@ -440,9 +441,9 @@ def crear_item_inventario():
     )
 
 
-@blueprint_organizaciones.post("/inventario/<int:inventario_item_id>/editar")
+@blueprint_organizaciones.post("/inventario/<uuid:inventario_item_id>/editar")
 @requiere_permiso(INVENTARIO_EDITAR)
-def editar_item_inventario(inventario_item_id: int):
+def editar_item_inventario(inventario_item_id: uuid.UUID):
     """Actualiza la cantidad de un item del inventario de la organizacion autenticada."""
     inventario_item = servicios.obtener_item_inventario(
         current_user.organizacion_id,
@@ -467,9 +468,9 @@ def editar_item_inventario(inventario_item_id: int):
     )
 
 
-@blueprint_organizaciones.post("/inventario/<int:inventario_item_id>/eliminar")
+@blueprint_organizaciones.post("/inventario/<uuid:inventario_item_id>/eliminar")
 @requiere_permiso(INVENTARIO_EDITAR)
-def eliminar_item_inventario(inventario_item_id: int):
+def eliminar_item_inventario(inventario_item_id: uuid.UUID):
     """Quita un item del inventario de la organizacion autenticada."""
     servicios.eliminar_item_inventario(
         current_user.organizacion_id,

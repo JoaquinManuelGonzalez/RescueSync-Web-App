@@ -8,6 +8,7 @@ compuestos por Items cuantificados (LoteItem).
 from __future__ import annotations
 
 import logging
+import uuid
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select
@@ -18,6 +19,7 @@ from app.core.errores import (
     ReglaDeNegocioIncumplida,
     SolicitudInvalida,
 )
+from app.core.identificadores import parsear_id
 from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import EstadoConvocatoria
@@ -33,7 +35,7 @@ from app.modulos.emergencias.modelos import (
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 
 
-def obtener_emergencia(emergencia_id: int) -> Emergencia:
+def obtener_emergencia(emergencia_id: uuid.UUID) -> Emergencia:
     cerrar_convocatorias_vencidas(emergencia_id=emergencia_id)
     emergencia = db.session.get(Emergencia, emergencia_id)
     if not emergencia:
@@ -89,7 +91,7 @@ def _armar_lote_items(items: list[dict]) -> list[LoteItem]:
     Sistema Nacional una ONG que ofrecía en las dos aparecía dos veces con ese recurso.
     """
     lote_items: list[LoteItem] = []
-    fila_por_item: dict[int, int] = {}
+    fila_por_item: dict[uuid.UUID, int] = {}
     for indice, fila in enumerate(items):
         item_id = fila.get("item_id")
         if not item_id:
@@ -98,7 +100,8 @@ def _armar_lote_items(items: list[dict]) -> list[LoteItem]:
                 detalle={"campo": f"items[{indice}].item_id"},
             )
 
-        item = db.session.get(Item, int(item_id))
+        identificador = parsear_id(item_id)
+        item = db.session.get(Item, identificador) if identificador else None
         if not item:
             raise RecursoNoEncontrado(
                 f"No existe el ítem con id {item_id}.",
@@ -127,7 +130,7 @@ def _armar_lote_items(items: list[dict]) -> list[LoteItem]:
 
 def crear_lotes(
     *,
-    emergencia_id: int,
+    emergencia_id: uuid.UUID,
     descripcion: str | None,
     items: list[dict],
 ) -> list[LoteNecesidad]:
@@ -184,7 +187,7 @@ def crear_lotes(
     return [lote]
 
 
-def listar_lotes_por_emergencia(emergencia_id: int) -> list[LoteNecesidad]:
+def listar_lotes_por_emergencia(emergencia_id: uuid.UUID) -> list[LoteNecesidad]:
     """Devuelve los lotes de una emergencia con sus ítems ya cargados."""
     return list(
         db.session.scalars(
@@ -208,7 +211,7 @@ def listar_lotes() -> list[LoteNecesidad]:
     )
 
 
-def obtener_lote(lote_id: int) -> LoteNecesidad:
+def obtener_lote(lote_id: uuid.UUID) -> LoteNecesidad:
     """
     Recupera un lote con sus ítems cargados.
     """
@@ -268,7 +271,7 @@ def _validar_edicion_permitida(lote: LoteNecesidad) -> None:
 
 def editar_lote(
     *,
-    lote_id: int,
+    lote_id: uuid.UUID,
     descripcion: str | None,
     items: list[dict],
 ) -> LoteNecesidad:

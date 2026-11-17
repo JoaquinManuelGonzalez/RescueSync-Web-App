@@ -44,13 +44,21 @@ humanos y textos de la interfaz (labels, mensajes de error al usuario, etc.).
 | Plantillas Jinja | `modulo/accion.html` | `ofertas/crear.html` |
 | Tablas | `snake_case` plural | `ofertas_de_ayuda` |
 | Columnas | `snake_case` singular | `nivel_de_gravedad` |
-| Clave primaria | siempre `id` | `id` |
-| Clave foránea | `<tabla_en_singular>_id` | `emergencia_id` |
+| Clave primaria | siempre `id`, UUID (`Uuid`, `default=nuevo_id`) | `id` |
+| Clave foránea | `<tabla_en_singular>_id`, UUID | `emergencia_id` |
 | Booleanos | prefijo `es_` / `tiene_` | `es_consorcio`, `tiene_adjudicacion` |
 | Fechas | prefijo `fecha_` | `fecha_creacion`, `fecha_cierre` |
 | Índices y restricciones | `ix_`/`uq_`/`fk_`/`ck_` + tabla + columnas | `ix_ofertas_de_ayuda_convocatoria_id` |
 | Tests | `test_<unidad>.py` / `test_<caso>_<resultado>` | `test_registrar_oferta_fuera_de_ventana_falla` |
 
+
+Las claves son UUID y no enteros: los ids viajan a Bonita y a la API del Sistema Nacional, y
+con enteros la emergencia `1` de una web local pisaba los compromisos de la emergencia `1` de
+otra que usa la misma API. `app/core/identificadores.py` tiene `nuevo_id()` (UUIDv7, así que
+ordenar por `id` sigue siendo ordenar por fecha de alta) y `parsear_id()` para leer un id que
+llega como texto de un formulario, de JSON o de Bonita. Las rutas usan `<uuid:...>` y los
+formularios, `CampoId` (`app/core/interfaz/formularios.py`). Para mostrar una referencia corta
+en pantalla está el filtro `id_corto`.
 
 ## 3. Estructura de carpetas
 

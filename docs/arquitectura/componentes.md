@@ -143,6 +143,19 @@ adjudicación.
 convocatoria, la aplicación web informa a la API Nacional el compromiso definitivo de los
 recursos adjudicados a cada ONG, para que el sistema nacional los registre como comprometidos.
 
+**Descarte de ONG al adjudicar.** Al confirmar la selección, el módulo `adjudicaciones` completa
+la tarea "Seleccionar ofertas" de Bonita con dos listas: los compromisos de las líneas
+seleccionadas y `ongsNoSeleccionadas`, los CUIT que Bonita libera uno por uno con la liberación
+por ONG de la API Nacional. Esa liberación abarca todo lo que la ONG tiene comprometido en la
+emergencia (no hay liberación por ítem). Por eso `construir_ongs_no_seleccionadas_json` incluye
+solo a las ONG con líneas evaluadas por el Sistema Nacional y ninguna línea seleccionada. Mira
+las líneas y no el estado de la oferta: una oferta también queda rechazada cuando una ONG del
+consorcio declina la invitación, y esa oferta nunca se evaluó. Las ONG sin identificador nacional
+se omiten, porque la API no pudo comprometerles nada. **Limitación aceptada:** si una ONG tiene
+algunas líneas seleccionadas y otras no, las no seleccionadas siguen comprometidas en la API
+hasta que se finaliza la emergencia. El detalle está en `docs/contratos/compromisos.md` del
+repositorio de la API.
+
 **7. Aplicación web → API Nacional.** Al cerrar un proyecto de ayuda, una vez que todas las ONGs
 involucradas terminaron su ejecución, la aplicación web notifica el cierre a la API Nacional para
 que libere los recursos que habían quedado reservados o comprometidos.
@@ -215,43 +228,43 @@ Puntos que se deben tener presentes al implementar y al evaluar esta integració
 
 ```json
 {
-  "convocatoria_id": 482,
-  "emergencia_id": 117,
+  "convocatoria_id": "0193f4a2-7c1e-7d00-9000-000000000482",
+  "emergencia_id": "0193f4a2-7c1e-7e00-9000-000000000117",
   "ventana_cerrada_en": "2026-10-05T18:00:00Z",
   "ofertas": [
     {
-      "oferta_id": 931,
+      "oferta_id": "0193f4a2-7c1e-7f00-9000-000000000931",
       "organizaciones": [
-        {"id": 44, "nombre": "Cruz Solidaria", "rol": "lider"}
+        {"id": "0193f4a2-7c1e-7c00-9000-000000000044", "nombre": "Cruz Solidaria", "rol": "lider"}
       ],
       "fecha_creacion": "2026-10-05T14:22:10Z",
       "items": [
         {
-          "lote_item_id": 710,
+          "lote_item_id": "0193f4a2-7c1e-7a00-9000-000000000710",
           "tipo_recurso": "agua_potable",
           "cantidad_total": 2000,
           "unidad": "litros",
           "aportes": [
-            {"organizacion_id": 44, "cantidad": 2000}
+            {"organizacion_id": "0193f4a2-7c1e-7c00-9000-000000000044", "cantidad": 2000}
           ]
         }
       ]
     },
     {
-      "oferta_id": 933,
+      "oferta_id": "0193f4a2-7c1e-7f00-9000-000000000933",
       "organizaciones": [
-        {"id": 51, "nombre": "Manos Unidas", "rol": "lider"},
-        {"id": 58, "nombre": "Red de Abrigo", "rol": "aportante"}
+        {"id": "0193f4a2-7c1e-7c00-9000-000000000051", "nombre": "Manos Unidas", "rol": "lider"},
+        {"id": "0193f4a2-7c1e-7c00-9000-000000000058", "nombre": "Red de Abrigo", "rol": "aportante"}
       ],
       "fecha_creacion": "2026-10-05T15:47:02Z",
       "items": [
         {
-          "lote_item_id": 712,
+          "lote_item_id": "0193f4a2-7c1e-7a00-9000-000000000712",
           "tipo_recurso": "kits_de_abrigo",
           "cantidad_total": 350,
           "unidad": "unidades",
           "aportes": [
-            {"organizacion_id": 58, "cantidad": 350}
+            {"organizacion_id": "0193f4a2-7c1e-7c00-9000-000000000058", "cantidad": 350}
           ]
         }
       ]
