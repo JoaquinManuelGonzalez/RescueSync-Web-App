@@ -35,9 +35,11 @@ con `flask seed`.
 |---|---|
 | `usuarios` | `listar`, `crear`, `editar`, `cambiar_estado`, `restablecer_contrasena` |
 | `organizaciones` | `listar`, `crear`, `editar`, `cambiar_estado` |
+| `organizacion_propia` | `ver`, `editar` |
 | `emergencias` | `crear`, `listar`, `ver`, `editar` |
 | `lotes` | `crear`, `editar`, `listar` |
 | `convocatorias` | `crear`, `publicar`, `cerrar`, `listar` |
+| `cobertura_insuficiente` | `gestionar` |
 | `ofertas` | `crear`, `editar`, `retirar`, `listar` |
 | `inventario` | `ver`, `editar` |
 | `adjudicaciones` | `seleccionar`, `registrar`, `listar` |
@@ -61,6 +63,7 @@ El catálogo cubre todo el proceso BPMN y no solo la épica de identidad, para q
 | `lotes:listar` | ✔ | ✔ | | ✔ | |
 | `convocatorias:crear` / `:publicar` / `:cerrar` | | ✔ | | | |
 | `convocatorias:listar` | ✔ | ✔ | ✔ | ✔ | |
+| `cobertura_insuficiente:gestionar` | | ✔ | | | |
 | `ofertas:crear` / `:editar` / `:retirar` | | | ✔ | | |
 | `ofertas:listar` | ✔ | ✔ | ✔ | ✔ | |
 | `inventario:ver` | | | ✔ | ✔ | |

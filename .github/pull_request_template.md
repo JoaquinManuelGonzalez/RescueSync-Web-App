@@ -16,8 +16,16 @@
 
 ## Checklist
 
-- [ ] `ruff format --check .` y `ruff check .` pasan sin errores (cuando `pyproject.toml`
-      exista en el repositorio).
+- [ ] Desde `backend/`: `uv run ruff format --check .`, `uv run ruff check .` y
+      `uv run pytest` pasan sin errores.
+- [ ] Si se agregó una migración, se probó `flask db upgrade` y `downgrade` contra PostgreSQL. Si
+      transforma datos, se probó con una copia de una base con datos.
+- [ ] Las tablas y foráneas nuevas usan UUID (`Uuid`, `default=nuevo_id`), las rutas con ids
+      `<uuid:...>` y los formularios `CampoId` (`docs/adr/ADR-011-claves-uuid.md`).
+- [ ] Si cambia lo que la web intercambia con Bonita (contratos de tareas, ofertas consolidadas,
+      `POST /ofertas/evaluaciones`), se coordinó con el proceso de Bonita y, si llega a la API del
+      Sistema Nacional, con su repositorio. Un cambio incompatible lleva `BREAKING CHANGE:` en el
+      commit y se mergea el mismo día que sus contrapartes.
 - [ ] Se respeta la convención de nombres de `CONTRIBUTING.md` (paquetes, clases, funciones,
       tablas, columnas, rutas, ramas).
 - [ ] Los commits siguen Conventional Commits y referencian la HU (`(HU-XX)` o `Refs: HU-XX`).

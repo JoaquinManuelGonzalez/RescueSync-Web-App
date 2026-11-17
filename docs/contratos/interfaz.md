@@ -101,9 +101,11 @@ celda que nombra la fila (una ONG, un rubro) en el título de la tarjeta, sin et
 
 Filtros `etiqueta_rol`, `etiqueta_tipo_organizacion`, `etiqueta_estado_emergencia`,
 `etiqueta_gravedad`, `etiqueta_tipo_necesidad` (el rubro de un ítem: "Personal sanitario"),
-`descripcion_permiso`, `fecha` (`dd/mm/aaaa hh:mm`, hora de Argentina) y `numero(decimales=0)`
-(miles con punto y decimales con coma, redondeo "mitad hacia arriba": `12.500`, `5,0`);
-globales `requisitos_de_contrasena()` y `url_de_pagina(n)`.
+`descripcion_permiso`, `fecha` (`dd/mm/aaaa hh:mm`, hora de Argentina), `numero(decimales=0)`
+(miles con punto y decimales con coma, redondeo "mitad hacia arriba": `12.500`, `5,0`) e
+`id_corto` (los últimos 8 caracteres de un UUID, en mayúsculas: "Oferta #9F3A1C2B"; es solo para
+leer, los enlaces y formularios usan el id completo); globales `requisitos_de_contrasena()` y
+`url_de_pagina(n)`.
 
 Las plantillas del panel de auditoría reciben además `exportacion(slug, imagen=None)`, que
 devuelve las URLs de descarga CSV y JSON del indicador con el período y los filtros vigentes, y el
@@ -205,6 +207,11 @@ def editar(usuario_id: uuid.UUID):
   a su campo. Va **debajo** del decorador de autorización. La vista no escribe ningún `try`.
 - **Pantallas de formulario**: un GET con función propia (`formulario_de_alta`,
   `formulario_de_edicion`) sobre la misma URL que el POST que las procesa.
+- **Ids**: son UUID ([ADR-011](../adr/ADR-011-claves-uuid.md)). Las rutas los reciben con
+  `<uuid:...>` (un id mal formado es 404); un campo de formulario que elige otra entidad es un
+  `CampoId` (`app.core.interfaz.formularios`), que deja `data` como `uuid.UUID` y marca como error
+  del campo lo que no sea un UUID; un id que llega suelto en un JSON se lee con `parsear_id()`
+  (`app.core.identificadores`).
 - **Listados**: siempre paginados en la base con `app.core.interfaz.paginacion`. El servicio arma la
   consulta con sus filtros y llama a `paginar()`; la ruta lee `?pagina=` y `?por_pagina=`
   (20 por defecto, 100 como tope) con `parametros_de_paginacion()`. El cliente JSON recibe
