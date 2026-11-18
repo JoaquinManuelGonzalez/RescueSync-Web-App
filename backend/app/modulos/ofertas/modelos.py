@@ -9,6 +9,7 @@ consorcios colaborativos mediante la tabla asociativa `oferta_organizacion`.
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -20,10 +21,12 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Uuid,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.identificadores import nuevo_id
 from app.extensiones import db
 
 if TYPE_CHECKING:
@@ -69,16 +72,16 @@ class Oferta(db.Model):
 
     __tablename__ = "oferta"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
-    convocatoria_id: Mapped[int] = mapped_column(
-        Integer,
+    convocatoria_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("convocatoria.id"),
         nullable=False,
         index=True,
     )
-    usuario_id: Mapped[int] = mapped_column(
-        Integer,
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("usuarios.id"),
         nullable=False,
         comment="Usuario que carga o gestiona la oferta en representación del consorcio.",
@@ -177,13 +180,13 @@ class OfertaOrganizacion(db.Model):
 
     __tablename__ = "oferta_organizacion"
 
-    oferta_id: Mapped[int] = mapped_column(
-        Integer,
+    oferta_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("oferta.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    organizacion_id: Mapped[int] = mapped_column(
-        Integer,
+    organizacion_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("organizacion.id", ondelete="CASCADE"),
         primary_key=True,
     )
@@ -217,22 +220,22 @@ class OfertaLinea(db.Model):
 
     __tablename__ = "oferta_item"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
-    oferta_id: Mapped[int] = mapped_column(
-        Integer,
+    oferta_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("oferta.id"),
         nullable=False,
         index=True,
     )
-    lote_item_id: Mapped[int] = mapped_column(
-        Integer,
+    lote_item_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("lote_item.id"),
         nullable=False,
         index=True,
     )
-    organizacion_id: Mapped[int] = mapped_column(
-        Integer,
+    organizacion_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("organizacion.id"),
         nullable=False,
         index=True,
@@ -278,10 +281,10 @@ class OfertaVersion(db.Model):
 
     __tablename__ = "oferta_version"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
-    oferta_id: Mapped[int] = mapped_column(
-        Integer,
+    oferta_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("oferta.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -305,8 +308,8 @@ class OfertaVersion(db.Model):
         nullable=False,
         comment="JSON con las líneas de la oferta previas a la modificación.",
     )
-    modificado_por: Mapped[int | None] = mapped_column(
-        Integer,
+    modificado_por: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
         ForeignKey("usuarios.id"),
         nullable=True,
         comment="Usuario que realizó la modificación.",

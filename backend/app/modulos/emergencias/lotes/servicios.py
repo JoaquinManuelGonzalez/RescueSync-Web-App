@@ -8,6 +8,7 @@ compuestos por Items cuantificados (LoteItem).
 from __future__ import annotations
 
 import logging
+import uuid
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select
@@ -18,6 +19,7 @@ from app.core.errores import (
     ReglaDeNegocioIncumplida,
     SolicitudInvalida,
 )
+from app.core.identificadores import parsear_id
 from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import EstadoConvocatoria
@@ -33,7 +35,7 @@ from app.modulos.emergencias.modelos import (
 from app.modulos.notificaciones import servicios as servicios_de_notificaciones
 
 
-def obtener_emergencia(emergencia_id: int) -> Emergencia:
+def obtener_emergencia(emergencia_id: uuid.UUID) -> Emergencia:
     cerrar_convocatorias_vencidas(emergencia_id=emergencia_id)
     emergencia = db.session.get(Emergencia, emergencia_id)
     if not emergencia:
@@ -81,9 +83,54 @@ def _parsear_cantidad(valor: str | int | float | Decimal | None) -> int:
     return int(cantidad)
 
 
+def _armar_lote_items(items: list[dict]) -> list[LoteItem]:
+    """Valida las filas del formulario y arma los LoteItem del lote.
+
+    Cada ítem va una sola vez por lote: si hace falta más cantidad, se suma en la misma fila.
+    Repetirlo dejaba dos líneas de necesidad para el mismo recurso, y en la evaluación del
+    Sistema Nacional una ONG que ofrecía en las dos aparecía dos veces con ese recurso.
+    """
+    lote_items: list[LoteItem] = []
+    fila_por_item: dict[uuid.UUID, int] = {}
+    for indice, fila in enumerate(items):
+        item_id = fila.get("item_id")
+        if not item_id:
+            raise SolicitudInvalida(
+                f"Falta el ítem en la fila {indice + 1}.",
+                detalle={"campo": f"items[{indice}].item_id"},
+            )
+
+        identificador = parsear_id(item_id)
+        item = db.session.get(Item, identificador) if identificador else None
+        if not item:
+            raise RecursoNoEncontrado(
+                f"No existe el ítem con id {item_id}.",
+                detalle={"campo": f"items[{indice}].item_id"},
+            )
+        if item.id in fila_por_item:
+            raise SolicitudInvalida(
+                f"El ítem «{item.nombre}» ya está en la fila {fila_por_item[item.id] + 1}. "
+                "Cargalo una sola vez, con la cantidad total.",
+                detalle={"campo": f"items[{indice}].item_id"},
+            )
+        fila_por_item[item.id] = indice
+
+        cantidad = _parsear_cantidad(fila.get("cantidad_solicitada"))
+        observaciones = (fila.get("observaciones") or "").strip() or None
+
+        lote_items.append(
+            LoteItem(
+                item_id=item.id,
+                cantidad_solicitada=cantidad,
+                observaciones=observaciones,
+            )
+        )
+    return lote_items
+
+
 def crear_lotes(
     *,
-    emergencia_id: int,
+    emergencia_id: uuid.UUID,
     descripcion: str | None,
     items: list[dict],
 ) -> list[LoteNecesidad]:
@@ -112,33 +159,7 @@ def crear_lotes(
             detalle={"campo": "descripcion"},
         )
 
-    # Validar ítems y armar los LoteItem
-    lote_items: list[LoteItem] = []
-    for indice, fila in enumerate(items):
-        item_id = fila.get("item_id")
-        if not item_id:
-            raise SolicitudInvalida(
-                f"Falta el ítem en la fila {indice + 1}.",
-                detalle={"campo": f"items[{indice}].item_id"},
-            )
-
-        item = db.session.get(Item, int(item_id))
-        if not item:
-            raise RecursoNoEncontrado(
-                f"No existe el ítem con id {item_id}.",
-                detalle={"campo": f"items[{indice}].item_id"},
-            )
-
-        cantidad = _parsear_cantidad(fila.get("cantidad_solicitada"))
-        observaciones = (fila.get("observaciones") or "").strip() or None
-
-        lote_items.append(
-            LoteItem(
-                item_id=item.id,
-                cantidad_solicitada=cantidad,
-                observaciones=observaciones,
-            )
-        )
+    lote_items = _armar_lote_items(items)
 
     # Crear el lote con sus ítems (cascade="all, delete-orphan" en LoteNecesidad.lote_items)
     lote = LoteNecesidad(
@@ -166,7 +187,7 @@ def crear_lotes(
     return [lote]
 
 
-def listar_lotes_por_emergencia(emergencia_id: int) -> list[LoteNecesidad]:
+def listar_lotes_por_emergencia(emergencia_id: uuid.UUID) -> list[LoteNecesidad]:
     """Devuelve los lotes de una emergencia con sus ítems ya cargados."""
     return list(
         db.session.scalars(
@@ -190,7 +211,7 @@ def listar_lotes() -> list[LoteNecesidad]:
     )
 
 
-def obtener_lote(lote_id: int) -> LoteNecesidad:
+def obtener_lote(lote_id: uuid.UUID) -> LoteNecesidad:
     """
     Recupera un lote con sus ítems cargados.
     """
@@ -250,7 +271,7 @@ def _validar_edicion_permitida(lote: LoteNecesidad) -> None:
 
 def editar_lote(
     *,
-    lote_id: int,
+    lote_id: uuid.UUID,
     descripcion: str | None,
     items: list[dict],
 ) -> LoteNecesidad:
@@ -274,32 +295,7 @@ def editar_lote(
             detalle={"campo": "descripcion"},
         )
 
-    nuevos_items: list[LoteItem] = []
-    for indice, fila in enumerate(items):
-        item_id = fila.get("item_id")
-        if not item_id:
-            raise SolicitudInvalida(
-                f"Falta el ítem en la fila {indice + 1}.",
-                detalle={"campo": f"items[{indice}].item_id"},
-            )
-
-        item = db.session.get(Item, int(item_id))
-        if not item:
-            raise RecursoNoEncontrado(
-                f"No existe el ítem con id {item_id}.",
-                detalle={"campo": f"items[{indice}].item_id"},
-            )
-
-        cantidad = _parsear_cantidad(fila.get("cantidad_solicitada"))
-        observaciones = (fila.get("observaciones") or "").strip() or None
-
-        nuevos_items.append(
-            LoteItem(
-                item_id=item.id,
-                cantidad_solicitada=cantidad,
-                observaciones=observaciones,
-            )
-        )
+    nuevos_items = _armar_lote_items(items)
 
     # Reemplazo total de los ítems(*)
     lote.descripcion = descripcion

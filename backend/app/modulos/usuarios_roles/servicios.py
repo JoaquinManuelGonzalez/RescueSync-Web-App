@@ -16,6 +16,7 @@ docs/adr/ADR-009-autenticacion-y-rbac.md.
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -37,6 +38,7 @@ from app.core.errores import (
     RecursoNoEncontrado,
     SolicitudInvalida,
 )
+from app.core.identificadores import parsear_id
 from app.core.interfaz.paginacion import Pagina, paginar
 from app.core.logging import id_correlacion_actual, registrar_evento
 from app.extensiones import db
@@ -124,7 +126,7 @@ def listar_emails_activos_por_rol(*nombres_rol: str) -> list[str]:
     )
 
 
-def obtener_usuario(usuario_id: int) -> Usuario:
+def obtener_usuario(usuario_id: uuid.UUID) -> Usuario:
     """Devuelve la cuenta o corta con 404."""
     usuario = db.session.get(Usuario, usuario_id)
     if usuario is None:
@@ -135,7 +137,7 @@ def obtener_usuario(usuario_id: int) -> Usuario:
 def listar_usuarios(
     *,
     nombre_rol: str | None = None,
-    organizacion_id: int | None = None,
+    organizacion_id: uuid.UUID | None = None,
     activo: bool | None = None,
     texto: str | None = None,
 ) -> list[Usuario]:
@@ -151,7 +153,7 @@ def paginar_usuarios(
     pagina: int,
     por_pagina: int,
     nombre_rol: str | None = None,
-    organizacion_id: int | None = None,
+    organizacion_id: uuid.UUID | None = None,
     activo: bool | None = None,
     texto: str | None = None,
 ) -> Pagina[Usuario]:
@@ -165,7 +167,7 @@ def paginar_usuarios(
 def _consulta_de_usuarios(
     *,
     nombre_rol: str | None,
-    organizacion_id: int | None,
+    organizacion_id: uuid.UUID | None,
     activo: bool | None,
     texto: str | None,
 ) -> Select:
@@ -222,9 +224,8 @@ def _cargar_usuario_de_sesion(id_usuario: str) -> Usuario | None:
     fueron desactivadas despues de abrir la sesion: sin esto, la baja recien se notaria cuando
     la sesion expirara por inactividad.
     """
-    try:
-        identificador = int(id_usuario)
-    except TypeError, ValueError:
+    identificador = parsear_id(id_usuario)
+    if identificador is None:
         return None
     usuario = db.session.get(Usuario, identificador)
     if usuario is None or not puede_operar(usuario):
@@ -378,7 +379,7 @@ def validar_politica_de_contrasena(contrasena: str, campo: str = "contrasena") -
 
 
 def verificar_coherencia_rol_organizacion(
-    nombre_rol: str, organizacion_id: int | None, *, exigir_activa: bool = False
+    nombre_rol: str, organizacion_id: uuid.UUID | None, *, exigir_activa: bool = False
 ) -> None:
     """Comprueba que la organizacion asignada sea del tipo que el rol exige.
 
@@ -440,7 +441,7 @@ def verificar_coherencia_rol_organizacion(
         )
 
 
-def verificar_alcance_de_organizacion(usuario: Usuario, organizacion_id: int | None) -> None:
+def verificar_alcance_de_organizacion(usuario: Usuario, organizacion_id: uuid.UUID | None) -> None:
     """Corta con 403 si el usuario no puede operar sobre datos de esa organizacion.
 
     Es la contraparte de los decoradores de `core/acceso/autorizacion.py`: ellos deciden *que
@@ -459,7 +460,7 @@ def verificar_alcance_de_organizacion(usuario: Usuario, organizacion_id: int | N
 # --- Alta y mantenimiento de cuentas ------------------------------------------
 
 
-def _verificar_email_disponible(email: str, excluir_id: int | None = None) -> None:
+def _verificar_email_disponible(email: str, excluir_id: uuid.UUID | None = None) -> None:
     consulta = select(Usuario.id).where(Usuario.email == email)
     if excluir_id is not None:
         consulta = consulta.where(Usuario.id != excluir_id)
@@ -473,7 +474,7 @@ def crear_usuario(
     nombre_completo: str,
     contrasena: str,
     nombre_rol: str,
-    organizacion_id: int | None = None,
+    organizacion_id: uuid.UUID | None = None,
     debe_cambiar_contrasena: bool = True,
     confirmar: bool = True,
 ) -> Usuario:
@@ -520,11 +521,11 @@ def crear_usuario(
 
 
 def editar_usuario(
-    usuario_id: int,
+    usuario_id: uuid.UUID,
     *,
     nombre_completo: str,
     nombre_rol: str,
-    organizacion_id: int | None = None,
+    organizacion_id: uuid.UUID | None = None,
 ) -> Usuario:
     """Actualiza nombre, rol y organizacion. El email no se edita: es la clave natural."""
     usuario = obtener_usuario(usuario_id)
@@ -543,7 +544,7 @@ def editar_usuario(
     return usuario
 
 
-def cambiar_estado(usuario_id: int, *, activo: bool) -> Usuario:
+def cambiar_estado(usuario_id: uuid.UUID, *, activo: bool) -> Usuario:
     """Activa o desactiva una cuenta.
 
     Baja logica y no borrado: las emergencias y ofertas ya cargadas referencian al usuario que
@@ -563,7 +564,7 @@ def cambiar_estado(usuario_id: int, *, activo: bool) -> Usuario:
     return usuario
 
 
-def restablecer_contrasena(usuario_id: int, nueva_contrasena: str) -> Usuario:
+def restablecer_contrasena(usuario_id: uuid.UUID, nueva_contrasena: str) -> Usuario:
     """El administrador asigna una contrasena nueva y levanta el bloqueo.
 
     Es el reemplazo del "olvide mi contrasena" por correo, que la epica deja fuera de alcance.
@@ -587,7 +588,7 @@ def restablecer_contrasena(usuario_id: int, nueva_contrasena: str) -> Usuario:
     return usuario
 
 
-def desbloquear(usuario_id: int) -> Usuario:
+def desbloquear(usuario_id: uuid.UUID) -> Usuario:
     """Levanta el bloqueo por intentos fallidos sin tocar la contrasena."""
     usuario = obtener_usuario(usuario_id)
     usuario.intentos_fallidos = 0

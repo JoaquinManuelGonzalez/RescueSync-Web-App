@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from flask import Blueprint, flash, render_template, request
 from flask_login import current_user
 
@@ -32,9 +34,9 @@ def listar():
     return render_template("adjudicaciones/listado.html", convocatorias=convocatorias)
 
 
-@blueprint_adjudicaciones.get("/convocatoria/<int:convocatoria_id>")
+@blueprint_adjudicaciones.get("/convocatoria/<uuid:convocatoria_id>")
 @requiere_permiso(ADJUDICACIONES_SELECCIONAR)
-def seleccionar(convocatoria_id: int):
+def seleccionar(convocatoria_id: uuid.UUID):
     convocatoria = servicios.obtener_convocatoria(convocatoria_id, current_user.organizacion_id)
     ofertas = [
         oferta
@@ -49,12 +51,13 @@ def seleccionar(convocatoria_id: int):
     )
 
 
-@blueprint_adjudicaciones.post("/convocatoria/<int:convocatoria_id>")
+@blueprint_adjudicaciones.post("/convocatoria/<uuid:convocatoria_id>")
 @requiere_permiso(ADJUDICACIONES_SELECCIONAR)
-def confirmar(convocatoria_id: int):
+def confirmar(convocatoria_id: uuid.UUID):
     convocatoria = servicios.obtener_convocatoria(convocatoria_id, current_user.organizacion_id)
     try:
-        linea_ids = [int(valor) for valor in request.form.getlist("linea_id")]
+        # uuid.UUID levanta ValueError ante un valor inválido, igual que antes int().
+        linea_ids = [uuid.UUID(valor) for valor in request.form.getlist("linea_id")]
         servicios.seleccionar_lineas(convocatoria, linea_ids)
 
         (

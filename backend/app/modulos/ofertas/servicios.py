@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -26,6 +27,7 @@ from app.core.errores import (
     ReglaDeNegocioIncumplida,
     SolicitudInvalida,
 )
+from app.core.identificadores import parsear_id
 from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import Convocatoria, DecisionCobertura
@@ -96,7 +98,7 @@ def _validar_ventana_convocatoria(convocatoria: Convocatoria) -> None:
         )
 
 
-def _validar_y_obtener_organizacion(organizacion_id: int) -> Organizacion:
+def _validar_y_obtener_organizacion(organizacion_id: uuid.UUID) -> Organizacion:
     """Valida y obtiene la organización para una oferta simple."""
     if not organizacion_id:
         raise SolicitudInvalida(
@@ -133,7 +135,10 @@ def _validar_y_procesar_items(
             detalle={"campo": "items"},
         )
 
-    lote_item_ids = [d.get("lote_item_id") for d in items_datos]
+    # Los ids llegan como texto en el JSON: se pasan a UUID para cruzarlos con la base.
+    for item_dato in items_datos:
+        item_dato["lote_item_id"] = parsear_id(item_dato.get("lote_item_id"))
+    lote_item_ids = [d["lote_item_id"] for d in items_datos]
     if any(lid is None for lid in lote_item_ids):
         raise SolicitudInvalida("Cada ítem de la oferta debe incluir su 'lote_item_id'.")
 
@@ -195,7 +200,7 @@ def _validar_y_procesar_items(
 
 
 def _validar_disponibilidad_en_inventario(
-    organizacion_id: int,
+    organizacion_id: uuid.UUID,
     items_datos: list[dict[str, Any]],
 ) -> None:
     """Verifica que la ONG tenga stock local suficiente para cada ítem ofertado."""
@@ -240,10 +245,10 @@ def _validar_disponibilidad_en_inventario(
 def _validar_totales_del_consorcio(
     oferta: Oferta | None,
     items_datos: list[dict[str, Any]],
-    organizacion_id: int,
+    organizacion_id: uuid.UUID,
 ) -> None:
     """Impide que la suma de aportes del consorcio supere cada necesidad."""
-    aportes_existentes: dict[int, Decimal] = {}
+    aportes_existentes: dict[uuid.UUID, Decimal] = {}
     if oferta is not None:
         for linea in oferta.items:
             if linea.organizacion_id != organizacion_id:
@@ -275,7 +280,7 @@ def _validar_totales_del_consorcio(
 
 
 def _validar_organizaciones_conjuntas(
-    organizaciones_ids: list[int], organizacion_lider_id: int
+    organizaciones_ids: list[uuid.UUID], organizacion_lider_id: uuid.UUID
 ) -> list[Organizacion]:
     """Valida las organizaciones ONG que participarán junto a la líder."""
     organizaciones = []
@@ -288,7 +293,9 @@ def _validar_organizaciones_conjuntas(
     return organizaciones
 
 
-def _validar_organizaciones_sin_oferta(convocatoria_id: int, organizaciones_ids: list[int]) -> None:
+def _validar_organizaciones_sin_oferta(
+    convocatoria_id: uuid.UUID, organizaciones_ids: list[uuid.UUID]
+) -> None:
     """Impide que una organización participe en más de una oferta activa."""
     if not organizaciones_ids:
         return
@@ -324,12 +331,12 @@ def _actualizar_estado_por_invitaciones(oferta: Oferta) -> None:
 
 def crear_oferta(
     *,
-    convocatoria_id: int,
-    usuario_id: int,
-    organizacion_id: int,
+    convocatoria_id: uuid.UUID,
+    usuario_id: uuid.UUID,
+    organizacion_id: uuid.UUID,
     items: list[dict[str, Any]],
     observaciones: str | None = None,
-    organizaciones_ids: list[int] | None = None,
+    organizaciones_ids: list[uuid.UUID] | None = None,
 ) -> Oferta:
     """Registra una nueva oferta simple para una convocatoria activa.
         organizacion_id: ID de la ONG que presenta la oferta.
@@ -424,15 +431,16 @@ def _serializar_items_para_snapshot(oferta: Oferta) -> str:
     """Serializa las líneas actuales de la oferta a JSON para guardar en la versión histórica."""
     items = []
     for linea in oferta.items:
+        # Los ids van como texto: json.dumps no serializa UUID.
         dato: dict[str, Any] = {
-            "id": linea.id,
-            "lote_item_id": linea.lote_item_id,
+            "id": str(linea.id),
+            "lote_item_id": str(linea.lote_item_id),
             "cantidad_ofrecida": int(linea.cantidad_ofrecida),
             "observaciones": linea.observaciones,
         }
         if linea.lote_item and linea.lote_item.item:
             dato["recurso"] = {
-                "item_id": linea.lote_item.item.id,
+                "item_id": str(linea.lote_item.item.id),
                 "nombre": linea.lote_item.item.nombre,
                 "categoria": linea.lote_item.item.categoria.value,
                 "unidad_medida": linea.lote_item.item.unidad_medida,
@@ -441,7 +449,7 @@ def _serializar_items_para_snapshot(oferta: Oferta) -> str:
     return json.dumps(items, ensure_ascii=False)
 
 
-def _guardar_snapshot_version(oferta: Oferta, usuario_id: int | None = None) -> OfertaVersion:
+def _guardar_snapshot_version(oferta: Oferta, usuario_id: uuid.UUID | None = None) -> OfertaVersion:
     """Registra una snapshot histórica en OfertaVersion antes de aplicar modificaciones."""
     estado_str = oferta.estado.value if hasattr(oferta.estado, "value") else str(oferta.estado)
     version_hist = OfertaVersion(
@@ -459,7 +467,7 @@ def _guardar_snapshot_version(oferta: Oferta, usuario_id: int | None = None) -> 
 
 def _validar_organizacion_de_oferta(
     oferta: Oferta,
-    organizacion_id: int | None,
+    organizacion_id: uuid.UUID | None,
 ) -> None:
     """Impide que una organizacion opere una oferta ajena."""
     if organizacion_id is None:
@@ -479,13 +487,13 @@ def _validar_organizacion_de_oferta(
 
 
 def modificar_oferta(
-    oferta_id: int,
+    oferta_id: uuid.UUID,
     *,
     items: list[dict[str, Any]] | None = None,
     observaciones: str | None = None,
-    organizacion_id: int | None = None,
-    organizaciones_ids: list[int] | None = None,
-    usuario_id: int | None = None,
+    organizacion_id: uuid.UUID | None = None,
+    organizaciones_ids: list[uuid.UUID] | None = None,
+    usuario_id: uuid.UUID | None = None,
 ) -> Oferta:
     """Modifica una oferta existente, incrementando su versión.
 
@@ -593,7 +601,7 @@ def modificar_oferta(
     return oferta
 
 
-def retirar_oferta(oferta_id: int, *, organizacion_id: int | None = None) -> Oferta:
+def retirar_oferta(oferta_id: uuid.UUID, *, organizacion_id: uuid.UUID | None = None) -> Oferta:
     """Marca una oferta como retirada por parte de la ONG.
 
     Solo puede retirarse si la convocatoria sigue abierta.
@@ -625,10 +633,10 @@ def retirar_oferta(oferta_id: int, *, organizacion_id: int | None = None) -> Ofe
 
 
 def aceptar_invitacion(
-    oferta_id: int,
+    oferta_id: uuid.UUID,
     *,
-    organizacion_id: int,
-    usuario_id: int,
+    organizacion_id: uuid.UUID,
+    usuario_id: uuid.UUID,
     items: list[dict[str, Any]],
 ) -> Oferta:
     """Acepta una invitación y agrega el aporte de la ONG al consorcio."""
@@ -692,10 +700,10 @@ def aceptar_invitacion(
 
 
 def rechazar_invitacion(
-    oferta_id: int,
+    oferta_id: uuid.UUID,
     *,
-    organizacion_id: int,
-    usuario_id: int,
+    organizacion_id: uuid.UUID,
+    usuario_id: uuid.UUID,
 ) -> Oferta:
     """Rechaza una invitación pendiente al consorcio."""
     oferta = db.session.get(Oferta, oferta_id)
@@ -744,7 +752,7 @@ def rechazar_invitacion(
     return oferta
 
 
-def obtener_oferta_por_id(oferta_id: int) -> Oferta:
+def obtener_oferta_por_id(oferta_id: uuid.UUID) -> Oferta:
     """Obtiene una oferta por su clave primaria o levanta RecursoNoEncontrado."""
     oferta = db.session.get(Oferta, oferta_id)
     if not oferta:
@@ -753,10 +761,10 @@ def obtener_oferta_por_id(oferta_id: int) -> Oferta:
 
 
 def listar_ofertas_por_convocatoria(
-    convocatoria_id: int,
+    convocatoria_id: uuid.UUID,
     *,
     incluir_retiradas: bool = False,
-    organizacion_id: int | None = None,
+    organizacion_id: uuid.UUID | None = None,
 ) -> list[Oferta]:
     """Lista las ofertas asociadas a una convocatoria."""
     convocatoria = db.session.get(Convocatoria, convocatoria_id)
@@ -778,7 +786,7 @@ def listar_ofertas_por_convocatoria(
     return list(db.session.execute(consulta).scalars().all())
 
 
-def obtener_ofertas_consolidadas_para_bonita(convocatoria_id: int) -> dict[str, Any]:
+def obtener_ofertas_consolidadas_para_bonita(convocatoria_id: uuid.UUID) -> dict[str, Any]:
     """Genera la carga útil consolidada de ofertas para el motor de procesos Bonita.
 
     Corresponde a la integración #4 descripta en `docs/arquitectura/componentes.md`.
@@ -822,7 +830,7 @@ def obtener_ofertas_consolidadas_para_bonita(convocatoria_id: int) -> dict[str, 
         ]
 
         # Mantener la oferta como unidad y consolidar cada necesidad sin perder quién aporta.
-        items_consolidados: dict[int, dict[str, Any]] = {}
+        items_consolidados: dict[uuid.UUID, dict[str, Any]] = {}
         for linea in oferta.items:
             lote_item_id = linea.lote_item_id
             if lote_item_id not in items_consolidados:
@@ -879,7 +887,7 @@ def obtener_ofertas_consolidadas_para_bonita(convocatoria_id: int) -> dict[str, 
     }
 
 
-def obtener_historial_de_oferta(oferta_id: int) -> list[OfertaVersion]:
+def obtener_historial_de_oferta(oferta_id: uuid.UUID) -> list[OfertaVersion]:
     """Obtiene el historial archivado de una oferta, ordenado por versión."""
     oferta = db.session.get(Oferta, oferta_id)
     if not oferta:
@@ -895,18 +903,20 @@ def obtener_historial_de_oferta(oferta_id: int) -> list[OfertaVersion]:
 
 def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
     """Registra los aportes evaluados y calcula la cobertura de la convocatoria."""
-    convocatoria_id = datos.get("convocatoria_id")
+    # Los ids llegan como texto (UUID) en el JSON de Bonita: se pasan a UUID para cruzarlos.
+    convocatoria_id = parsear_id(datos.get("convocatoria_id"))
     evaluacion = datos.get("resultado_evaluacion")
+    emergencia_id = (
+        parsear_id(evaluacion.get("emergencia_id")) if isinstance(evaluacion, dict) else None
+    )
 
     if (
-        type(convocatoria_id) is not int
-        or not isinstance(evaluacion, dict)
-        or type(evaluacion.get("emergencia_id")) is not int
+        convocatoria_id is None
+        or emergencia_id is None
         or not isinstance(evaluacion.get("ofertas"), list)
     ):
         raise SolicitudInvalida("La evaluación recibida es inválida.")
 
-    emergencia_id = evaluacion["emergencia_id"]
     convocatoria = db.session.get(Convocatoria, convocatoria_id)
 
     if convocatoria is None:
@@ -945,7 +955,7 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
         if not isinstance(oferta_evaluada, dict):
             raise SolicitudInvalida("Una oferta evaluada es inválida.")
 
-        oferta_id = oferta_evaluada.get("oferta_id")
+        oferta_id = parsear_id(oferta_evaluada.get("oferta_id"))
         if oferta_id not in ofertas_por_id or oferta_id in ids_recibidos:
             raise SolicitudInvalida("La evaluación contiene ofertas desconocidas o duplicadas.")
 
@@ -969,7 +979,7 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
             if not isinstance(item, dict):
                 raise SolicitudInvalida("Ítem evaluado inválido.")
 
-            lote_item_id = item.get("lote_item_id")
+            lote_item_id = parsear_id(item.get("lote_item_id"))
             aportes = item.get("aportes")
 
             if lote_item_id not in ids_lote or not isinstance(aportes, list):
@@ -979,7 +989,7 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
                 if not isinstance(aporte, dict):
                     raise SolicitudInvalida("Aporte evaluado inválido.")
 
-                clave = (lote_item_id, aporte.get("organizacion_id"))
+                clave = (lote_item_id, parsear_id(aporte.get("organizacion_id")))
                 linea = lineas_por_clave.get(clave)
 
                 if linea is None or clave in claves_recibidas:
@@ -1083,7 +1093,9 @@ def registrar_evaluacion_y_calcular_cobertura(datos: dict) -> dict:
 # --- Lectura agregada (panel de auditoria) ---------------------------------------
 
 
-def consultar_unidades_habilitadas(*, lote_item_ids: Select[tuple[int]]) -> Select[tuple[int, int]]:
+def consultar_unidades_habilitadas(
+    *, lote_item_ids: Select[tuple[uuid.UUID]]
+) -> Select[tuple[uuid.UUID, int]]:
     """Subconsulta con las unidades habilitadas por el Sistema Nacional para cada item de lote.
 
     Columnas: `lote_item_id` y `cantidad_habilitada`, la suma de lo ofrecido en las lineas
@@ -1106,7 +1118,7 @@ def consultar_unidades_habilitadas(*, lote_item_ids: Select[tuple[int]]) -> Sele
 
 
 def consultar_unidades_seleccionadas(
-    *, lote_item_ids: Select[tuple[int]]
+    *, lote_item_ids: Select[tuple[uuid.UUID]]
 ) -> Select[tuple[int, int]]:
     """Subconsulta con las unidades adjudicadas a cada item de lote.
 
@@ -1129,7 +1141,7 @@ def consultar_unidades_seleccionadas(
 
 
 def consultar_ofertas_adjudicadas(
-    *, convocatoria_ids: Select[tuple[int]]
+    *, convocatoria_ids: Select[tuple[uuid.UUID]]
 ) -> Select[tuple[int, int]]:
     """Subconsulta con las ofertas adjudicadas de esas convocatorias.
 
@@ -1148,7 +1160,9 @@ def consultar_ofertas_adjudicadas(
 PARTICIPACION_ACEPTADA = "aceptada"
 
 
-def consultar_participantes_aceptados(*, oferta_ids: Select[tuple[int]]) -> Select[tuple[int, int]]:
+def consultar_participantes_aceptados(
+    *, oferta_ids: Select[tuple[uuid.UUID]]
+) -> Select[tuple[uuid.UUID, uuid.UUID]]:
     """Subconsulta con las organizaciones que participan aceptadas de esas ofertas.
 
     Columnas: `oferta_id` y `organizacion_id`. Una oferta con mas de un participante aceptado es
@@ -1164,7 +1178,7 @@ def consultar_participantes_aceptados(*, oferta_ids: Select[tuple[int]]) -> Sele
 
 
 def consultar_lineas_seleccionadas(
-    *, oferta_ids: Select[tuple[int]]
+    *, oferta_ids: Select[tuple[uuid.UUID]]
 ) -> Select[tuple[int, int, int, int]]:
     """Subconsulta con las lineas seleccionadas de esas ofertas.
 
@@ -1201,7 +1215,7 @@ class DemandaDeCategoria:
 
 
 def listar_demanda_e_inhabilitacion_por_categoria(
-    *, emergencia_ids: Select[tuple[int]]
+    *, emergencia_ids: Select[tuple[uuid.UUID]]
 ) -> list[DemandaDeCategoria]:
     """Demanda y evaluacion por rubro de los lotes de esas emergencias, en una sola consulta.
 

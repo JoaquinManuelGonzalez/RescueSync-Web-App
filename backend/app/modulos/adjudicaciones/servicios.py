@@ -7,6 +7,7 @@ al final, las lecturas agregadas que necesita el panel de auditoria.
 from __future__ import annotations
 
 import json
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -35,7 +36,7 @@ from app.modulos.ofertas import servicios as servicios_de_ofertas
 from app.modulos.ofertas.modelos import EstadoOferta, Oferta, TipoAsignacion
 
 
-def obtener_convocatoria(convocatoria_id: int, municipio_id: int) -> Convocatoria:
+def obtener_convocatoria(convocatoria_id: uuid.UUID, municipio_id: uuid.UUID) -> Convocatoria:
     convocatoria = db.session.scalar(
         select(Convocatoria)
         .join(Emergencia)
@@ -64,7 +65,7 @@ def obtener_convocatoria(convocatoria_id: int, municipio_id: int) -> Convocatori
     return convocatoria
 
 
-def listar_convocatorias_pendientes(municipio_id: int) -> list[Convocatoria]:
+def listar_convocatorias_pendientes(municipio_id: uuid.UUID) -> list[Convocatoria]:
     return list(
         db.session.scalars(
             select(Convocatoria)
@@ -93,14 +94,16 @@ def _cobertura_minima(cantidad: int) -> int:
     return int((Decimal(cantidad) * Decimal("0.75")).to_integral_value(rounding=ROUND_CEILING))
 
 
-def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[int]) -> list[Oferta]:
+def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[uuid.UUID]) -> list[Oferta]:
     if convocatoria.estado == EstadoConvocatoria.adjudicada:
         raise ConflictoDeEstado(
             "La selección de esta convocatoria ya fue confirmada y no puede modificarse."
         )
     if convocatoria.estado != EstadoConvocatoria.cerrada:
         raise ConflictoDeEstado("La convocatoria no está disponible para confirmar una selección.")
-    if not isinstance(linea_ids, list) or any(type(linea_id) is not int for linea_id in linea_ids):
+    if not isinstance(linea_ids, list) or any(
+        not isinstance(linea_id, uuid.UUID) for linea_id in linea_ids
+    ):
         raise SolicitudInvalida("La selección contiene líneas inválidas.")
     if not linea_ids:
         raise SolicitudInvalida("Seleccioná al menos una línea de oferta.")
@@ -122,8 +125,8 @@ def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[int]) -> list
 
     linea_ids_seleccionadas = set(linea_ids)
     lineas_seleccionadas = [lineas_por_id[linea_id] for linea_id in linea_ids]
-    cantidades_por_item: dict[int, int] = defaultdict(int)
-    requeridas_por_item: dict[int, int] = {}
+    cantidades_por_item: dict[uuid.UUID, int] = defaultdict(int)
+    requeridas_por_item: dict[uuid.UUID, int] = {}
     limites = {
         lote_item.id: _limite_con_margen(int(lote_item.cantidad_solicitada))
         for lote in convocatoria.lotes
@@ -262,21 +265,38 @@ def obtener_datos_integracion_bonita(
 
 
 def construir_ongs_no_seleccionadas_json(convocatoria: Convocatoria) -> str:
-    """Obtiene los identificadores nacionales de las ONG rechazadas."""
-    identificadores = set()
+    """CUIT de las ONG que evaluó el Sistema Nacional y no tienen ninguna línea seleccionada.
+
+    Con esta lista Bonita llama a la liberación por ONG de la API, que libera **todo** lo que la
+    ONG tiene comprometido en la emergencia: la API no libera por línea. Por eso una ONG con al
+    menos una línea seleccionada nunca entra, aunque tenga otras sin seleccionar o una oferta
+    rechazada, porque liberarla le quitaría lo adjudicado. Limitación aceptada: las líneas no
+    seleccionadas de esa ONG siguen comprometidas hasta que se finaliza la emergencia.
+
+    Cuenta las líneas que clasificó el Sistema Nacional (las que no quedaron `pendiente`), no el
+    estado de la oferta: una oferta también queda rechazada cuando una ONG del consorcio declina
+    la invitación, y esa nunca se evaluó. Una ONG sin identificador nacional se omite: la API no
+    pudo comprometerle nada.
+    """
+    identificadores_evaluadas: dict[uuid.UUID, str | None] = {}
+    con_lineas_seleccionadas: set[uuid.UUID] = set()
 
     for oferta in convocatoria.ofertas:
-        if oferta.estado != EstadoOferta.rechazada:
-            continue
-
         for linea in oferta.items:
-            identificador = linea.organizacion.identificador_nacional
+            if linea.seleccionada:
+                con_lineas_seleccionadas.add(linea.organizacion_id)
+            elif linea.tipo_asignacion != TipoAsignacion.pendiente:
+                identificadores_evaluadas[linea.organizacion_id] = (
+                    linea.organizacion.identificador_nacional
+                )
 
-            if not identificador:
-                raise ReglaDeNegocioIncumplida("Una ONG rechazada no tiene identificador nacional.")
-
-            identificadores.add(identificador)
-
+    identificadores = {
+        identificador.strip()
+        for organizacion_id, identificador in identificadores_evaluadas.items()
+        if organizacion_id not in con_lineas_seleccionadas
+        and identificador
+        and identificador.strip()
+    }
     return json.dumps(sorted(identificadores), ensure_ascii=False)
 
 
@@ -291,12 +311,12 @@ class UnidadesDeEmergencia:
     que sobra de un item no tapa lo que falta de otro.
     """
 
-    emergencia_id: int
+    emergencia_id: uuid.UUID
     requeridas: int
     adjudicadas: int
 
 
-def _ofertas_adjudicadas_de(emergencia_ids: Select[tuple[int]]):
+def _ofertas_adjudicadas_de(emergencia_ids: Select[tuple[uuid.UUID]]):
     """Subconsulta con las ofertas adjudicadas de esas emergencias y cuando se adjudicaron.
 
     Columnas: `oferta_id`, `emergencia_id` y `adjudicada_en`. Cruza las convocatorias adjudicadas
@@ -319,7 +339,7 @@ def _ofertas_adjudicadas_de(emergencia_ids: Select[tuple[int]]):
     )
 
 
-def contar_ongs_con_adjudicacion(*, emergencia_ids: Select[tuple[int]]) -> int:
+def contar_ongs_con_adjudicacion(*, emergencia_ids: Select[tuple[uuid.UUID]]) -> int:
     """Cantidad de ONGs distintas con al menos una adjudicacion sobre esas emergencias.
 
     `emergencia_ids` es una subconsulta de ids de emergencia (por ejemplo, la que arma
@@ -337,7 +357,7 @@ def contar_ongs_con_adjudicacion(*, emergencia_ids: Select[tuple[int]]) -> int:
 
 
 def consultar_unidades_por_emergencia(
-    *, emergencia_ids: Select[tuple[int]]
+    *, emergencia_ids: Select[tuple[uuid.UUID]]
 ) -> list[UnidadesDeEmergencia]:
     """Unidades requeridas y adjudicadas de cada una de esas emergencias, en una sola consulta.
 
@@ -389,18 +409,20 @@ class OfertaAdjudicada:
     solo para adjudicaciones sin fecha registrada.
     """
 
-    oferta_id: int
-    emergencia_id: int
+    oferta_id: uuid.UUID
+    emergencia_id: uuid.UUID
     adjudicada_en: datetime | None
-    organizacion_ids: tuple[int, ...]
-    lote_ids: frozenset[int]
+    organizacion_ids: tuple[uuid.UUID, ...]
+    lote_ids: frozenset[uuid.UUID]
 
     @property
     def es_de_consorcio(self) -> bool:
         return len(self.organizacion_ids) > 1
 
 
-def listar_ofertas_adjudicadas(*, emergencia_ids: Select[tuple[int]]) -> list[OfertaAdjudicada]:
+def listar_ofertas_adjudicadas(
+    *, emergencia_ids: Select[tuple[uuid.UUID]]
+) -> list[OfertaAdjudicada]:
     """Las ofertas adjudicadas de esas emergencias, ordenadas por id, en dos consultas.
 
     Una trae a los participantes aceptados y la otra los lotes de las lineas seleccionadas;
@@ -433,12 +455,12 @@ def listar_ofertas_adjudicadas(*, emergencia_ids: Select[tuple[int]]) -> list[Of
         .distinct()
     ).all()
 
-    lotes_por_oferta: dict[int, set[int]] = defaultdict(set)
+    lotes_por_oferta: dict[uuid.UUID, set[uuid.UUID]] = defaultdict(set)
     for oferta_id, lote_id in filas_de_lotes:
         lotes_por_oferta[oferta_id].add(lote_id)
 
-    datos: dict[int, tuple[int, datetime | None]] = {}
-    organizaciones_por_oferta: dict[int, set[int]] = defaultdict(set)
+    datos: dict[uuid.UUID, tuple[uuid.UUID, datetime | None]] = {}
+    organizaciones_por_oferta: dict[uuid.UUID, set[uuid.UUID]] = defaultdict(set)
     for oferta_id, emergencia_id, adjudicada_en, organizacion_id in filas_de_participantes:
         datos[oferta_id] = (emergencia_id, adjudicada_en)
         if organizacion_id is not None:
@@ -466,7 +488,7 @@ class UnidadesAdjudicadas:
 
 
 def listar_unidades_adjudicadas_por_categoria(
-    *, emergencia_ids: Select[tuple[int]]
+    *, emergencia_ids: Select[tuple[uuid.UUID]]
 ) -> list[UnidadesAdjudicadas]:
     """Unidades adjudicadas a esas emergencias por adjudicacion y rubro, en una sola consulta.
 

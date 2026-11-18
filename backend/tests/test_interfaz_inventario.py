@@ -6,6 +6,9 @@ import re
 
 from .conftest import EMAIL_REPRESENTANTE
 
+# Los ids son UUID: así aparecen en los atributos data-* de la pantalla.
+UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
 
 def test_la_pantalla_muestra_el_inventario_de_la_organizacion(
     ingresar_por_formulario, navegar
@@ -58,7 +61,9 @@ def test_el_inventario_actualiza_la_cantidad_de_un_item(
 ) -> None:
     ingresar_por_formulario(EMAIL_REPRESENTANTE)
     cuerpo = navegar("/organizaciones/inventario").get_data(as_text=True)
-    coincidencia = re.search(r'data-inventario-item-id="(\d+)"\s+data-item-id="(\d+)"', cuerpo)
+    coincidencia = re.search(
+        rf'data-inventario-item-id="({UUID})"\s+data-item-id="({UUID})"', cuerpo
+    )
     inventario_item_id, item_id = coincidencia.groups()
 
     respuesta = enviar_formulario(
@@ -77,7 +82,9 @@ def test_el_inventario_rechaza_cantidad_cero(
 ) -> None:
     ingresar_por_formulario(EMAIL_REPRESENTANTE)
     cuerpo = navegar("/organizaciones/inventario").get_data(as_text=True)
-    coincidencia = re.search(r'data-inventario-item-id="(\d+)"\s+data-item-id="(\d+)"', cuerpo)
+    coincidencia = re.search(
+        rf'data-inventario-item-id="({UUID})"\s+data-item-id="({UUID})"', cuerpo
+    )
     inventario_item_id, item_id = coincidencia.groups()
 
     respuesta = enviar_formulario(
@@ -91,7 +98,7 @@ def test_el_inventario_rechaza_cantidad_cero(
 def test_el_inventario_elimina_un_item(ingresar_por_formulario, enviar_formulario, navegar) -> None:
     ingresar_por_formulario(EMAIL_REPRESENTANTE)
     cuerpo = navegar("/organizaciones/inventario").get_data(as_text=True)
-    item_id = re.search(r'data-inventario-item-id="(\d+)"', cuerpo).group(1)
+    item_id = re.search(rf'data-inventario-item-id="({UUID})"', cuerpo).group(1)
 
     respuesta = enviar_formulario(f"/organizaciones/inventario/{item_id}/eliminar")
 

@@ -194,7 +194,7 @@ def test_alta_y_edicion_de_una_organizacion_por_formulario(
     detalle = alta.headers["Location"]
     assert "Municipio de Lezama" in _texto(navegar(detalle))
 
-    organizacion_id = int(detalle.rstrip("/").rsplit("/", 1)[1])
+    organizacion_id = detalle.rstrip("/").rsplit("/", 1)[1]
     pantalla = _texto(navegar(f"/organizaciones/{organizacion_id}/edicion"))
     assert 'value="Municipio de Lezama"' in pantalla
 

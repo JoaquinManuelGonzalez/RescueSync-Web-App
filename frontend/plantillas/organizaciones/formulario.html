@@ -30,7 +30,7 @@
         <div class="formulario-grilla">
           {{ campo(formulario.nombre, atributos={"required": true}) }}
           {{ campo(formulario.tipo, atributos={"required": true}) }}
-          {{ campo(formulario.identificador_nacional, ayuda="CUIT u otro identificador oficial. Opcional.") }}
+          {{ campo(formulario.identificador_nacional, ayuda="CUIT, con o sin guiones. Obligatorio para las ONG: el Sistema Nacional las identifica por ese dato.") }}
           {{ campo(formulario.contacto_email, atributos={"type": "email"}) }}
           {{ campo(formulario.contacto_telefono, atributos={"type": "tel"}) }}
           {{ campo(formulario.direccion) }}

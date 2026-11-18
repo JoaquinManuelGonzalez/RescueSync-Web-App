@@ -20,6 +20,7 @@ cumplir `servicios.py`: no es una restricción de base porque cruza tres tablas.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -33,12 +34,14 @@ from sqlalchemy import (
     Integer,
     String,
     Table,
+    Uuid,
     func,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.acceso.permisos import NombreRol
+from app.core.identificadores import nuevo_id
 from app.extensiones import db
 
 if TYPE_CHECKING:
@@ -52,15 +55,15 @@ if TYPE_CHECKING:
 usuario_rol = Table(
     "usuario_rol",
     db.metadata,
-    Column("usuario_id", Integer, ForeignKey("usuarios.id"), primary_key=True),
-    Column("rol_id", Integer, ForeignKey("roles.id"), primary_key=True),
+    Column("usuario_id", Uuid, ForeignKey("usuarios.id"), primary_key=True),
+    Column("rol_id", Uuid, ForeignKey("roles.id"), primary_key=True),
 )
 
 rol_permiso = Table(
     "rol_permiso",
     db.metadata,
-    Column("rol_id", Integer, ForeignKey("roles.id"), primary_key=True),
-    Column("permiso_id", Integer, ForeignKey("permisos.id"), primary_key=True),
+    Column("rol_id", Uuid, ForeignKey("roles.id"), primary_key=True),
+    Column("permiso_id", Uuid, ForeignKey("permisos.id"), primary_key=True),
 )
 
 
@@ -72,7 +75,7 @@ class Permiso(db.Model):
 
     __tablename__ = "permisos"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
     nombre: Mapped[str] = mapped_column(
         String(100),
@@ -104,7 +107,7 @@ class Rol(db.Model):
 
     __tablename__ = "roles"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
     nombre: Mapped[str] = mapped_column(
         String(50),
@@ -142,7 +145,7 @@ class Usuario(UserMixin, db.Model):
 
     __tablename__ = "usuarios"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
     email: Mapped[str] = mapped_column(
         String(254),
@@ -160,8 +163,8 @@ class Usuario(UserMixin, db.Model):
 
     # Obligatoria para operador_municipal, coordinador_regional y representante_ong; NULL para
     # auditor y administrador. La regla completa vive en core.acceso.permisos.
-    organizacion_id: Mapped[int | None] = mapped_column(
-        Integer,
+    organizacion_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
         ForeignKey("organizacion.id"),
         nullable=True,
     )

@@ -7,8 +7,10 @@ capturarse como imagen para los entregables en PDF de la cátedra.
 
 RescueSync es el sistema de coordinación de ayuda humanitaria desarrollado para la materia
 Desarrollo de Software en Sistemas Distribuidos (Curso 2026). Articula una aplicación web propia
-con un motor de procesos (Bonita) y un servicio externo en la nube (API Nacional), sobre el
-proceso ya modelado en BPMN en la Entrega 1.
+con un motor de procesos (Bonita) y un servicio externo en la nube (la API del Sistema Nacional,
+repositorio `RescueSync-API-Sistema-Nacional`), sobre el proceso modelado en BPMN en la
+Entrega 1. **La aplicación web nunca llama a la API del Sistema Nacional:** todas esas llamadas
+las hace Bonita, desde sus tareas de servicio.
 
 ## 1. Vista general de componentes
 
@@ -34,15 +36,15 @@ flowchart TB
 
     subgraph LOCAL["Entorno local (docker compose)"]
         subgraph APPWEB["Aplicacion web - monolito modular<br/>Flask 3.1.3 + Jinja2 + Tailwind 4.3.3, Python 3.14"]
-            APP["Modulos de proceso<br/>usuarios_roles, emergencias, lotes_convocatorias,<br/>ofertas, adjudicacion, ejecucion_cierre"]
+            APP["Modulos de proceso<br/>organizaciones, usuarios_roles, emergencias, convocatorias,<br/>ofertas, adjudicaciones, ejecucion_cierre, notificaciones"]
             DASH["Modulo indicadores<br/>(dashboard, Entrega final)"]
         end
         DB[("PostgreSQL 18<br/>(contenedor postgres:18-trixie)")]
     end
 
     subgraph EXTERNOS["Componentes externos a la aplicacion web"]
-        BONITA["Motor de procesos<br/>Bonita Open Solution &gt;= 7.9.0<br/>(fuera del compose de la app web)"]
-        APINAC["API Nacional<br/>REST + JWT, en la nube (Entrega 3)"]
+        BONITA["Motor de procesos<br/>Bonita Studio Community 2025.2<br/>(fuera del compose de la app web)"]
+        APINAC["API del Sistema Nacional<br/>REST + JWT<br/>(Render + Supabase)"]
     end
 
     OM -->|"1 - HTTP/HTTPS"| APP
@@ -53,9 +55,9 @@ flowchart TB
     APP -->|"2 - TCP 5432"| DB
     APP -->|"3 - REST + JSON"| BONITA
     BONITA ==>|"4 - GET REST + JSON (Bonita inicia)"| APP
-    BONITA -->|"5 - REST + JWT"| APINAC
-    APP -->|"6 - REST + JWT"| APINAC
-    APP -->|"7 - REST + JWT"| APINAC
+    BONITA -->|"5 - REST + JWT: evaluacion"| APINAC
+    BONITA -->|"6 - POST REST + JSON (Bonita inicia)"| APP
+    BONITA -->|"7 - REST + JWT: liberacion y finalizacion"| APINAC
     DASH -->|"8 - llamada en proceso"| APP
     DASH -->|"9 - REST + JSON"| BONITA
 
@@ -67,18 +69,18 @@ flowchart TB
     linkStyle 6 stroke:#d97706,stroke-width:3px
 ```
 
-La flecha resaltada en color y grosor mayor es la integración **#4**, la única del sistema en la
-que la app web actúa como receptora en lugar de iniciadora. Se desarrolla en detalle en la
-sección 3.
+La flecha resaltada en color y grosor mayor es la integración **#4**: Bonita inicia la llamada y
+la app web la recibe. Es la integración destacada por la cátedra y se desarrolla en la sección 3.
+La **#6** tiene la misma dirección (Bonita le devuelve a la web el resultado de la evaluación).
 
 ### 1.1 Componentes, tecnología y responsabilidad
 
 | Componente | Tecnología | Responsabilidad |
 |---|---|---|
-| Aplicación web (front + back) | Flask 3.1.3 + Jinja2 + Tailwind CSS 4.3.3, sobre Python 3.14 | Interfaces por rol, gestión de emergencias, lotes, convocatorias, ofertas y adjudicación; expone el endpoint de ofertas consolidadas a Bonita |
-| Base de datos local | PostgreSQL 18 en contenedor (`postgres:18-trixie`) | Persistencia del dominio local: usuarios, emergencias, lotes, convocatorias, ofertas y sus versiones, adjudicaciones y bitácora de ejecución |
-| Motor de procesos | Bonita Open Solution `>= 7.9.0` (versión exacta a confirmar por el equipo) | Orquesta el ciclo de vida de la emergencia, administra la ventana temporal de ofertas (Timer Event) y los caminos alternativos de cobertura |
-| API Nacional | Servicio REST con JWT, dockerizado en la nube (Entrega 3) | Valida competencia y habilitación de ONGs, reserva, compromete y libera recursos con control de concurrencia (`locking`) en PostgreSQL |
+| Aplicación web (front + back) | Flask 3.1.3 + Jinja2 + Tailwind CSS 4.3.3, sobre Python 3.14 | Interfaces por rol, gestión de emergencias, lotes, convocatorias, ofertas y adjudicación; expone a Bonita las ofertas consolidadas y recibe de Bonita el resultado de la evaluación |
+| Base de datos local | PostgreSQL 18 en contenedor (`postgres:18-trixie`) | Persistencia del dominio local: usuarios, organizaciones e inventarios, emergencias, lotes, convocatorias, ofertas y sus versiones, tareas de ejecución y notificaciones. Claves UUID ([ADR-011](../adr/ADR-011-claves-uuid.md)) |
+| Motor de procesos | Bonita Studio Community 2025.2 (proceso `RescueSync-1.0`) | Orquesta el ciclo de vida de la emergencia, administra la ventana temporal de ofertas (Timer Event), los caminos alternativos de cobertura y todas las llamadas a la API del Sistema Nacional |
+| API del Sistema Nacional | Flask + PostgreSQL con JWT, en Render (plan Free) con la base en Supabase | Padrón y habilitación de ONGs; evalúa la competencia de cada aporte, compromete los recursos no consumibles aceptados con bloqueo de filas, y los libera al reiniciar, al descartar una ONG o al finalizar la emergencia |
 | Dashboard de indicadores | Módulo `indicadores` dentro de la misma aplicación web Flask; gráficos y exportación (Entrega final) | Reportes y métricas combinando datos propios con tiempos de etapa extraídos de la API de Bonita |
 
 Los cuatro actores del diagrama —Operador Municipal, Centro Coordinador Regional, Representante
@@ -90,17 +92,18 @@ existen aplicaciones separadas por rol.
 ## 2. Integraciones entre componentes
 
 La tabla siguiente enumera las nueve integraciones del sistema, quién las inicia, quién las
-recibe, el protocolo empleado, su propósito de negocio y el momento en que ocurren.
+recibe, el protocolo empleado, su propósito de negocio y el momento en que ocurren. Los ids que
+viajan entre los tres sistemas son UUID ([ADR-011](../adr/ADR-011-claves-uuid.md)).
 
 | # | Iniciador | Receptor | Protocolo | Propósito | Momento |
 |---|---|---|---|---|---|
 | 1 | Navegador del usuario | Aplicación web | HTTP/HTTPS, HTML | Operar cada etapa del proceso según el rol asignado | Continuo |
 | 2 | Aplicación web | PostgreSQL local | TCP 5432 (SQLAlchemy / psycopg) | Persistir y consultar el dominio local | Continuo |
-| 3 | Aplicación web | Bonita | HTTP REST + JSON (Bonita REST API, con sesión) | Instanciar el proceso al registrar una emergencia, setear variables de proceso, listar y ejecutar tareas humanas | Alta de emergencia y avance del flujo |
-| **4** | **Bonita** | **Aplicación web (backend)** | **HTTP GET REST + JSON** | **Solicitar el listado consolidado de ofertas de la emergencia al vencer el temporizador de la ventana de ofertas** | **Vencimiento de la ventana de ofertas** |
-| 5 | Bonita | API Nacional | HTTPS REST + JWT | Evaluar habilitación y competencia de las ofertas recibidas, y reservar los recursos correspondientes | Inmediatamente después de obtener el JSON de ofertas consolidadas (integración 4) |
-| 6 | Aplicación web | API Nacional | HTTPS REST + JWT | Registrar el compromiso formal de los recursos adjudicados | Tras la adjudicación |
-| 7 | Aplicación web | API Nacional | HTTPS REST + JWT | Informar el cierre del proyecto y liberar los recursos comprometidos | Al finalizar la ejecución con todas las ONGs |
+| 3 | Aplicación web | Bonita | HTTP REST + JSON (Bonita REST API, con sesión) | Instanciar el proceso al registrar una emergencia, setear variables de proceso, listar y ejecutar tareas humanas (publicar la convocatoria, decidir ante cobertura insuficiente, seleccionar ofertas, finalizar tareas) | Alta de emergencia y avance del flujo |
+| **4** | **Bonita** | **Aplicación web (backend)** | **HTTP GET REST + JSON** | **Solicitar el listado consolidado de ofertas de la convocatoria al vencer el temporizador de la ventana de ofertas** | **Vencimiento de la ventana de ofertas** |
+| 5 | Bonita | API del Sistema Nacional | HTTPS REST + JWT | Evaluar la competencia de cada aporte (`POST /ofertas/evaluacion`); la API compromete los no consumibles aceptados | Inmediatamente después de obtener las ofertas consolidadas (integración 4) |
+| 6 | Bonita | Aplicación web (backend) | HTTP POST REST + JSON | Devolverle a la web la evaluación (`POST /ofertas/evaluaciones`) para que registre cada aporte y calcule la cobertura | Inmediatamente después de la integración 5 |
+| 7 | Bonita | API del Sistema Nacional | HTTPS REST + JWT | Liberar recursos: toda la emergencia al reiniciar la convocatoria, cada ONG no seleccionada al confirmar la selección, y la finalización de la emergencia al terminar la ejecución | Reinicio, selección de ofertas y fin de la ejecución |
 | 8 | Módulo `indicadores` (dentro de la app web) | Capa de servicios de los módulos de proceso y PostgreSQL local | Llamada en proceso (Python) sobre la capa `servicios`, y SQLAlchemy contra la base local | Obtener métricas propias: suministros movilizados, porcentaje de consorcios, proyectos finalizados | Bajo demanda |
 | 9 | Aplicación web (módulo `indicadores`) | Bonita | HTTP REST + JSON | Obtener tiempos promedio por etapa del proceso para combinarlos con las métricas propias | Bajo demanda |
 
@@ -133,19 +136,41 @@ registra el evento `bonita_decision_sin_caso`.
 **4. Bonita → Aplicación web (backend).** Esta es la integración inversa del sistema y la única
 en la que Bonita actúa como cliente HTTP de la aplicación web. Se detalla en la sección 3.
 
-**5. Bonita → API Nacional.** Una vez que Bonita obtiene el listado consolidado de ofertas
-(resultado de la integración 4), continúa la orquestación del proceso llamando a la API Nacional
-para verificar que cada ONG oferente esté habilitada y sea competente para el tipo de ayuda
-ofrecida, y para reservar preventivamente los recursos involucrados mientras se resuelve la
-adjudicación.
+**5. Bonita → API del Sistema Nacional.** Con el listado consolidado de ofertas (integración 4),
+la tarea de servicio *Enviar ofertas a Sistema Nacional* arma el cuerpo de la evaluación
+(`emergencia_id`, `nivel_gravedad` y `ofertas`, sin los campos propios de la web) y llama a
+`POST /ofertas/evaluacion`. La API clasifica cada aporte como `principal`, `apoyo` o `rechazada`
+según la habilitación de la ONG (buscada por CUIT), su certificación y su stock, y **compromete**
+en ese mismo momento los recursos no consumibles aceptados, bajo el `emergencia_id` de la web.
 
-**6. Aplicación web → API Nacional.** Cuando el Centro Coordinador Regional adjudica la
-convocatoria, la aplicación web informa a la API Nacional el compromiso definitivo de los
-recursos adjudicados a cada ONG, para que el sistema nacional los registre como comprometidos.
+**6. Bonita → Aplicación web (backend).** La tarea *Registrar evaluación y obtener cobertura*
+reenvía la respuesta de la API a `POST /ofertas/evaluaciones`, con `convocatoria_id` como texto y
+el mismo `BONITA_CALLBACK_TOKEN` de la integración 4. La web guarda la clasificación de cada línea
+de oferta y responde la cobertura de cada lote; con ella, el proceso decide si pasa a la selección
+o si el coordinador tiene que decidir ante cobertura insuficiente.
 
-**7. Aplicación web → API Nacional.** Al cerrar un proyecto de ayuda, una vez que todas las ONGs
-involucradas terminaron su ejecución, la aplicación web notifica el cierre a la API Nacional para
-que libere los recursos que habían quedado reservados o comprometidos.
+**7. Bonita → API del Sistema Nacional.** El resto de las llamadas a la API también las hace
+Bonita:
+
+- *Solicitar liberación de recursos reservados* (`POST /recursos/compromisos/{emergencia}/liberacion`)
+  cuando el coordinador elige reiniciar la convocatoria: libera todo lo comprometido.
+- *Liberar ofertas no seleccionadas*, un script Groovy que, al confirmar la selección, llama a la
+  liberación por ONG (`.../ongs/{cuit}/liberacion`) para cada CUIT de `ongsNoSeleccionadas`.
+- *Informar finalización* (`POST /recursos/compromisos/{emergencia}/finalizacion`) cuando
+  terminaron todas las tareas de ejecución: cierra la emergencia y devuelve el stock que quedaba.
+
+**Descarte de ONG al adjudicar.** Al confirmar la selección, el módulo `adjudicaciones` completa
+la tarea "Seleccionar ofertas" de Bonita con dos listas: los compromisos de las líneas
+seleccionadas y `ongsNoSeleccionadas`, los CUIT que Bonita libera uno por uno con la liberación
+por ONG de la API Nacional. Esa liberación abarca todo lo que la ONG tiene comprometido en la
+emergencia (no hay liberación por ítem). Por eso `construir_ongs_no_seleccionadas_json` incluye
+solo a las ONG con líneas evaluadas por el Sistema Nacional y ninguna línea seleccionada. Mira
+las líneas y no el estado de la oferta: una oferta también queda rechazada cuando una ONG del
+consorcio declina la invitación, y esa oferta nunca se evaluó. Las ONG sin identificador nacional
+se omiten, porque la API no pudo comprometerles nada. **Limitación aceptada:** si una ONG tiene
+algunas líneas seleccionadas y otras no, las no seleccionadas siguen comprometidas en la API
+hasta que se finaliza la emergencia. El detalle está en `docs/contratos/compromisos.md` del
+repositorio de la API.
 
 **8. Módulo `indicadores` → resto de la aplicación web.** Es la única "integración" que no
 atraviesa la red: el dashboard vive dentro del mismo proceso Flask, así que obtiene las métricas
@@ -178,9 +203,9 @@ después de mostrar la pantalla.
 
 ## 3. Integración destacada: Bonita como iniciador (integración #4)
 
-Todas las integraciones salientes de la aplicación web (1, 2, 3, 6, 7, 9) tienen a la propia
-aplicación como iniciadora o como servidor que responde a un navegador. La integración **#4** es
-la excepción deliberada y es un criterio de aceptación evaluado por la cátedra: cuando vence el
+En las integraciones 1, 2, 3, 8 y 9 la aplicación web es la iniciadora o el servidor que responde
+a un navegador. Las **#4** y **#6** son las excepciones: Bonita llama a la web. La **#4** es un
+criterio de aceptación evaluado por la cátedra: cuando vence el
 temporizador (Timer Event) de la ventana de recepción de ofertas de una convocatoria, es **Bonita
 quien inicia** una llamada `HTTP GET` REST contra un endpoint del backend de la aplicación web, y
 es el **backend quien recibe** esa solicitud y responde con el listado consolidado de ofertas en
@@ -200,12 +225,12 @@ Puntos que se deben tener presentes al implementar y al evaluar esta integració
   de ofertas de la convocatoria, como parte de la orquestación del proceso BPMN de la Entrega 1.
 - **Contrato de datos consolidado.** La respuesta agrupa todas las ofertas presentadas de la
   convocatoria al momento del cierre de la ventana. `ofertas` contiene una entrada por oferta,
-  con las organizaciones participantes (incluido su rol) y sus necesidades dentro de `items`.
-  Cada ítem conserva `lote_item_id`, `cantidad_total` y `aportes`, que identifica a cada
-  organización por ID y la cantidad que aporta. Los nombres y roles se informan una sola vez en
-  la oferta. Así Bonita puede validar y reservar las contribuciones sin confundir ítems con
-  ofertas ni repetir datos de organizaciones. Las invitaciones pendientes y las ofertas en estado
-  final no se envían.
+  con las organizaciones participantes que aceptaron la invitación (su rol y su CUIT en
+  `identificador_nacional`) y sus necesidades dentro de `items`. Cada ítem trae `lote_item_id`,
+  `codigo_recurso` (el código compartido con la API), `cantidad_total` y `aportes`, que
+  identifica a cada organización por id y por CUIT, con la cantidad que aporta. La API cruza por
+  CUIT y por `codigo_recurso`; los ids de la web son informativos para ella. Las invitaciones
+  pendientes y las ofertas en estado final no se envían. Todos los ids son UUID en texto.
 - **Sincronización del estado local.** Al recibir esta consulta autenticada, el backend cierra las
   convocatorias cuya fecha límite venció. La emergencia se mantiene activa mientras Bonita informa
   el resultado de cobertura: con cobertura completa queda disponible para la selección municipal;
@@ -215,43 +240,71 @@ Puntos que se deben tener presentes al implementar y al evaluar esta integració
 
 ```json
 {
-  "convocatoria_id": 482,
-  "emergencia_id": 117,
+  "convocatoria_id": "0193f4a2-7c1e-7d00-9000-000000000482",
+  "emergencia_id": "0193f4a2-7c1e-7e00-9000-000000000117",
+  "nivel_gravedad": "ALTA",
   "ventana_cerrada_en": "2026-10-05T18:00:00Z",
   "ofertas": [
     {
-      "oferta_id": 931,
-      "organizaciones": [
-        {"id": 44, "nombre": "Cruz Solidaria", "rol": "lider"}
-      ],
+      "oferta_id": "0193f4a2-7c1e-7f00-9000-000000000931",
+      "version": 1,
       "fecha_creacion": "2026-10-05T14:22:10Z",
+      "organizaciones": [
+        {
+          "id": "0193f4a2-7c1e-7c00-9000-000000000044",
+          "nombre": "Cruz Solidaria",
+          "identificador_nacional": "30-65432198-7",
+          "rol": "lider"
+        }
+      ],
       "items": [
         {
-          "lote_item_id": 710,
-          "tipo_recurso": "agua_potable",
-          "cantidad_total": 2000,
+          "lote_item_id": "0193f4a2-7c1e-7a00-9000-000000000710",
+          "codigo_recurso": "RSR-AGUA_POTABLE_ENVASADA",
+          "tipo_recurso": "agua",
           "unidad": "litros",
+          "cantidad_total": 2000,
           "aportes": [
-            {"organizacion_id": 44, "cantidad": 2000}
+            {
+              "cantidad": 2000,
+              "identificador_nacional": "30-65432198-7",
+              "organizacion_id": "0193f4a2-7c1e-7c00-9000-000000000044"
+            }
           ]
         }
       ]
     },
     {
-      "oferta_id": 933,
-      "organizaciones": [
-        {"id": 51, "nombre": "Manos Unidas", "rol": "lider"},
-        {"id": 58, "nombre": "Red de Abrigo", "rol": "aportante"}
-      ],
+      "oferta_id": "0193f4a2-7c1e-7f00-9000-000000000933",
+      "version": 2,
       "fecha_creacion": "2026-10-05T15:47:02Z",
+      "organizaciones": [
+        {
+          "id": "0193f4a2-7c1e-7c00-9000-000000000051",
+          "nombre": "Manos Unidas",
+          "identificador_nacional": "30-65432199-5",
+          "rol": "lider"
+        },
+        {
+          "id": "0193f4a2-7c1e-7c00-9000-000000000058",
+          "nombre": "Grupo Scouts de Pergamino",
+          "identificador_nacional": "30-99999999-6",
+          "rol": "aportante"
+        }
+      ],
       "items": [
         {
-          "lote_item_id": 712,
-          "tipo_recurso": "kits_de_abrigo",
-          "cantidad_total": 350,
+          "lote_item_id": "0193f4a2-7c1e-7a00-9000-000000000712",
+          "codigo_recurso": "RSR-FRAZADAS",
+          "tipo_recurso": "abrigo",
           "unidad": "unidades",
+          "cantidad_total": 350,
           "aportes": [
-            {"organizacion_id": 58, "cantidad": 350}
+            {
+              "cantidad": 350,
+              "identificador_nacional": "30-99999999-6",
+              "organizacion_id": "0193f4a2-7c1e-7c00-9000-000000000058"
+            }
           ]
         }
       ]
@@ -260,43 +313,53 @@ Puntos que se deben tener presentes al implementar y al evaluar esta integració
 }
 ```
 
+Bonita no reenvía este JSON tal cual a la API: `convocatoria_id` y `ventana_cerrada_en` son de
+la web, y la API rechaza los campos que no conoce. El script de *Enviar ofertas a Sistema
+Nacional* arma el cuerpo con `emergencia_id`, `nivel_gravedad` y `ofertas`.
+
 ## 4. Módulos internos de la aplicación web
 
-La aplicación web es un monolito modular. Se organiza en un módulo transversal (`core`), seis
-módulos de dominio alineados cada uno a una etapa del proceso BPMN de la Entrega 1, y un módulo
-de lectura (`indicadores`) que implementa el dashboard.
+La aplicación web es un monolito modular. Se organiza en un módulo transversal (`core`), los
+módulos de dominio alineados a las etapas del proceso BPMN de la Entrega 1, un módulo de
+notificaciones y un módulo de lectura (`indicadores`) que implementa el dashboard.
 
-| Módulo | Responsabilidad | Tablas principales que gobierna |
+| Módulo | Responsabilidad | Tablas que gobierna |
 |---|---|---|
-| `core` | Configuración por variables de entorno, envelope de errores, logging estructurado, identidad y control de accesos (`core/acceso/`: hasheo de contraseñas, sesión, catálogo de permisos y decoradores de RBAC), capa web compartida (`core/interfaz/`: respuesta HTML/JSON, formularios, menú, paginación), clientes HTTP de integración con Bonita y con la API Nacional | No posee tablas de dominio propias |
-| `organizaciones` | Alta y gestión de municipios, ONGs y el centro coordinador, e inventario de cada organización | `organizacion`, `inventario`, `inventario_item` |
+| `core` | Configuración por variables de entorno, envelope de errores, logging estructurado, identificadores UUID (`identificadores.py`), identidad y control de accesos (`core/acceso/`: hasheo de contraseñas, sesión, catálogo de permisos y decoradores de RBAC), capa web compartida (`core/interfaz/`: respuesta HTML/JSON, formularios, menú, paginación) y clientes HTTP de integración (`core/integraciones/`) | No posee tablas de dominio propias |
+| `organizaciones` | Alta y gestión de municipios, ONGs y el centro coordinador, sus zonas de cobertura y el inventario de cada organización | `organizacion`, `organizacion_zona_cobertura`, `inventario`, `inventario_item` |
 | `usuarios_roles` | Alta y gestión de cuentas, asignación de los cinco roles RBAC, autenticación y sesión | `usuarios`, `roles`, `permisos`, `usuario_rol`, `rol_permiso` |
-| `emergencias` | Registro del alta de una emergencia y disparo de la instanciación del proceso en Bonita | `emergencias` |
-| `lotes_convocatorias` | Definición de lotes de necesidad y apertura de convocatorias con su ventana temporal de ofertas | `lotes_de_necesidad`, `convocatorias` |
-| `ofertas` | Carga de ofertas de ayuda por parte de las ONGs dentro de la ventana vigente, y exposición del endpoint consolidado que consume Bonita (integración 4) | `ofertas_de_ayuda` |
-| `adjudicacion` | Registro de la decisión de adjudicación del Centro Coordinador Regional y su comunicación a la API Nacional | `adjudicaciones` |
-| `ejecucion_cierre` | Seguimiento de la ejecución de cada ONG adjudicada y cierre del proyecto con liberación de recursos | `ejecuciones`, `bitacora_de_cierre` |
+| `emergencias` | Alta de una emergencia y disparo de la instanciación del proceso en Bonita; catálogo de ítems compartido con la API; lotes de necesidad (`emergencias/lotes/`) | `emergencia`, `item`, `lote_necesidad`, `lote_item` |
+| `convocatorias` | Apertura de convocatorias con su ventana temporal de ofertas, cobertura y decisión ante cobertura insuficiente | `convocatoria` |
+| `ofertas` | Carga de ofertas (individuales o en consorcio) dentro de la ventana vigente, su historial de versiones, el endpoint consolidado que consume Bonita (integración 4) y el registro de la evaluación (integración 6) | `oferta`, `oferta_organizacion`, `oferta_item`, `oferta_version` |
+| `adjudicaciones` | Selección de líneas de oferta por el municipio y su comunicación a Bonita (la tarea "Seleccionar ofertas", con los compromisos y `ongsNoSeleccionadas`) | Ninguna propia: marca `oferta_item.seleccionada` y `convocatoria.adjudicada_en` a través de los servicios de esos módulos |
+| `ejecucion_cierre` | Seguimiento de la ejecución de cada ONG adjudicada y cierre del proyecto; al completarse, Bonita informa la finalización a la API | `ejecucion_tarea` |
+| `notificaciones` | Avisos en la aplicación para cada organización (convocatorias publicadas, adjudicaciones, cobertura insuficiente) | `notificacion` |
 | `indicadores` | Dashboard de métricas y reportes para el perfil Auditor/Directivo: gráficos interactivos y exportación de datos, combinando métricas propias con tiempos de etapa obtenidos de Bonita. Sus rutas viven bajo `/auditoria`, una por sección (pestaña), declaradas en `indicadores/secciones.py`; cada indicador se exporta en CSV y JSON desde `/auditoria/exportaciones/<slug>.<formato>`. Las adjudicaciones se leen de `adjudicaciones.servicios`: unidades de las líneas seleccionadas y la fecha `convocatoria.adjudicada_en`, que registra `seleccionar_lineas`. Las decisiones ante cobertura insuficiente, de `convocatorias.servicios` (`decision_cobertura` de cada convocatoria) | Ninguna propia: es de solo lectura sobre las tablas de los demás módulos, siempre a través de sus servicios |
 
 ### Árbol de carpetas
 
 ```
-app/
-  core/            configuracion, errores, logging, salud, semillas
-    acceso/        identidad y RBAC: autorizacion, permisos, seguridad, sesion
-    interfaz/      capa web compartida: vistas, formularios, navegacion, paginacion,
-                   plantillas, inicio
-    integraciones/ clientes HTTP: bonita, api_nacional
+backend/app/
+  core/              configuracion, errores, logging, salud, semillas, identificadores
+    acceso/          identidad y RBAC: autorizacion, permisos, seguridad, sesion
+    interfaz/        capa web compartida: vistas, formularios, navegacion, paginacion,
+                     plantillas, inicio
+    integraciones/   clientes HTTP: bonita/ (en uso) y api_nacional (andamiaje sin uso:
+                     la web no llama a la API)
   modulos/
-    usuarios_roles/  {rutas,servicios,modelos,formularios}.py, plantillas/
-    emergencias/
-    lotes_convocatorias/
+    organizaciones/
+    usuarios_roles/  {rutas,servicios,modelos,formularios}.py
+    emergencias/     incluye lotes/ y el catalogo de items
+    convocatorias/
     ofertas/
-    adjudicacion/
+    adjudicaciones/
     ejecucion_cierre/
+    notificaciones/
     indicadores/     dashboard: solo lectura, consume servicios de los modulos anteriores
-  plantillas/      layout base y parciales compartidos
-  estaticos/       css compilado por Tailwind, imágenes
+frontend/
+  plantillas/        layout base, parciales y una carpeta por modulo
+  estaticos/         css compilado por Tailwind, js (interfaz.js, scripts de cada pantalla y
+                     vendor/ con Chart.js), imagenes
 ```
 
 ### Organización interna de `core`
@@ -309,7 +372,8 @@ subpaquetes no reexportan nada en su `__init__`: se importa siempre el módulo c
 | Configuración, errores, logging, `/health`, registro de seeders | `core/` (raíz) |
 | Identidad y control de accesos (RBAC) | `core/acceso/` |
 | Capa web compartida por las pantallas | `core/interfaz/` |
-| Clientes HTTP hacia Bonita y la API Nacional | `core/integraciones/` |
+| Clientes HTTP hacia Bonita (y el andamiaje sin uso de la API Nacional) | `core/integraciones/` |
+| Generación y lectura de ids UUID | `core/identificadores.py` |
 
 Un archivo nuevo en `core` va en el subpaquete que corresponda; solo va en la raíz si es tan
 transversal como la configuración o el envelope de errores.
@@ -348,8 +412,8 @@ módulos es la principal defensa contra el acoplamiento cruzado. Se definen cinc
 2. **Todo módulo puede depender de `core`; `core` no depende de ningún módulo.** `core` es la
    única capa verdaderamente transversal.
 3. **Un módulo solo puede depender de los módulos anteriores en la cadena del proceso:**
-   `organizaciones` ← `usuarios_roles` ← `emergencias` ← `lotes_convocatorias` ← `ofertas` ←
-   `adjudicacion` ← `ejecucion_cierre` ← `indicadores`. Las dependencias hacia adelante están
+   `organizaciones` ← `usuarios_roles` ← `emergencias` ← `convocatorias` ← `ofertas` ←
+   `adjudicaciones` ← `ejecucion_cierre` ← `indicadores`. Las dependencias hacia adelante están
    prohibidas, de modo que el grafo de dependencias entre módulos queda acíclico.
    `organizaciones` abre la cadena porque sin una organización cargada no se puede crear un
    operador municipal ni un representante de ONG, así que `usuarios_roles` depende de él y no al
@@ -358,7 +422,8 @@ módulos es la principal defensa contra el acoplamiento cruzado. Se definen cinc
 4. **Un módulo nunca importa modelos ni consultas de otro módulo:** toda comunicación entre
    módulos pasa únicamente por la capa `servicios` del módulo del que se depende.
 5. **Ningún módulo hace HTTP directo a Bonita ni a la API Nacional:** toda llamada externa pasa
-   siempre por los clientes definidos en `core/integraciones/`.
+   siempre por los clientes definidos en `core/integraciones/`. Hoy la única llamada externa de
+   la web es a Bonita.
 
 ```mermaid
 flowchart LR
@@ -367,9 +432,9 @@ flowchart LR
     ORG["organizaciones"]
     UR["usuarios_roles"]
     EM["emergencias"]
-    LC["lotes_convocatorias"]
+    LC["convocatorias"]
     OF["ofertas"]
-    AD["adjudicacion"]
+    AD["adjudicaciones"]
     EC["ejecucion_cierre"]
     IND["indicadores<br/>(dashboard, solo lectura)"]
 
@@ -393,7 +458,21 @@ flowchart LR
 
 Todas las flechas apuntan desde el módulo que depende hacia el módulo del que depende; no existe
 ningún ciclo. `core` recibe dependencias de todos los módulos de dominio y no depende de ninguno de
-ellos. La cadena `organizaciones → usuarios_roles → emergencias → lotes_convocatorias → ofertas →
-adjudicacion → ejecucion_cierre → indicadores` refleja el orden real del proceso BPMN: cada módulo
-solo puede apoyarse en los que le preceden, nunca en los que le siguen. `indicadores` queda al final
-justamente porque necesita leer de todos los demás y nadie necesita leer de él.
+ellos. La cadena `organizaciones → usuarios_roles → emergencias → convocatorias → ofertas →
+adjudicaciones → ejecucion_cierre → indicadores` refleja el orden real del proceso BPMN: cada
+módulo solo puede apoyarse en los que le preceden, nunca en los que le siguen. `indicadores` queda
+al final justamente porque necesita leer de todos los demás y nadie necesita leer de él.
+
+### Desvíos conocidos
+
+El código cumple las reglas 1, 2 y 5, pero todavía no del todo la 3 ni la 4. Son deuda técnica,
+no la norma: un cambio nuevo no los replica, y uno que toque esas partes los reduce.
+
+- **Modelos importados entre módulos.** Varios módulos importan `modelos` de otros, para declarar
+  relaciones de SQLAlchemy o para consultar (por ejemplo, `convocatorias` y `ofertas`).
+- **Dependencias hacia adelante.** El catálogo `item` vive en `emergencias`, pero lo usa el
+  inventario de `organizaciones`; `emergencias` y `convocatorias` se usan mutuamente, y
+  `convocatorias` lee modelos de `ofertas`.
+- **`notificaciones` es transversal de hecho.** La usan `emergencias`, `convocatorias`, `ofertas`
+  y `adjudicaciones` para avisar a las organizaciones, y ella a su vez lee de `emergencias` y
+  `convocatorias`.

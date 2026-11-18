@@ -60,7 +60,7 @@
       {% for oferta in convocatoria.ofertas %}
       <article class="rounded-lg border border-gray-200 p-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <h3 class="font-semibold text-gray-900">Oferta #{{ oferta.id }}</h3>
+          <h3 class="font-semibold text-gray-900">Oferta #{{ oferta.id|id_corto }}</h3>
           {{ insignia(oferta.estado.value|replace("_", " ")|capitalize, "exito" if oferta.estado.value == "presentada" else "neutra") }}
         </div>
         {% if oferta.items %}

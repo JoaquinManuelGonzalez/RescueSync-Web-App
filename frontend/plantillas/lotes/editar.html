@@ -81,7 +81,7 @@
           <p class="text-xs text-red-600">{{ errores_por_campo['items'] }}</p>
         {% endif %}
 
-        <div id="items-container" class="space-y-3">
+        <div id="items-container" class="space-y-3" data-items-unicos>
           {% for fila in valores_items %}
           <div class="fila-item rounded-lg border border-gray-100 p-4">
             <div class="grid gap-4 sm:grid-cols-12">
@@ -207,6 +207,7 @@
   </div>
 </template>
 
+<script src="{{ url_for('static', filename='js/items_unicos_de_lote.js') }}" defer></script>
 <script>
 (function () {
   const container = document.getElementById('items-container');

@@ -15,7 +15,7 @@ from typing import Any
 
 from flask import current_app
 from flask_wtf import FlaskForm
-from wtforms import BooleanField, IntegerField, PasswordField, SelectField, StringField
+from wtforms import BooleanField, PasswordField, SelectField, StringField
 from wtforms.validators import EqualTo, InputRequired, Length, Optional, Regexp, ValidationError
 
 from app.core.acceso.permisos import ETIQUETA_POR_ROL, NombreRol
@@ -25,6 +25,7 @@ from app.core.acceso.seguridad import (
     mensaje_de_politica,
     requisitos_incumplidos,
 )
+from app.core.interfaz.formularios import CampoId
 
 
 class PoliticaDeContrasena:
@@ -90,7 +91,7 @@ class FormularioAltaDeUsuario(FlaskForm):
         choices=OPCIONES_DE_ROL,
         validators=[InputRequired("El rol es obligatorio.")],
     )
-    organizacion_id = IntegerField("Organización", validators=[Optional()])
+    organizacion_id = CampoId("Organización", validators=[Optional()])
 
 
 class FormularioEdicionDeUsuario(FlaskForm):
@@ -105,7 +106,7 @@ class FormularioEdicionDeUsuario(FlaskForm):
         choices=OPCIONES_DE_ROL,
         validators=[InputRequired("El rol es obligatorio.")],
     )
-    organizacion_id = IntegerField("Organización", validators=[Optional()])
+    organizacion_id = CampoId("Organización", validators=[Optional()])
 
 
 class FormularioEstadoDeUsuario(FlaskForm):

@@ -10,6 +10,7 @@ adjudicado, cada lote cuenta para cada ONG participante.
 
 from __future__ import annotations
 
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from decimal import Decimal
@@ -126,7 +127,7 @@ class FilaDelRanking:
     actividad, promediados; None si todavia no finalizo ninguna.
     """
 
-    organizacion_id: int
+    organizacion_id: uuid.UUID
     nombre: str
     lotes_adjudicados: int
     actividades_finalizadas: int
@@ -200,14 +201,14 @@ class RankingDeOngs:
 def _ranking(
     ofertas: list[OfertaAdjudicada], emergencia_ids, orden: OrdenDelRanking
 ) -> RankingDeOngs:
-    lotes_por_ong: dict[int, set[int]] = defaultdict(set)
+    lotes_por_ong: dict[uuid.UUID, set[uuid.UUID]] = defaultdict(set)
     adjudicada_en_por_oferta = {}
     for oferta in ofertas:
         adjudicada_en_por_oferta[oferta.oferta_id] = oferta.adjudicada_en
         for organizacion_id in oferta.organizacion_ids:
             lotes_por_ong[organizacion_id] |= oferta.lote_ids
 
-    duraciones_por_ong: dict[int, list[Decimal]] = defaultdict(list)
+    duraciones_por_ong: dict[uuid.UUID, list[Decimal]] = defaultdict(list)
     for finalizacion in servicios_de_ejecucion.listar_finalizaciones(emergencia_ids=emergencia_ids):
         adjudicada_en = adjudicada_en_por_oferta.get(finalizacion.oferta_id)
         if adjudicada_en is not None and finalizacion.organizacion_id in lotes_por_ong:

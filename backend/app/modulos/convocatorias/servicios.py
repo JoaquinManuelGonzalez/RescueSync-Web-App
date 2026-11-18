@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -48,7 +49,7 @@ MENSAJE_DECISION_NO_COMUNICADA = (
 
 
 def _consulta_de_convocatorias(
-    *, estado: str | None = None, texto: str | None = None, municipio_id: int | None = None
+    *, estado: str | None = None, texto: str | None = None, municipio_id: uuid.UUID | None = None
 ) -> Select:
     consulta = select(Convocatoria).join(Emergencia)
     if estado:
@@ -68,7 +69,7 @@ def _consulta_de_convocatorias(
 
 
 def listar_convocatorias(
-    *, estado: str | None = None, texto: str | None = None, municipio_id: int | None = None
+    *, estado: str | None = None, texto: str | None = None, municipio_id: uuid.UUID | None = None
 ) -> list[Convocatoria]:
     """Lista convocatorias aplicando los filtros de la pantalla."""
     consulta = _consulta_de_convocatorias(estado=estado, texto=texto, municipio_id=municipio_id)
@@ -81,7 +82,7 @@ def paginar_convocatorias(
     por_pagina: int,
     estado: str | None = None,
     texto: str | None = None,
-    municipio_id: int | None = None,
+    municipio_id: uuid.UUID | None = None,
 ) -> Pagina[Convocatoria]:
     """Obtiene una página de convocatorias aplicando los mismos filtros."""
     return paginar(
@@ -114,7 +115,7 @@ def _normalizar_fecha(fecha: datetime | None) -> datetime:
     return fecha.astimezone(UTC)
 
 
-def cerrar_convocatorias_vencidas(*, emergencia_id: int | None = None) -> int:
+def cerrar_convocatorias_vencidas(*, emergencia_id: uuid.UUID | None = None) -> int:
     """Cierra convocatorias vencidas sin adelantar la decisión de cobertura."""
     ahora = datetime.now(UTC)
     consulta = select(Convocatoria).where(
@@ -135,7 +136,7 @@ def cerrar_convocatorias_vencidas(*, emergencia_id: int | None = None) -> int:
     return len(vencidas)
 
 
-def cerrar_convocatoria(convocatoria_id: int) -> Convocatoria:
+def cerrar_convocatoria(convocatoria_id: uuid.UUID) -> Convocatoria:
     """Cierra la recepción de ofertas y habilita una nueva evaluación de necesidades."""
     convocatoria = db.session.execute(
         select(Convocatoria).where(Convocatoria.id == convocatoria_id).with_for_update()
@@ -183,8 +184,8 @@ def cerrar_convocatoria(convocatoria_id: int) -> Convocatoria:
 
 def crear_convocatoria(
     *,
-    emergencia_id: int,
-    coordinador_id: int,
+    emergencia_id: uuid.UUID,
+    coordinador_id: uuid.UUID,
     resumen_situacion: str,
     fecha_cierre: datetime,
     observaciones: str | None = None,
@@ -303,7 +304,7 @@ def crear_convocatoria(
     return convocatoria
 
 
-def obtener_convocatoria_con_cobertura_insuficiente(convocatoria_id: int) -> Convocatoria:
+def obtener_convocatoria_con_cobertura_insuficiente(convocatoria_id: uuid.UUID) -> Convocatoria:
     """Obtiene una convocatoria que todavía espera una decisión del coordinador."""
     convocatoria = db.session.scalar(
         select(Convocatoria)
@@ -344,7 +345,7 @@ def puede_aceptar_cobertura_parcial(convocatoria: Convocatoria) -> bool:
     if not cantidad_total_solicitada:
         return False
 
-    cantidades_habilitadas: defaultdict[int, int] = defaultdict(int)
+    cantidades_habilitadas: defaultdict[uuid.UUID, int] = defaultdict(int)
     lineas_habilitadas = db.session.scalars(
         select(OfertaLinea)
         .join(Oferta)
@@ -365,7 +366,7 @@ def puede_aceptar_cobertura_parcial(convocatoria: Convocatoria) -> bool:
     )
 
 
-def _obtener_cobertura_pendiente_para_actualizar(convocatoria_id: int) -> Convocatoria:
+def _obtener_cobertura_pendiente_para_actualizar(convocatoria_id: uuid.UUID) -> Convocatoria:
     convocatoria = db.session.execute(
         select(Convocatoria).where(Convocatoria.id == convocatoria_id).with_for_update()
     ).scalar_one_or_none()
@@ -421,7 +422,7 @@ def _comunicar_decision_a_bonita(
         ) from error
 
 
-def reabrir_convocatoria_por_cobertura_insuficiente(convocatoria_id: int) -> Emergencia:
+def reabrir_convocatoria_por_cobertura_insuficiente(convocatoria_id: uuid.UUID) -> Emergencia:
     """Devuelve la emergencia al registro y conserva esta convocatoria como historial."""
     convocatoria = _obtener_cobertura_pendiente_para_actualizar(convocatoria_id)
     emergencia = db.session.execute(
@@ -440,7 +441,7 @@ def reabrir_convocatoria_por_cobertura_insuficiente(convocatoria_id: int) -> Eme
     return emergencia
 
 
-def aceptar_cobertura_parcial(convocatoria_id: int) -> Convocatoria:
+def aceptar_cobertura_parcial(convocatoria_id: uuid.UUID) -> Convocatoria:
     """Aprueba una cobertura de al menos 75% y habilita la selección municipal."""
     convocatoria = _obtener_cobertura_pendiente_para_actualizar(convocatoria_id)
     if not puede_aceptar_cobertura_parcial(convocatoria):
@@ -531,8 +532,8 @@ def _notificar_bonita_timer(
 
 
 def consultar_adjudicaciones(
-    *, emergencia_ids: Select[tuple[int]]
-) -> Select[tuple[int, int, datetime | None]]:
+    *, emergencia_ids: Select[tuple[uuid.UUID]]
+) -> Select[tuple[uuid.UUID, uuid.UUID, datetime | None]]:
     """Subconsulta con las convocatorias adjudicadas de esas emergencias.
 
     Columnas: `convocatoria_id`, `emergencia_id` y `adjudicada_en`, el momento en que el
@@ -549,7 +550,9 @@ def consultar_adjudicaciones(
     )
 
 
-def obtener_primera_adjudicacion(*, emergencia_ids: Select[tuple[int]]) -> dict[int, datetime]:
+def obtener_primera_adjudicacion(
+    *, emergencia_ids: Select[tuple[uuid.UUID]]
+) -> dict[uuid.UUID, datetime]:
     """Cuando se adjudico por primera vez cada una de esas emergencias, por id.
 
     Las emergencias sin ninguna convocatoria adjudicada no aparecen.
@@ -577,7 +580,7 @@ class HistorialDeConvocatorias:
     no resolvio.
     """
 
-    emergencia_id: int
+    emergencia_id: uuid.UUID
     publicadas: int
     reaperturas: int
     aceptadas_parcialmente: int
@@ -594,7 +597,7 @@ def _cantidad_que_cumple(condicion) -> Any:
 
 
 def listar_historial_de_convocatorias(
-    *, emergencia_ids: Select[tuple[int]]
+    *, emergencia_ids: Select[tuple[uuid.UUID]]
 ) -> list[HistorialDeConvocatorias]:
     """El historial de convocatorias de esas emergencias, en una sola consulta agrupada.
 
@@ -625,4 +628,7 @@ def listar_historial_de_convocatorias(
         .group_by(Convocatoria.emergencia_id)
         .order_by(Convocatoria.emergencia_id)
     ).all()
-    return [HistorialDeConvocatorias(*(int(valor) for valor in fila)) for fila in filas]
+    return [
+        HistorialDeConvocatorias(emergencia_id, *(int(valor) for valor in cantidades))
+        for emergencia_id, *cantidades in filas
+    ]

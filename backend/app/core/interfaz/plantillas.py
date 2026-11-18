@@ -12,6 +12,7 @@ en un solo lugar.
     {{ permiso|descripcion_permiso }}                  -> Registrar una emergencia nueva.
     {{ usuario.ultimo_acceso_en|fecha }}               -> 21/09/2026 14:05
     {{ 12500|numero }} / {{ 5|numero(1) }}             -> 12.500 / 5,0
+    {{ oferta.id|id_corto }}                           -> 9F3A1C2B
 """
 
 from __future__ import annotations
@@ -131,6 +132,18 @@ def numero(valor: Any, decimales: int = 0) -> str:
     return texto.replace(",", "_").replace(".", ",").replace("_", ".")
 
 
+def id_corto(valor: Any) -> str:
+    """Referencia corta de un id para mostrar ("Oferta #9F3A1C2B"): los últimos 8 caracteres.
+
+    Los ids son UUIDv7 y su comienzo es la hora de alta, que se repite entre filas creadas
+    cerca; el final es aleatorio y las distingue. Es solo para leer: los enlaces y formularios
+    usan el id completo.
+    """
+    if not valor:
+        return SIN_DATO
+    return str(valor).replace("-", "")[-8:].upper()
+
+
 def requisitos_de_contrasena_vigentes() -> dict[str, str]:
     """Los requisitos de contrasena con la longitud de la configuracion, para las plantillas."""
     return requisitos_de_contrasena(int(current_app.config["CONTRASENA_LONGITUD_MINIMA"]))
@@ -147,3 +160,4 @@ def registrar_filtros(app: Flask) -> None:
     app.jinja_env.filters["descripcion_permiso"] = descripcion_permiso
     app.jinja_env.filters["fecha"] = fecha
     app.jinja_env.filters["numero"] = numero
+    app.jinja_env.filters["id_corto"] = id_corto

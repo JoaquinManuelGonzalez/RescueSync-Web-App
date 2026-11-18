@@ -69,7 +69,7 @@
               {{ gravedad|capitalize }}
             </span>
           </p>
-          <p class="text-xs text-gray-500">Oferta de ayuda #{{ tarea.oferta_id }}</p>
+          <p class="text-xs text-gray-500">Oferta de ayuda #{{ tarea.oferta_id|id_corto }}</p>
         </div>
       {% endcall %}
 

@@ -7,8 +7,13 @@ ven y editan la misma oferta.
 from __future__ import annotations
 
 import re
+import uuid
 
 import pytest
+from sqlalchemy import select
+
+from app.extensiones import db
+from app.modulos.organizaciones.modelos import Organizacion
 
 from .conftest import (
     CABECERA_NAVEGADOR,
@@ -46,6 +51,7 @@ def test_alta_de_una_ong_con_su_cobertura(cliente_sembrado, cabecera_csrf, ingre
         json={
             "nombre": "Brigada Andina",
             "tipo": "ong",
+            "identificador_nacional": "30-11111111-1",
             "zonas": [
                 {"provincia": "Mendoza", "localidad": "Malargüe"},
                 {"provincia": "San Juan"},
@@ -69,7 +75,9 @@ def test_una_ong_sin_zonas_vuelve_con_el_error_en_zonas(
     ingresar(EMAIL_ADMINISTRADOR)
 
     respuesta = cliente_sembrado.post(
-        "/organizaciones", json={"nombre": "ONG sin zonas", "tipo": "ong"}, headers=cabecera_csrf()
+        "/organizaciones",
+        json={"nombre": "ONG sin zonas", "tipo": "ong", "identificador_nacional": "30-11111111-1"},
+        headers=cabecera_csrf(),
     )
 
     assert respuesta.status_code == 400
@@ -81,7 +89,12 @@ def test_zonas_con_formato_invalido_se_rechazan(cliente_sembrado, cabecera_csrf,
 
     respuesta = cliente_sembrado.post(
         "/organizaciones",
-        json={"nombre": "ONG rara", "tipo": "ong", "zonas": "Salta"},
+        json={
+            "nombre": "ONG rara",
+            "tipo": "ong",
+            "identificador_nacional": "30-11111111-1",
+            "zonas": "Salta",
+        },
         headers=cabecera_csrf(),
     )
 
@@ -174,7 +187,7 @@ def test_el_representante_no_ve_otras_organizaciones(cliente_sembrado, ingresar)
     ingresar(EMAIL_REPRESENTANTE)
 
     assert cliente_sembrado.get("/organizaciones").status_code == 403
-    assert cliente_sembrado.get("/organizaciones/1").status_code == 403
+    assert cliente_sembrado.get(f"/organizaciones/{uuid.uuid7()}").status_code == 403
 
 
 @pytest.mark.parametrize("email", [EMAIL_ADMINISTRADOR, EMAIL_AUDITOR])
@@ -227,6 +240,7 @@ def test_alta_por_formulario_con_zonas(ingresar_por_formulario, enviar_formulari
         {
             "nombre": "Rescate Serrano",
             "tipo": "ong",
+            "identificador_nacional": "30-11111111-1",
             "zonas-0-provincia": "Córdoba",
             "zonas-0-localidad": "Villa Carlos Paz",
             "zonas-4-provincia": "San Luis",
@@ -247,7 +261,12 @@ def test_la_ong_sin_zonas_por_formulario_vuelve_con_el_aviso(
 
     respuesta = enviar_formulario(
         "/organizaciones",
-        {"nombre": "ONG sin zonas", "tipo": "ong", "zonas-0-provincia": ""},
+        {
+            "nombre": "ONG sin zonas",
+            "tipo": "ong",
+            "identificador_nacional": "30-11111111-1",
+            "zonas-0-provincia": "",
+        },
     )
 
     assert respuesta.status_code == 400
@@ -360,7 +379,12 @@ def test_alta_por_json_de_una_ong_nacional(cliente_sembrado, cabecera_csrf, ingr
 
     respuesta = cliente_sembrado.post(
         "/organizaciones",
-        json={"nombre": "Red Solidaria Argentina", "tipo": "ong", "cobertura_nacional": True},
+        json={
+            "nombre": "Red Solidaria Argentina",
+            "tipo": "ong",
+            "identificador_nacional": "30-11111111-1",
+            "cobertura_nacional": True,
+        },
         headers=cabecera_csrf(),
     )
 
@@ -376,7 +400,12 @@ def test_la_cobertura_nacional_tiene_que_ser_booleana(
 
     respuesta = cliente_sembrado.post(
         "/organizaciones",
-        json={"nombre": "Red rara", "tipo": "ong", "cobertura_nacional": "si"},
+        json={
+            "nombre": "Red rara",
+            "tipo": "ong",
+            "identificador_nacional": "30-11111111-1",
+            "cobertura_nacional": "si",
+        },
         headers=cabecera_csrf(),
     )
 
@@ -394,6 +423,7 @@ def test_alta_por_formulario_con_la_casilla_nacional(
         {
             "nombre": "Red Solidaria Argentina",
             "tipo": "ong",
+            "identificador_nacional": "30-11111111-1",
             "cobertura_nacional": "y",
             "zonas-0-provincia": "",
         },
@@ -444,13 +474,14 @@ def test_alta_por_formulario_con_localidades_separadas_por_comas(
         {
             "nombre": "Cáritas La Plata",
             "tipo": "ong",
+            "identificador_nacional": "30-11111111-1",
             "zonas-0-provincia": "Buenos Aires",
             "zonas-0-localidad": "La Plata, Berisso, Los Hornos",
         },
     )
     assert alta.status_code == 302
 
-    organizacion_id = int(alta.headers["Location"].rstrip("/").rsplit("/", 1)[1])
+    organizacion_id = alta.headers["Location"].rstrip("/").rsplit("/", 1)[1]
     cuerpo = cliente_sembrado.get(f"/organizaciones/{organizacion_id}").get_json()
     assert [zona["localidad"] for zona in cuerpo["zonas_de_cobertura"]] == [
         "Berisso",
@@ -473,6 +504,7 @@ def test_un_campo_con_solo_comas_vuelve_con_el_aviso(
         {
             "nombre": "ONG con comas",
             "tipo": "ong",
+            "identificador_nacional": "30-11111111-1",
             "zonas-0-provincia": "Salta",
             "zonas-0-localidad": ", ,",
         },
@@ -510,11 +542,14 @@ def test_el_navbar_del_representante_marca_solo_la_pantalla_actual(
 
 
 @pytest.mark.parametrize(
-    "pantalla", ["/organizaciones", "/organizaciones/nueva", "/organizaciones/1"]
+    "pantalla", ["/organizaciones", "/organizaciones/nueva", "/organizaciones/{id}"]
 )
 def test_el_navbar_del_administrador_marca_organizaciones(
-    ingresar_por_formulario, navegar, pantalla
+    app, ingresar_por_formulario, navegar, pantalla
 ) -> None:
+    with app.app_context():
+        primera = db.session.scalar(select(Organizacion.id).order_by(Organizacion.id))
+    pantalla = pantalla.format(id=primera)
     ingresar_por_formulario(EMAIL_ADMINISTRADOR)
 
     assert _secciones_activas(_texto(navegar(pantalla))) == {"/organizaciones"}
@@ -526,3 +561,20 @@ def test_el_panel_de_inicio_no_marca_ninguna_seccion_del_menu(
     ingresar_por_formulario(EMAIL_REPRESENTANTE)
 
     assert _secciones_activas(_texto(navegar("/inicio"))) == {"/inicio"}
+
+
+# --- CUIT obligatorio para las ONG -----------------------------------------------------
+
+
+def test_la_ong_sin_cuit_por_formulario_vuelve_con_el_aviso_en_el_campo(
+    ingresar_por_formulario, enviar_formulario
+) -> None:
+    ingresar_por_formulario(EMAIL_ADMINISTRADOR)
+
+    respuesta = enviar_formulario(
+        "/organizaciones",
+        {"nombre": "ONG sin CUIT", "tipo": "ong", "cobertura_nacional": "y"},
+    )
+
+    assert respuesta.status_code == 400
+    assert "Una ONG tiene que tener su CUIT" in _texto(respuesta)

@@ -24,6 +24,7 @@ from wtforms.validators import InputRequired, Length, NumberRange, Optional, Reg
 
 from app.core.acceso.permisos import ETIQUETA_POR_TIPO_DE_ORGANIZACION
 from app.core.acceso.seguridad import MENSAJE_EMAIL_INVALIDO, PATRON_DE_EMAIL
+from app.core.identificadores import exigir_id
 from app.extensiones import db
 from app.modulos.emergencias.modelos import Item
 from app.modulos.organizaciones.geografia import OPCIONES_DE_PROVINCIA
@@ -125,7 +126,7 @@ class FormularioInventarioItem(FlaskForm):
 
     item_id = SelectField(
         "Item",
-        coerce=int,
+        coerce=exigir_id,
         validators=[InputRequired("El item es obligatorio.")],
     )
     cantidad_disponible = IntegerField(

@@ -37,11 +37,12 @@ de versión fijada), `Alternativas consideradas` y `Consecuencias`.
 | 008 | Gestión de dependencias de Python con uv | Propuesto | 2026-09-17 | [ADR-008-gestion-dependencias-uv.md](./ADR-008-gestion-dependencias-uv.md) |
 | 009 | Autenticación por sesión y control de accesos basado en roles | Propuesto | 2026-09-21 | [ADR-009-autenticacion-y-rbac.md](./ADR-009-autenticacion-y-rbac.md) |
 | 010 | Librería de gráficos del panel de auditoría | Propuesto | 2026-11-02 | [ADR-010-libreria-de-graficos.md](./ADR-010-libreria-de-graficos.md) |
+| 011 | Claves UUID en todas las entidades | Propuesto | 2026-11-17 | [ADR-011-claves-uuid.md](./ADR-011-claves-uuid.md) |
 
 La numeración es correlativa y nunca se reutiliza: si un ADR queda
 reemplazado u obsoleto, su número no vuelve a asignarse a una decisión
 distinta. El siguiente ADR que se escriba, sea nuevo o reemplace a uno
-existente, usa el número `010` en adelante.
+existente, usa el número `012`.
 
 ## Ciclo de vida de un ADR
 

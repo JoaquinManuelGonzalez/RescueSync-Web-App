@@ -8,6 +8,7 @@ finalizada (que el ranking muestra con "—").
 
 from __future__ import annotations
 
+import uuid
 from datetime import timedelta
 
 from sqlalchemy import select
@@ -40,7 +41,7 @@ EJECUCIONES_HISTORICAS: tuple[tuple[str, str, float | None], ...] = (
 )
 
 
-def _oferta_adjudicada(convocatoria_id: int, organizacion_id: int) -> Oferta:
+def _oferta_adjudicada(convocatoria_id: uuid.UUID, organizacion_id: uuid.UUID) -> Oferta:
     """La oferta adjudicada de la convocatoria en la que la ONG tiene lineas seleccionadas."""
     oferta = db.session.execute(
         select(Oferta)

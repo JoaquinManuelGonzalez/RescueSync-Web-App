@@ -58,7 +58,9 @@ def test_una_localidad_sin_provincia_se_rechaza(app) -> None:
 
 def test_una_ong_sin_zonas_no_se_puede_crear(app, base_de_datos: None) -> None:
     with app.app_context(), pytest.raises(SolicitudInvalida) as error:
-        servicios.crear(nombre="ONG sin cobertura", tipo="ong", zonas=[])
+        servicios.crear(
+            nombre="ONG sin cobertura", tipo="ong", identificador_nacional="30-11111111-1", zonas=[]
+        )
 
     assert error.value.detalle["zonas"] == [servicios.MENSAJE_ONG_SIN_ZONAS]
 
@@ -75,12 +77,24 @@ def test_editar_sin_zonas_conserva_la_cobertura_y_con_lista_la_reemplaza(
 ) -> None:
     with app.app_context():
         ong = _organizacion("Manos Unidas")
-        servicios.editar(ong.id, nombre=ong.nombre, tipo="ong", contacto_telefono="221-555")
+        servicios.editar(
+            ong.id,
+            nombre=ong.nombre,
+            tipo="ong",
+            identificador_nacional=ong.identificador_nacional,
+            contacto_telefono="221-555",
+        )
         assert [(z.provincia, z.localidad) for z in ong.zonas_de_cobertura] == [
             ("Buenos Aires", "Chascomús")
         ]
 
-        servicios.editar(ong.id, nombre=ong.nombre, tipo="ong", zonas=[{"provincia": "Misiones"}])
+        servicios.editar(
+            ong.id,
+            nombre=ong.nombre,
+            tipo="ong",
+            identificador_nacional=ong.identificador_nacional,
+            zonas=[{"provincia": "Misiones"}],
+        )
         assert [(z.provincia, z.localidad) for z in ong.zonas_de_cobertura] == [("Misiones", None)]
 
 
@@ -89,7 +103,12 @@ def test_editar_sin_zonas_conserva_la_cobertura_y_con_lista_la_reemplaza(
 
 def test_el_nombre_repetido_con_otra_caja_se_rechaza(app, base_de_datos: None) -> None:
     with app.app_context(), pytest.raises(ConflictoDeEstado):
-        servicios.crear(nombre="MANOS UNIDAS", tipo="ong", zonas=[{"provincia": "Buenos Aires"}])
+        servicios.crear(
+            nombre="MANOS UNIDAS",
+            tipo="ong",
+            identificador_nacional="30-11111111-1",
+            zonas=[{"provincia": "Buenos Aires"}],
+        )
 
 
 def test_no_se_cambia_el_tipo_de_una_organizacion_con_cuentas(app, base_de_datos: None) -> None:
@@ -109,7 +128,12 @@ def test_sin_cuentas_el_tipo_se_puede_cambiar(app, base_de_datos: None) -> None:
             tipo="municipio",
             zonas=[{"provincia": "Buenos Aires", "localidad": "Lezama"}],
         )
-        servicios.editar(municipio.id, nombre=municipio.nombre, tipo="ong")
+        servicios.editar(
+            municipio.id,
+            nombre=municipio.nombre,
+            tipo="ong",
+            identificador_nacional="30-11111111-1",
+        )
 
         assert servicios.obtener(municipio.id).tipo.value == "ong"
         assert servicios.obtener_inventario(municipio.id) is not None
@@ -146,7 +170,9 @@ def test_editar_el_identificador_no_cambia_la_verificacion(app, base_de_datos: N
         ong = _organizacion("Manos Unidas")
         servicios.registrar_resultado_de_verificacion(ong.id, "rechazada")
 
-        servicios.editar(ong.id, nombre=ong.nombre, tipo="ong", identificador_nacional="30-1-9")
+        servicios.editar(
+            ong.id, nombre=ong.nombre, tipo="ong", identificador_nacional="30-12345678-9"
+        )
 
         assert servicios.obtener(ong.id).estado_verificacion.value == "rechazada"
 
@@ -226,6 +252,7 @@ def test_una_ong_nacional_no_necesita_zonas_y_las_ignora(app, base_de_datos: Non
         ong = servicios.crear(
             nombre="Red Solidaria Argentina",
             tipo="ong",
+            identificador_nacional="30-11111111-1",
             cobertura_nacional=True,
             zonas=[{"provincia": "Salta"}],
         )
@@ -236,7 +263,12 @@ def test_una_ong_nacional_no_necesita_zonas_y_las_ignora(app, base_de_datos: Non
 
 def test_el_filtro_por_provincia_incluye_a_las_nacionales(app, base_de_datos: None) -> None:
     with app.app_context():
-        servicios.crear(nombre="Red Solidaria Argentina", tipo="ong", cobertura_nacional=True)
+        servicios.crear(
+            nombre="Red Solidaria Argentina",
+            tipo="ong",
+            identificador_nacional="30-11111111-1",
+            cobertura_nacional=True,
+        )
         nombres = [una.nombre for una in servicios.listar(provincia="Tucumán")]
 
     assert nombres == ["Red Solidaria Argentina"]
@@ -245,7 +277,13 @@ def test_el_filtro_por_provincia_incluye_a_las_nacionales(app, base_de_datos: No
 def test_marcar_la_cobertura_nacional_borra_las_zonas(app, base_de_datos: None) -> None:
     with app.app_context():
         ong = _organizacion("Manos Unidas")
-        servicios.editar(ong.id, nombre=ong.nombre, tipo="ong", cobertura_nacional=True)
+        servicios.editar(
+            ong.id,
+            nombre=ong.nombre,
+            tipo="ong",
+            identificador_nacional=ong.identificador_nacional,
+            cobertura_nacional=True,
+        )
 
         actualizada = servicios.obtener(ong.id)
         assert actualizada.cobertura_nacional is True
@@ -254,15 +292,27 @@ def test_marcar_la_cobertura_nacional_borra_las_zonas(app, base_de_datos: None) 
 
 def test_desmarcar_la_cobertura_nacional_exige_zonas_a_una_ong(app, base_de_datos: None) -> None:
     with app.app_context():
-        ong = servicios.crear(nombre="Red Solidaria Argentina", tipo="ong", cobertura_nacional=True)
+        ong = servicios.crear(
+            nombre="Red Solidaria Argentina",
+            tipo="ong",
+            identificador_nacional="30-11111111-1",
+            cobertura_nacional=True,
+        )
 
         with pytest.raises(SolicitudInvalida):
-            servicios.editar(ong.id, nombre=ong.nombre, tipo="ong", cobertura_nacional=False)
+            servicios.editar(
+                ong.id,
+                nombre=ong.nombre,
+                tipo="ong",
+                identificador_nacional=ong.identificador_nacional,
+                cobertura_nacional=False,
+            )
 
         servicios.editar(
             ong.id,
             nombre=ong.nombre,
             tipo="ong",
+            identificador_nacional="30-11111111-1",
             cobertura_nacional=False,
             zonas=[{"provincia": "Neuquén"}],
         )
@@ -271,8 +321,19 @@ def test_desmarcar_la_cobertura_nacional_exige_zonas_a_una_ong(app, base_de_dato
 
 def test_sin_indicarla_la_cobertura_nacional_se_conserva(app, base_de_datos: None) -> None:
     with app.app_context():
-        ong = servicios.crear(nombre="Red Solidaria Argentina", tipo="ong", cobertura_nacional=True)
-        servicios.editar(ong.id, nombre=ong.nombre, tipo="ong", contacto_telefono="0800")
+        ong = servicios.crear(
+            nombre="Red Solidaria Argentina",
+            tipo="ong",
+            identificador_nacional="30-11111111-1",
+            cobertura_nacional=True,
+        )
+        servicios.editar(
+            ong.id,
+            nombre=ong.nombre,
+            tipo="ong",
+            identificador_nacional=ong.identificador_nacional,
+            contacto_telefono="0800",
+        )
         servicios.editar_datos_propios(ong.id, contacto_telefono="0810")
 
         assert servicios.obtener(ong.id).cobertura_nacional is True
@@ -387,3 +448,67 @@ def test_las_zonas_se_reagrupan_por_provincia_para_el_formulario(app) -> None:
         {"provincia": "Buenos Aires", "localidad": "Berisso, La Plata"},
         {"provincia": "Ciudad Autónoma de Buenos Aires", "localidad": None},
     ]
+
+
+# --- CUIT de las ONG ------------------------------------------------------------------
+
+
+def test_una_ong_sin_cuit_no_se_puede_crear(app, base_de_datos: None) -> None:
+    with app.app_context(), pytest.raises(SolicitudInvalida) as error:
+        servicios.crear(nombre="ONG sin CUIT", tipo="ong", cobertura_nacional=True)
+
+    assert error.value.detalle["identificador_nacional"] == [servicios.MENSAJE_ONG_SIN_CUIT]
+
+
+@pytest.mark.parametrize("cuit", ["30-1-9", "abc", "301234567890", "3012345678"])
+def test_una_ong_con_cuit_mal_formado_se_rechaza(app, base_de_datos: None, cuit: str) -> None:
+    with app.app_context(), pytest.raises(SolicitudInvalida) as error:
+        servicios.crear(
+            nombre="ONG con CUIT raro",
+            tipo="ong",
+            identificador_nacional=cuit,
+            cobertura_nacional=True,
+        )
+
+    assert error.value.detalle["identificador_nacional"] == [servicios.MENSAJE_CUIT_INVALIDO]
+
+
+def test_el_cuit_de_una_ong_se_guarda_con_guiones(app, base_de_datos: None) -> None:
+    with app.app_context():
+        ong = servicios.crear(
+            nombre="ONG sin guiones",
+            tipo="ong",
+            identificador_nacional=" 30 11111111 1 ",
+            cobertura_nacional=True,
+        )
+
+        assert ong.identificador_nacional == "30-11111111-1"
+
+
+def test_el_mismo_cuit_escrito_sin_guiones_choca_con_el_existente(app, base_de_datos: None) -> None:
+    with app.app_context(), pytest.raises(ConflictoDeEstado):
+        # 30-65432198-7 es el CUIT sembrado de Cruz Solidaria.
+        servicios.crear(
+            nombre="Cruz Solidaria bis",
+            tipo="ong",
+            identificador_nacional="30654321987",
+            cobertura_nacional=True,
+        )
+
+
+def test_editar_una_ong_no_le_puede_borrar_el_cuit(app, base_de_datos: None) -> None:
+    with app.app_context():
+        ong = _organizacion("Manos Unidas")
+        with pytest.raises(SolicitudInvalida):
+            servicios.editar(ong.id, nombre=ong.nombre, tipo="ong", identificador_nacional="")
+
+        assert servicios.obtener(ong.id).identificador_nacional == "30-65432199-5"
+
+
+def test_un_municipio_sigue_admitiendo_un_identificador_libre(app, base_de_datos: None) -> None:
+    with app.app_context():
+        municipio = servicios.crear(
+            nombre="Municipio de Lezama", tipo="municipio", identificador_nacional="RUC-123"
+        )
+
+        assert municipio.identificador_nacional == "RUC-123"

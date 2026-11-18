@@ -18,10 +18,14 @@ y dejarla encendida haria fallar todo POST JSON con un error de validacion engan
 
 from __future__ import annotations
 
+import uuid
+
 from flask import g, request
 from flask_wtf import FlaskForm
+from wtforms import StringField
 
 from app.core.errores import SolicitudInvalida
+from app.core.identificadores import parsear_id
 
 
 def construir_formulario[T: FlaskForm](clase_formulario: type[T], **kwargs: object) -> T:
@@ -81,3 +85,46 @@ def parametro_entero(nombre: str) -> int | None:
         return int(valor)
     except ValueError:
         raise SolicitudInvalida(detalle={nombre: ["Debe ser un número entero."]}) from None
+
+
+def parametro_id(nombre: str) -> uuid.UUID | None:
+    """Lee el id (UUID) de otra entidad de la query string, o None si no vino.
+
+    Un valor que no es un UUID corta con 400, igual que `parametro_entero` con un número.
+    """
+    valor = request.args.get(nombre)
+    if valor is None or valor.strip() == "":
+        return None
+    identificador = parsear_id(valor)
+    if identificador is None:
+        raise SolicitudInvalida(detalle={nombre: ["Debe ser un identificador válido."]})
+    return identificador
+
+
+class CampoId(StringField):
+    """Campo con el id (UUID) de otra entidad, por ejemplo la organización de una cuenta.
+
+    `data` queda como `uuid.UUID`, o None si el campo vino vacío. Un valor que no es un UUID es
+    un error de validación del campo, venga del formulario HTML o del cuerpo JSON.
+    """
+
+    MENSAJE_INVALIDO = "No es un identificador válido."
+
+    def process_data(self, value: object) -> None:
+        if value is None or value == "":
+            self.data = None
+            return
+        self.data = parsear_id(value)
+        if self.data is None:
+            raise ValueError(self.MENSAJE_INVALIDO)
+
+    def process_formdata(self, valuelist: list[str]) -> None:
+        if not valuelist or not valuelist[0].strip():
+            self.data = None
+            return
+        self.data = parsear_id(valuelist[0])
+        if self.data is None:
+            raise ValueError(self.MENSAJE_INVALIDO)
+
+    def _value(self) -> str:
+        return str(self.data) if self.data is not None else ""

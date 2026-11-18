@@ -32,6 +32,8 @@ Nacional llegara a informar otro resultado, lo guarda con `registrar_resultado_d
 from __future__ import annotations
 
 import logging
+import re
+import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -62,6 +64,12 @@ MENSAJE_SIN_ORGANIZACION = "Tu cuenta no pertenece a ninguna organización."
 MENSAJE_ONG_SIN_ZONAS = (
     "Una ONG tiene que declarar al menos una zona de cobertura o marcar que opera en todo el país."
 )
+MENSAJE_ONG_SIN_CUIT = (
+    "Una ONG tiene que tener su CUIT: el Sistema Nacional la identifica por ese dato."
+)
+MENSAJE_CUIT_INVALIDO = (
+    "El CUIT tiene que tener 11 dígitos, con o sin guiones (por ejemplo 30-12345678-9)."
+)
 # Limites de la cobertura. Una localidad cabe en la columna `localidad` (String(150)); el campo
 # del formulario puede traer varias separadas por comas, hasta un largo razonable; y el total por
 # organizacion tiene un techo para que un campo con cientos de comas no genere cientos de filas.
@@ -81,6 +89,27 @@ def _normalizar_texto(valor: str | None) -> str | None:
         return None
     limpio = valor.strip()
     return limpio or None
+
+
+def _resolver_identificador(tipo: TipoOrganizacion, valor: str | None) -> str | None:
+    """El identificador nacional que corresponde guardar.
+
+    Una ONG tiene que tener CUIT: Bonita lo manda al Sistema Nacional para evaluar sus ofertas y
+    liberar sus compromisos, y sin el la API no la encuentra en el padron. Se guarda siempre como
+    NN-NNNNNNNN-N, el formato del padron, aunque se cargue sin guiones; asi tampoco pasan como
+    distintos dos CUIT iguales escritos de otra forma. Para municipios y el centro coordinador
+    sigue siendo opcional y de texto libre. No se valida el digito verificador, igual que en la
+    API: los CUIT de demostracion son ficticios.
+    """
+    identificador = _normalizar_texto(valor)
+    if tipo is not TipoOrganizacion.ong:
+        return identificador
+    if identificador is None:
+        raise SolicitudInvalida(detalle={"identificador_nacional": [MENSAJE_ONG_SIN_CUIT]})
+    digitos = re.sub(r"[\s-]", "", identificador)
+    if not re.fullmatch(r"\d{11}", digitos):
+        raise SolicitudInvalida(detalle={"identificador_nacional": [MENSAJE_CUIT_INVALIDO]})
+    return f"{digitos[:2]}-{digitos[2:10]}-{digitos[10]}"
 
 
 def convertir_tipo(valor: str | TipoOrganizacion) -> TipoOrganizacion:
@@ -230,7 +259,7 @@ def zonas_agrupadas_por_provincia(
     ]
 
 
-def obtener(organizacion_id: int) -> Organizacion:
+def obtener(organizacion_id: uuid.UUID) -> Organizacion:
     """Devuelve la organizacion o corta con 404."""
     organizacion = db.session.get(Organizacion, organizacion_id)
     if organizacion is None:
@@ -238,7 +267,7 @@ def obtener(organizacion_id: int) -> Organizacion:
     return organizacion
 
 
-def obtener_nombres(ids: Iterable[int]) -> dict[int, str]:
+def obtener_nombres(ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, str]:
     """Nombre de cada organizacion indicada, por id, en una sola consulta.
 
     Pensada para reportes que solo necesitan nombrar organizaciones, sin exponer el modelo.
@@ -252,7 +281,7 @@ def obtener_nombres(ids: Iterable[int]) -> dict[int, str]:
     return {id_: nombre for id_, nombre in filas}
 
 
-def obtener_tipo_de_organizacion(organizacion_id: int) -> str | None:
+def obtener_tipo_de_organizacion(organizacion_id: uuid.UUID) -> str | None:
     """Tipo de la organizacion como string, o None si no existe.
 
     Devuelve el *valor* del enum y no el enum para que `usuarios_roles` pueda verificar la
@@ -264,7 +293,7 @@ def obtener_tipo_de_organizacion(organizacion_id: int) -> str | None:
     return None if tipo is None else tipo.value
 
 
-def obtener_inventario(organizacion_id: int) -> Inventario | None:
+def obtener_inventario(organizacion_id: uuid.UUID) -> Inventario | None:
     """Devuelve el inventario de la organizacion."""
     return db.session.execute(
         select(Inventario).where(Inventario.organizacion_id == organizacion_id)
@@ -272,7 +301,7 @@ def obtener_inventario(organizacion_id: int) -> Inventario | None:
 
 
 def paginar_items_de_inventario(
-    organizacion_id: int,
+    organizacion_id: uuid.UUID,
     categoria: str | None = None,
     texto: str | None = None,
     *,
@@ -294,7 +323,7 @@ def paginar_items_de_inventario(
     return paginar(consulta, pagina, por_pagina)
 
 
-def categorias_de_inventario(organizacion_id: int) -> list[tuple[str, str]]:
+def categorias_de_inventario(organizacion_id: uuid.UUID) -> list[tuple[str, str]]:
     """Devuelve las categorias presentes en el inventario, con valor y etiqueta."""
     consulta = (
         select(Item.categoria)
@@ -315,7 +344,7 @@ def listar_items() -> list[Item]:
     return list(db.session.scalars(select(Item).order_by(Item.nombre)))
 
 
-def listar_items_disponibles(organizacion_id: int) -> list[Item]:
+def listar_items_disponibles(organizacion_id: uuid.UUID) -> list[Item]:
     """Devuelve los items que aun no fueron cargados en el inventario indicado."""
     items_cargados = (
         select(InventarioItem.item_id)
@@ -327,9 +356,9 @@ def listar_items_disponibles(organizacion_id: int) -> list[Item]:
 
 
 def crear_item_inventario(
-    organizacion_id: int,
+    organizacion_id: uuid.UUID,
     *,
-    item_id: int,
+    item_id: uuid.UUID,
     cantidad_disponible,
 ) -> InventarioItem:
     """Agrega un item al inventario de la organizacion."""
@@ -360,8 +389,8 @@ def crear_item_inventario(
 
 
 def obtener_item_inventario(
-    organizacion_id: int,
-    inventario_item_id: int,
+    organizacion_id: uuid.UUID,
+    inventario_item_id: uuid.UUID,
 ) -> InventarioItem:
     """Devuelve un item del inventario de la organizacion o corta con 404."""
     inventario_item = db.session.execute(
@@ -378,10 +407,10 @@ def obtener_item_inventario(
 
 
 def editar_item_inventario(
-    organizacion_id: int,
-    inventario_item_id: int,
+    organizacion_id: uuid.UUID,
+    inventario_item_id: uuid.UUID,
     *,
-    item_id: int,
+    item_id: uuid.UUID,
     cantidad_disponible,
 ) -> InventarioItem:
     """Actualiza la cantidad de un item del inventario de la organizacion."""
@@ -395,8 +424,8 @@ def editar_item_inventario(
 
 
 def eliminar_item_inventario(
-    organizacion_id: int,
-    inventario_item_id: int,
+    organizacion_id: uuid.UUID,
+    inventario_item_id: uuid.UUID,
 ) -> None:
     """Quita un item del inventario de la organizacion, sin borrar el item del catalogo."""
     inventario_item = obtener_item_inventario(organizacion_id, inventario_item_id)
@@ -414,7 +443,7 @@ def item_inventario_a_diccionario(inventario_item: InventarioItem) -> dict[str, 
     }
 
 
-def esta_activa(organizacion_id: int) -> bool:
+def esta_activa(organizacion_id: uuid.UUID) -> bool:
     """Indica si la organizacion existe y esta habilitada para operar."""
     activo = db.session.execute(
         select(Organizacion.activo).where(Organizacion.id == organizacion_id)
@@ -422,7 +451,7 @@ def esta_activa(organizacion_id: int) -> bool:
     return bool(activo)
 
 
-def obtener_propia(organizacion_id: int | None) -> Organizacion:
+def obtener_propia(organizacion_id: uuid.UUID | None) -> Organizacion:
     """La organizacion de la cuenta en sesion, o 404 si la cuenta no pertenece a ninguna."""
     if organizacion_id is None:
         raise RecursoNoEncontrado(MENSAJE_SIN_ORGANIZACION)
@@ -501,7 +530,7 @@ def _consulta(
     return consulta
 
 
-def _verificar_nombre_disponible(nombre: str, excluir_id: int | None = None) -> None:
+def _verificar_nombre_disponible(nombre: str, excluir_id: uuid.UUID | None = None) -> None:
     # Sin distinguir mayusculas, igual que el indice `uq_organizacion_nombre_normalizado`.
     consulta = select(Organizacion.id).where(func.lower(Organizacion.nombre) == nombre.lower())
     if excluir_id is not None:
@@ -511,7 +540,7 @@ def _verificar_nombre_disponible(nombre: str, excluir_id: int | None = None) -> 
 
 
 def _verificar_identificador_disponible(
-    identificador: str | None, excluir_id: int | None = None
+    identificador: str | None, excluir_id: uuid.UUID | None = None
 ) -> None:
     if identificador is None:
         return
@@ -593,8 +622,8 @@ def crear(
     Con `cobertura_nacional=True` las zonas se ignoran: opera en todo el pais.
     """
     nombre_limpio = nombre.strip()
-    identificador = _normalizar_texto(identificador_nacional)
     tipo_convertido = convertir_tipo(tipo)
+    identificador = _resolver_identificador(tipo_convertido, identificador_nacional)
 
     _verificar_nombre_disponible(nombre_limpio)
     _verificar_identificador_disponible(identificador)
@@ -630,7 +659,7 @@ def crear(
 
 
 def editar(
-    organizacion_id: int,
+    organizacion_id: uuid.UUID,
     *,
     nombre: str,
     tipo: str | TipoOrganizacion,
@@ -653,8 +682,8 @@ def editar(
     organizacion = obtener(organizacion_id)
 
     nombre_limpio = nombre.strip()
-    identificador = _normalizar_texto(identificador_nacional)
     tipo_nuevo = convertir_tipo(tipo)
+    identificador = _resolver_identificador(tipo_nuevo, identificador_nacional)
     nacional = organizacion.cobertura_nacional if cobertura_nacional is None else cobertura_nacional
 
     _verificar_nombre_disponible(nombre_limpio, excluir_id=organizacion.id)
@@ -696,7 +725,7 @@ def editar(
 
 
 def editar_datos_propios(
-    organizacion_id: int,
+    organizacion_id: uuid.UUID,
     *,
     contacto_email: str | None = None,
     contacto_telefono: str | None = None,
@@ -730,7 +759,7 @@ def editar_datos_propios(
     return organizacion
 
 
-def cambiar_estado(organizacion_id: int, *, activo: bool) -> Organizacion:
+def cambiar_estado(organizacion_id: uuid.UUID, *, activo: bool) -> Organizacion:
     """Alta o baja logica.
 
     No se borra nunca: las emergencias, ofertas y adjudicaciones ya registradas apuntan a la
@@ -756,7 +785,7 @@ def cambiar_estado(organizacion_id: int, *, activo: bool) -> Organizacion:
 
 
 def registrar_resultado_de_verificacion(
-    organizacion_id: int, estado: str | EstadoVerificacion
+    organizacion_id: uuid.UUID, estado: str | EstadoVerificacion
 ) -> Organizacion:
     """Guarda el resultado de la validacion contra el Sistema Nacional.
 
@@ -777,7 +806,7 @@ def registrar_resultado_de_verificacion(
     return organizacion
 
 
-def miembros(organizacion_id: int) -> list[dict[str, Any]]:
+def miembros(organizacion_id: uuid.UUID) -> list[dict[str, Any]]:
     """Cuentas vinculadas a la organizacion, activas e inactivas, ordenadas por nombre.
 
     Se leen por la relacion `Organizacion.usuarios` para no importar `usuarios_roles`, que esta

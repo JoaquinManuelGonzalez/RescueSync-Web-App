@@ -79,14 +79,15 @@ la interfaz; cómo se le presenta el mismo error a una persona está en la secci
 }
 ```
 
-**API Nacional caída** (se agotan los reintentos al registrar un compromiso de recursos):
+**Bonita caída** (se agotan los reintentos al leer las tareas para confirmar la selección de
+ofertas):
 
 ```json
 {
   "error": {
     "codigo": "SERVICIO_EXTERNO_NO_DISPONIBLE",
-    "mensaje": "El Sistema Nacional no responde en este momento. La operación no se registró; reintentá en unos minutos.",
-    "detalle": {"componente": "api_nacional", "intentos_realizados": 3},
+    "mensaje": "El sistema externo no responde en este momento. Reintentá en unos minutos.",
+    "detalle": {"componente": "bonita", "intentos_realizados": 3},
     "timestamp": "2026-10-06T11:47:03.256Z",
     "id_correlacion": "3c4d5e6f-3333-4c5d-8e0f-1a2b3c4d5e6f"
   }
@@ -140,9 +141,10 @@ envelope JSON.
 
 ## 3. Política de reintentos ante sistemas externos
 
-Toda llamada de la aplicación web hacia un sistema externo (Bonita o API Nacional) sigue la misma
-política de tiempos de espera y reintentos, implementada en los clientes de
-`core/integraciones/`.
+Toda llamada de la aplicación web hacia un sistema externo sigue la misma política de tiempos de
+espera y reintentos, implementada en los clientes de `core/integraciones/`. Hoy el único sistema
+externo al que llama la web es Bonita: a la API del Sistema Nacional la llama Bonita, que tiene
+sus propias reglas para cada conector (contrato de errores del repositorio de la API, sección 3).
 
 | Parámetro | Valor |
 |---|---|
@@ -160,10 +162,11 @@ Reglas de aplicación:
 - **Solo se reintenta ante 5xx, timeout o error de red, y solo en operaciones idempotentes.** Una
   operación de solo lectura (por ejemplo, consultar el estado de una tarea en Bonita) siempre es
   candidata a reintento.
-- **Los `POST` de compromiso de recursos llevan clave de idempotencia** (un identificador único
-  generado por la aplicación web y enviado en un encabezado, por ejemplo
-  `Idempotency-Key`), de modo que puedan reintentarse de forma segura ante un timeout o un 5xx sin
-  riesgo de comprometer el mismo recurso dos veces.
+- **Un `POST` que no es idempotente no se reintenta a ciegas.** Ejecutar una tarea de Bonita no
+  lo es: si el primer intento llegó y la respuesta se perdió, repetirlo puede avanzar el proceso
+  dos veces. La web tampoco registra compromisos de recursos: los compromete la API del Sistema
+  Nacional durante la evaluación que le pide Bonita, y esa evaluación es idempotente por
+  emergencia.
 - **Los 4xx nunca se reintentan.** Un 4xx significa que el sistema externo evaluó la solicitud y
   la rechazó por su contenido; reintentar con el mismo contenido produciría el mismo rechazo.
 - Agotados los tres intentos sin éxito ante un 5xx, timeout o error de red, la aplicación web

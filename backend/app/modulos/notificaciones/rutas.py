@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from flask import Blueprint, redirect, render_template, url_for
 from flask_login import current_user
 
@@ -20,8 +22,8 @@ def listar():
     )
 
 
-@blueprint_notificaciones.get("/<int:notificacion_id>/abrir")
+@blueprint_notificaciones.get("/<uuid:notificacion_id>/abrir")
 @requiere_autenticacion
-def abrir(notificacion_id: int):
+def abrir(notificacion_id: uuid.UUID):
     notificacion = servicios.marcar_como_leida(notificacion_id, current_user.id)
     return redirect(notificacion.enlace or url_for("notificaciones.listar"))

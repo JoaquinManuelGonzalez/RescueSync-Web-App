@@ -193,6 +193,7 @@ def test_el_administrador_da_de_alta_y_edita_una_organizacion(
         json={
             "nombre": "ONG del Sur",
             "tipo": "ong",
+            "identificador_nacional": "30-11111111-1",
             "contacto_email": "hola@ongdelsur.test",
             "zonas": [{"provincia": "Río Negro", "localidad": "Bariloche"}],
         },
@@ -203,7 +204,11 @@ def test_el_administrador_da_de_alta_y_edita_una_organizacion(
     identificador = alta.get_json()["id"]
     edicion = cliente_sembrado.post(
         f"/organizaciones/{identificador}/edicion",
-        json={"nombre": "ONG del Sur Argentino", "tipo": "ong"},
+        json={
+            "nombre": "ONG del Sur Argentino",
+            "tipo": "ong",
+            "identificador_nacional": "30-11111111-1",
+        },
         headers=cabecera_csrf(),
     )
 
@@ -218,7 +223,7 @@ def test_una_organizacion_con_nombre_repetido_se_rechaza(
 
     respuesta = cliente_sembrado.post(
         "/organizaciones",
-        json={"nombre": "Cruz Solidaria", "tipo": "ong"},
+        json={"nombre": "Cruz Solidaria", "tipo": "ong", "identificador_nacional": "30-11111111-1"},
         headers=cabecera_csrf(),
     )
 

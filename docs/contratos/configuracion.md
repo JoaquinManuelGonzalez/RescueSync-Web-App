@@ -27,9 +27,9 @@ raíz del repositorio.
 | `BONITA_PROCESO_VERSION` | N | `1.0` | Versión del proceso BPMN publicado en Bonita | Todos |
 | `BONITA_TIMEOUT_S` | N | `10` | Timeout de lectura, en segundos, para llamadas a Bonita | Todos |
 | `BONITA_CALLBACK_TOKEN` | S | — | Token de servicio que Bonita envía al consultar el endpoint de ofertas consolidadas (integración 4) | Todos |
-| `API_NACIONAL_BASE_URL` | S | — | URL base de la API Nacional | Todos (real solo a partir de la Entrega 3) |
-| `API_NACIONAL_CLIENT_ID` | S | — | Client ID para la autenticación JWT contra la API Nacional | Todos (real solo a partir de la Entrega 3) |
-| `API_NACIONAL_CLIENT_SECRET` | S | — | Client secret para la autenticación JWT contra la API Nacional | Todos (real solo a partir de la Entrega 3) |
+| `API_NACIONAL_BASE_URL` | S | — | URL base de la API del Sistema Nacional. Reservada para el cliente de `core/integraciones/api_nacional.py`, que hoy no se usa: a la API la llama Bonita | Todos, con cualquier valor |
+| `API_NACIONAL_CLIENT_ID` | S | — | Client ID para la autenticación JWT contra la API. Ídem | Todos, con cualquier valor |
+| `API_NACIONAL_CLIENT_SECRET` | S | — | Client secret para la autenticación JWT contra la API. Ídem | Todos, con cualquier valor |
 | `API_NACIONAL_TIMEOUT_S` | N | `10` | Timeout de lectura, en segundos, para llamadas a la API Nacional | Todos |
 | `API_NACIONAL_REINTENTOS` | N | `2` | Cantidad de reintentos ante 5xx, timeout o error de red (no cuenta el intento original) | Todos |
 | `API_NACIONAL_BACKOFF_MS` | N | `500` | Base del backoff exponencial entre reintentos, en milisegundos | Todos |
@@ -65,7 +65,7 @@ aplicación (app factory de Flask), antes de registrar los módulos de dominio.
 | Origen de las variables | Archivo `.env` propio de cada integrante, nunca versionado | Archivo `.env` propio de la máquina de evaluación, cargado por quien realiza la demostración |
 | Base de datos | Contenedor PostgreSQL levantado por `docker compose`, datos descartables | Mismo contenedor, con datos de la corrida de evaluación; se puede reiniciar entre corridas |
 | Bonita | Instancia local del Studio/Portal instalada en la máquina del integrante | Misma instalación, corriendo en la máquina desde la que se hace la demostración |
-| API Nacional | Antes de la Entrega 3: no existe, las variables `API_NACIONAL_*` se completan con valores de prueba que la aplicación no llega a usar. Desde la Entrega 3: instancia dockerizada, propia o compartida por el equipo | Misma instancia que se use para el resto del equipo en la fecha de evaluación |
+| API del Sistema Nacional | La web no la llama: la usa Bonita, con los parámetros `urlSistemaNacional`, `snClientId` y `snClientSecret` del proceso. Es la instancia compartida en Render (o una local con `docker compose`, ver el README de la API). Las variables `API_NACIONAL_*` se completan con cualquier valor | La misma instancia de Render que usa el resto del equipo |
 | `LOG_LEVEL` | Habitualmente `DEBUG` para facilitar el desarrollo | `INFO`, igual que en producción, para no filtrar detalle interno durante la demostración |
 | `SECRET_KEY` | Valor de desarrollo, puede ser fijo por comodidad mientras no se comparta el repositorio | Valor generado especialmente para la evaluación, distinto del de cada entorno local |
 

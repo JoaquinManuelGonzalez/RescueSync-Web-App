@@ -34,23 +34,31 @@ humanos y textos de la interfaz (labels, mensajes de error al usuario, etc.).
 
 | Elemento | Convención | Ejemplo |
 |---|---|---|
-| Paquetes / módulos | `snake_case` | `lotes_convocatorias` |
-| Clases y modelos | `PascalCase` singular | `OfertaDeAyuda`, `LoteDeNecesidad` |
+| Paquetes / módulos | `snake_case` | `ejecucion_cierre` |
+| Clases y modelos | `PascalCase` singular | `OfertaLinea`, `LoteNecesidad` |
 | Funciones y métodos | `snake_case`, empiezan con verbo | `registrar_oferta`, `obtener_emergencia_por_id` |
 | Variables | `snake_case` | `ventana_de_carga` |
 | Constantes | `MAYUSCULAS_CON_GUION_BAJO` | `ESTADOS_DE_OFERTA` |
 | Blueprints / endpoints | `modulo.accion` | `ofertas.crear` |
 | Rutas URL | minúsculas con guion medio | `/ofertas/nueva`, `/lotes-de-necesidad` |
 | Plantillas Jinja | `modulo/accion.html` | `ofertas/crear.html` |
-| Tablas | `snake_case` plural | `ofertas_de_ayuda` |
+| Tablas | `snake_case` singular, como el modelo (`usuarios`, `roles` y `permisos` quedaron en plural) | `oferta_item` |
 | Columnas | `snake_case` singular | `nivel_de_gravedad` |
-| Clave primaria | siempre `id` | `id` |
-| Clave foránea | `<tabla_en_singular>_id` | `emergencia_id` |
+| Clave primaria | siempre `id`, UUID (`Uuid`, `default=nuevo_id`) | `id` |
+| Clave foránea | `<tabla_en_singular>_id`, UUID | `emergencia_id` |
 | Booleanos | prefijo `es_` / `tiene_` | `es_consorcio`, `tiene_adjudicacion` |
 | Fechas | prefijo `fecha_` | `fecha_creacion`, `fecha_cierre` |
-| Índices y restricciones | `ix_`/`uq_`/`fk_`/`ck_` + tabla + columnas | `ix_ofertas_de_ayuda_convocatoria_id` |
+| Índices y restricciones | `ix_`/`uq_`/`fk_`/`ck_` + tabla + columnas (convención declarada en `app/extensiones.py`) | `ix_oferta_convocatoria_id` |
 | Tests | `test_<unidad>.py` / `test_<caso>_<resultado>` | `test_registrar_oferta_fuera_de_ventana_falla` |
 
+
+Las claves son UUID y no enteros: los ids viajan a Bonita y a la API del Sistema Nacional, y
+con enteros la emergencia `1` de una web local pisaba los compromisos de la emergencia `1` de
+otra que usa la misma API. `app/core/identificadores.py` tiene `nuevo_id()` (UUIDv7, así que
+ordenar por `id` sigue siendo ordenar por fecha de alta) y `parsear_id()` para leer un id que
+llega como texto de un formulario, de JSON o de Bonita. Las rutas usan `<uuid:...>` y los
+formularios, `CampoId` (`app/core/interfaz/formularios.py`). Para mostrar una referencia corta
+en pantalla está el filtro `id_corto`.
 
 ## 3. Estructura de carpetas
 
@@ -68,19 +76,22 @@ backend/
     wsgi.py          objeto que levantan flask y gunicorn
     extensiones.py   db, migrate, login_manager
     cli.py           comandos `flask <comando>` (por ejemplo, seed)
-    core/            configuracion, errores, logging, salud, semillas
+    core/            configuracion, errores, logging, salud, semillas, identificadores (UUID)
       acceso/          identidad y RBAC: autorizacion, permisos, seguridad, sesion
       interfaz/        capa web compartida: vistas, formularios, navegacion, paginacion,
                         plantillas, inicio
-      integraciones/   {bonita,api_nacional}  -> clientes HTTP compartidos
+      integraciones/   bonita/ -> cliente HTTP de Bonita; api_nacional.py -> andamiaje sin
+                        uso (la web no llama a la API: lo hace Bonita)
     modulos/
+      organizaciones/    municipios, ONGs y centro coordinador, zonas de cobertura e inventario
       usuarios_roles/    alta y gestion de usuarios, roles y permisos (RBAC)
-      emergencias/       alta y ciclo de vida de una emergencia
-      lotes_convocatorias/  lotes de necesidad y convocatorias asociadas a una emergencia
-      ofertas/           carga y listado de ofertas de ayuda de las ONG
-      adjudicacion/       logica de adjudicacion de ofertas a lotes/convocatorias
-      ejecucion_cierre/   seguimiento de ejecucion y cierre del proyecto
-      indicadores/        dashboard de metricas y reportes (solo lectura)
+      emergencias/       alta y ciclo de vida de una emergencia, catalogo de items y lotes/
+      convocatorias/     convocatorias, ventana de ofertas y cobertura
+      ofertas/           ofertas de las ONG, consolidado para Bonita y registro de la evaluacion
+      adjudicaciones/    seleccion de lineas de oferta y su envio a Bonita
+      ejecucion_cierre/  seguimiento de ejecucion y cierre del proyecto
+      notificaciones/    avisos en la aplicacion para cada organizacion
+      indicadores/       dashboard de metricas y reportes (solo lectura)
       <cada modulo>/
         rutas.py          blueprint Flask: define los endpoints HTTP
         servicios.py       logica de negocio del modulo (unico punto de entrada para otros modulos)
@@ -94,6 +105,8 @@ frontend/
     <modulo>/        plantillas del modulo, una por accion (modulo/accion.html)
   estaticos/
     css/app.css      CSS compilado por Tailwind. NO se versiona: lo genera el contenedor
+    js/              interfaz.js (todas las pantallas), scripts de cada pantalla y vendor/
+                     (Chart.js, ADR-010)
     img/
   src/input.css      hoja de entrada de Tailwind (configuracion CSS-first, sin config.js)
   observar.sh        bucle que recompila el CSS cuando cambia una plantilla
@@ -121,12 +134,14 @@ error de revisión.
 - ¿Necesito datos de otro módulo? Se piden a través de la capa `servicios` de ese módulo, nunca
   importando sus modelos ni haciendo consultas directas a sus tablas.
 - ¿Es transversal a toda la aplicación (configuración, manejo de errores, logging, seguridad,
-  o un cliente HTTP hacia Bonita o la API Nacional)? Va en `core/`.
+  identificadores, o un cliente HTTP hacia Bonita)? Va en `core/`.
 - ¿Es una métrica, un gráfico o un reporte del dashboard? Va en `modulos/indicadores/`. El
   dashboard es un módulo más de esta aplicación, no un proyecto aparte: lee a través de los
   servicios de los otros módulos y nunca consulta sus tablas por su cuenta.
-- ¿Necesita llamar a Bonita o a la API Nacional? Siempre a través de los clientes de
-  `core/integraciones/`, nunca con una llamada HTTP directa desde el módulo.
+- ¿Necesita llamar a Bonita? Siempre a través del cliente de `core/integraciones/bonita/`,
+  nunca con una llamada HTTP directa desde el módulo. A la API del Sistema Nacional la llama
+  Bonita, no la web: un dato que la API tenga que conocer viaja en las variables o contratos de
+  las tareas del proceso.
 
 ## 4. Entorno local, formato y verificación (uv + Ruff)
 

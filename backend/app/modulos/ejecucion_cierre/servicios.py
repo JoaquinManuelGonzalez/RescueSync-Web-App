@@ -6,6 +6,7 @@ Gestiona el ciclo de vida local de las tareas de campo asignadas a las ONGs.
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -28,7 +29,7 @@ from app.modulos.ofertas.modelos import (
 logger = logging.getLogger(__name__)
 
 
-def sincronizar_tareas_para_ong(organizacion_id: int) -> list[TareaEjecucion]:
+def sincronizar_tareas_para_ong(organizacion_id: uuid.UUID) -> list[TareaEjecucion]:
     """Crea tareas para líneas adjudicadas que pertenecen a la ONG y fueron aceptadas."""
     # La asociación de consorcio es la fuente de verdad de quién participa y si aceptó.
     consulta_ofertas = (
@@ -95,7 +96,7 @@ def sincronizar_tareas_para_ong(organizacion_id: int) -> list[TareaEjecucion]:
     return list(db.session.scalars(consulta_tareas).unique().all())
 
 
-def obtener_tarea_ong(tarea_id: int, organizacion_id: int) -> TareaEjecucion:
+def obtener_tarea_ong(tarea_id: uuid.UUID, organizacion_id: uuid.UUID) -> TareaEjecucion:
     """Devuelve la tarea si existe y pertenece a la organización solicitante."""
     tarea = (
         db.session.scalars(
@@ -117,9 +118,9 @@ def obtener_tarea_ong(tarea_id: int, organizacion_id: int) -> TareaEjecucion:
 
 
 def finalizar_tarea_ong(
-    tarea_id: int,
-    organizacion_id: int,
-    usuario_id: int,
+    tarea_id: uuid.UUID,
+    organizacion_id: uuid.UUID,
+    usuario_id: uuid.UUID,
     observaciones: str | None = None,
 ) -> TareaEjecucion:
     """Registra localmente que la ONG completó una actividad adjudicada."""
@@ -149,7 +150,7 @@ def finalizar_tarea_ong(
     return tarea
 
 
-def obtener_estado_finalizacion_emergencia(emergencia_id: int) -> dict[str, int | bool]:
+def obtener_estado_finalizacion_emergencia(emergencia_id: uuid.UUID) -> dict[str, int | bool]:
     """Indica si todas las ONGs con líneas adjudicadas finalizaron sus actividades."""
     filas = db.session.execute(
         select(
@@ -182,7 +183,7 @@ def obtener_estado_finalizacion_emergencia(emergencia_id: int) -> dict[str, int 
         )
     ).all()
 
-    actividades_por_ong: dict[int, list[EstadoTareaEjecucion | None]] = {}
+    actividades_por_ong: dict[uuid.UUID, list[EstadoTareaEjecucion | None]] = {}
     for organizacion_id, _oferta_id, estado in filas:
         actividades_por_ong.setdefault(organizacion_id, []).append(estado)
 
@@ -208,12 +209,14 @@ def obtener_estado_finalizacion_emergencia(emergencia_id: int) -> dict[str, int 
 class FinalizacionDeActividad:
     """Cuando una ONG marco como finalizada su actividad en una oferta adjudicada."""
 
-    oferta_id: int
-    organizacion_id: int
+    oferta_id: uuid.UUID
+    organizacion_id: uuid.UUID
     fecha_fin: datetime
 
 
-def listar_finalizaciones(*, emergencia_ids: Select[tuple[int]]) -> list[FinalizacionDeActividad]:
+def listar_finalizaciones(
+    *, emergencia_ids: Select[tuple[uuid.UUID]]
+) -> list[FinalizacionDeActividad]:
     """Las actividades finalizadas en esas emergencias, en una sola consulta.
 
     Una actividad que la ONG nunca abrio no tiene tarea, y una abierta sin terminar no tiene

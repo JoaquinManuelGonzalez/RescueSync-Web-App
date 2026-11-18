@@ -8,13 +8,25 @@ durante la cual las ONGs pueden postular sus ofertas colaborativas.
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Numeric,
+    String,
+    Text,
+    Uuid,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.identificadores import nuevo_id
 from app.extensiones import db
 
 if TYPE_CHECKING:
@@ -44,10 +56,10 @@ class Convocatoria(db.Model):
 
     __tablename__ = "convocatoria"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
-    emergencia_id: Mapped[int] = mapped_column(
-        Integer,
+    emergencia_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("emergencia.id"),
         nullable=False,
         index=True,
@@ -55,8 +67,8 @@ class Convocatoria(db.Model):
 
     # Coordinador regional que publica la convocatoria
     # No esta en el diagrama pero considero que no esta de mas
-    coordinador_id: Mapped[int] = mapped_column(
-        Integer,
+    coordinador_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("usuarios.id"),
         nullable=False,
     )

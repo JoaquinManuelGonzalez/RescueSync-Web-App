@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from sqlalchemy import select
 
 from app.core.errores import RecursoNoEncontrado, ReglaDeNegocioIncumplida
@@ -30,7 +32,7 @@ def notificar_cambio_estado_emergencia(emergencia, estado_anterior) -> Notificac
     )
 
 
-def crear(*, organizacion_id: int, titulo: str, mensaje: str, enlace: str) -> Notificacion:
+def crear(*, organizacion_id: uuid.UUID, titulo: str, mensaje: str, enlace: str) -> Notificacion:
     """Crea un aviso compartido por todos los usuarios de una organización."""
     notificacion = Notificacion(
         organizacion_id=organizacion_id,
@@ -179,7 +181,7 @@ def notificar_resultado_adjudicacion(oferta, adjudicada: bool) -> list[Notificac
     ]
 
 
-def listar_para_usuario(usuario_id: int, *, limite: int | None = None) -> list[Notificacion]:
+def listar_para_usuario(usuario_id: uuid.UUID, *, limite: int | None = None) -> list[Notificacion]:
     """Lista avisos de la organización del usuario, del más reciente al más antiguo."""
     from app.modulos.usuarios_roles.modelos import Usuario
 
@@ -198,11 +200,11 @@ def listar_para_usuario(usuario_id: int, *, limite: int | None = None) -> list[N
     return list(db.session.execute(consulta).scalars())
 
 
-def contar_no_leidas(usuario_id: int) -> int:
+def contar_no_leidas(usuario_id: uuid.UUID) -> int:
     return sum(not notificacion.leida for notificacion in listar_para_usuario(usuario_id))
 
 
-def marcar_como_leida(notificacion_id: int, usuario_id: int) -> Notificacion:
+def marcar_como_leida(notificacion_id: uuid.UUID, usuario_id: uuid.UUID) -> Notificacion:
     """Marca el aviso como leído verificando que pertenezca a la organización del usuario."""
     from app.modulos.usuarios_roles.modelos import Usuario
 

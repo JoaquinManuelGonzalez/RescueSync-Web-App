@@ -6,6 +6,7 @@ Implementa el seguimiento local de ejecución de las ONGs adjudicadas (Etapa 7).
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -13,12 +14,13 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
-    Integer,
     Text,
+    Uuid,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.identificadores import nuevo_id
 from app.extensiones import db
 
 if TYPE_CHECKING:
@@ -42,24 +44,24 @@ class TareaEjecucion(db.Model):
 
     __tablename__ = "ejecucion_tarea"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
-    emergencia_id: Mapped[int] = mapped_column(
-        Integer,
+    emergencia_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("emergencia.id"),
         nullable=False,
         index=True,
         comment="Emergencia a la que responde la tarea.",
     )
-    oferta_id: Mapped[int] = mapped_column(
-        Integer,
+    oferta_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("oferta.id"),
         nullable=False,
         index=True,
         comment="Oferta adjudicada que dio origen a la tarea.",
     )
-    organizacion_id: Mapped[int] = mapped_column(
-        Integer,
+    organizacion_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("organizacion.id"),
         nullable=False,
         index=True,
@@ -85,8 +87,8 @@ class TareaEjecucion(db.Model):
         comment="Fecha en que la ONG marcó la tarea como terminada.",
     )
 
-    usuario_id: Mapped[int | None] = mapped_column(
-        Integer,
+    usuario_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
         ForeignKey("usuarios.id"),
         nullable=True,
         comment="Usuario representante de la ONG que marcó la finalización.",
@@ -118,11 +120,11 @@ class TareaEjecucion(db.Model):
     def __init__(
         self,
         *,
-        emergencia_id: int,
-        oferta_id: int,
-        organizacion_id: int,
+        emergencia_id: uuid.UUID,
+        oferta_id: uuid.UUID,
+        organizacion_id: uuid.UUID,
         estado: EstadoTareaEjecucion = EstadoTareaEjecucion.en_progreso,
-        usuario_id: int | None = None,
+        usuario_id: uuid.UUID | None = None,
         observaciones: str | None = None,
     ) -> None:
         self.emergencia_id = emergencia_id

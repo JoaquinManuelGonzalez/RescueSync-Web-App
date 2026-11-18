@@ -18,6 +18,7 @@ fue verificada por el Sistema Nacional, asi que nace `verificada`.
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -30,11 +31,13 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    Uuid,
     func,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.identificadores import nuevo_id
 from app.extensiones import db
 
 if TYPE_CHECKING:
@@ -68,7 +71,7 @@ class Organizacion(db.Model):
 
     __tablename__ = "organizacion"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
 
     nombre: Mapped[str] = mapped_column(
         String(200),
@@ -172,9 +175,9 @@ class ZonaDeCobertura(db.Model):
         ),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    organizacion_id: Mapped[int] = mapped_column(
-        Integer,
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
+    organizacion_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("organizacion.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -212,9 +215,9 @@ class Inventario(db.Model):
 
     __tablename__ = "inventario"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    organizacion_id: Mapped[int] = mapped_column(
-        Integer,
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
+    organizacion_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("organizacion.id"),
         nullable=False,
         unique=True,  # 1:1 — cada organizacion tiene un solo inventario
@@ -258,15 +261,15 @@ class InventarioItem(db.Model):
 
     __tablename__ = "inventario_item"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    inventario_id: Mapped[int] = mapped_column(
-        Integer,
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=nuevo_id)
+    inventario_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("inventario.id"),
         nullable=False,
         index=True,
     )
-    item_id: Mapped[int] = mapped_column(
-        Integer,
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         ForeignKey("item.id"),
         nullable=False,
         index=True,

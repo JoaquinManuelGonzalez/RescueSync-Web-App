@@ -94,22 +94,24 @@ operación.
 
 ## 5. Ejemplo de traza completa
 
-El siguiente ejemplo muestra la traza de una adjudicación que dispara un compromiso de recursos en
-la API Nacional, atravesando aplicación web → Bonita → API Nacional, con un primer intento fallido
-por timeout y un reintento exitoso, todo bajo el mismo `id_correlacion`.
+El siguiente ejemplo muestra la traza de la confirmación de una selección de ofertas: la web
+busca la tarea "Seleccionar ofertas" en Bonita (el primer intento agota el timeout y el reintento
+responde) y la ejecuta con los compromisos y `ongsNoSeleccionadas`, todo bajo el mismo
+`id_correlacion`.
 
 ```json
-{"timestamp": "2026-10-06T11:46:58.001Z", "nivel": "INFO", "evento": "solicitud_entrante", "metodo": "POST", "endpoint": "/adjudicacion/482/confirmar", "id_correlacion": "3c4d5e6f-3333-4c5d-8e0f-1a2b3c4d5e6f", "id_usuario": "usr_00201"}
-{"timestamp": "2026-10-06T11:46:58.220Z", "nivel": "INFO", "evento": "llamada_saliente", "componente_destino": "bonita", "metodo": "GET", "endpoint": "/API/bpm/task/{id}", "codigo_estado": 200, "duracion_ms": 180, "intento": 1, "resultado": "exito", "id_correlacion": "3c4d5e6f-3333-4c5d-8e0f-1a2b3c4d5e6f", "id_usuario": "usr_00201"}
-{"timestamp": "2026-10-06T11:46:59.450Z", "nivel": "WARN", "evento": "llamada_saliente", "componente_destino": "api_nacional", "metodo": "POST", "endpoint": "/recursos/compromisos", "codigo_estado": null, "duracion_ms": 10004, "intento": 1, "resultado": "error", "id_correlacion": "3c4d5e6f-3333-4c5d-8e0f-1a2b3c4d5e6f", "id_usuario": "usr_00201"}
-{"timestamp": "2026-10-06T11:46:59.960Z", "nivel": "INFO", "evento": "llamada_saliente", "componente_destino": "api_nacional", "metodo": "POST", "endpoint": "/recursos/compromisos", "codigo_estado": 201, "duracion_ms": 410, "intento": 2, "resultado": "exito", "id_correlacion": "3c4d5e6f-3333-4c5d-8e0f-1a2b3c4d5e6f", "id_usuario": "usr_00201"}
-{"timestamp": "2026-10-06T11:47:00.100Z", "nivel": "INFO", "evento": "solicitud_completada", "metodo": "POST", "endpoint": "/adjudicacion/482/confirmar", "codigo_estado": 200, "duracion_ms": 2099, "id_correlacion": "3c4d5e6f-3333-4c5d-8e0f-1a2b3c4d5e6f", "id_usuario": "usr_00201"}
+{"timestamp": "2026-10-06T11:46:58.001Z", "nivel": "INFO", "evento": "solicitud_entrante", "metodo": "POST", "endpoint": "/adjudicaciones/convocatoria/{convocatoria_id}", "id_correlacion": "3c4d5e6f-3333-4c5d-8e0f-1a2b3c4d5e6f", "id_usuario": "0193f4a2-7c1e-7b5d-9a3f-2e8c4b6d1a01"}
+{"timestamp": "2026-10-06T11:47:08.010Z", "nivel": "WARN", "evento": "llamada_saliente", "componente_destino": "bonita", "metodo": "GET", "endpoint": "/API/bpm/humanTask", "codigo_estado": null, "duracion_ms": 10004, "intento": 1, "resultado": "error", "id_correlacion": "3c4d5e6f-3333-4c5d-8e0f-1a2b3c4d5e6f", "id_usuario": "0193f4a2-7c1e-7b5d-9a3f-2e8c4b6d1a01"}
+{"timestamp": "2026-10-06T11:47:08.690Z", "nivel": "INFO", "evento": "llamada_saliente", "componente_destino": "bonita", "metodo": "GET", "endpoint": "/API/bpm/humanTask", "codigo_estado": 200, "duracion_ms": 180, "intento": 2, "resultado": "exito", "id_correlacion": "3c4d5e6f-3333-4c5d-8e0f-1a2b3c4d5e6f", "id_usuario": "0193f4a2-7c1e-7b5d-9a3f-2e8c4b6d1a01"}
+{"timestamp": "2026-10-06T11:47:09.120Z", "nivel": "INFO", "evento": "llamada_saliente", "componente_destino": "bonita", "metodo": "POST", "endpoint": "/API/bpm/userTask/{id}/execution", "codigo_estado": 204, "duracion_ms": 410, "intento": 1, "resultado": "exito", "id_correlacion": "3c4d5e6f-3333-4c5d-8e0f-1a2b3c4d5e6f", "id_usuario": "0193f4a2-7c1e-7b5d-9a3f-2e8c4b6d1a01"}
+{"timestamp": "2026-10-06T11:47:09.200Z", "nivel": "INFO", "evento": "solicitud_completada", "metodo": "POST", "endpoint": "/adjudicaciones/convocatoria/{convocatoria_id}", "codigo_estado": 302, "duracion_ms": 11199, "id_correlacion": "3c4d5e6f-3333-4c5d-8e0f-1a2b3c4d5e6f", "id_usuario": "0193f4a2-7c1e-7b5d-9a3f-2e8c4b6d1a01"}
 ```
 
-En el segundo evento, el primer intento contra la API Nacional agota el timeout de lectura de
-10 segundos (`resultado: "error"`, `codigo_estado: null`); tras el backoff correspondiente, el
-segundo intento (`intento: 2`) tiene éxito. Los cinco eventos comparten el mismo
-`id_correlacion`, lo que permite reconstruir toda la operación de punta a punta.
+En el segundo evento, el primer intento contra Bonita agota el timeout de lectura de 10 segundos
+(`resultado: "error"`, `codigo_estado: null`); tras el backoff, el segundo intento
+(`intento: 2`) responde. La ejecución de la tarea no se reintenta porque no es idempotente. Los
+cinco eventos comparten el mismo `id_correlacion`. Lo que Bonita hace después (liberar en la API
+a las ONG no seleccionadas) queda en los logs de Bonita y de la API, no en los de la web.
 
 ## 6. Niveles de log
 

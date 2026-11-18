@@ -5,9 +5,11 @@ humanitaria entre organismos municipales/regionales y ONGs, desarrollada como tr
 de la materia **Desarrollo de Software en Sistemas Distribuidos**, Curso 2026.
 
 El sistema permite dar de alta emergencias, generar lotes de necesidad y convocatorias, recibir
-ofertas de ayuda de ONGs, adjudicar esas ofertas y hacer seguimiento de la ejecución y cierre,
-integrándose con un motor de procesos (Bonita) y con una API Nacional externa para validar y
-reservar recursos.
+ofertas de ayuda de ONGs, adjudicar esas ofertas y hacer seguimiento de la ejecución y cierre.
+Se integra con un motor de procesos (Bonita), que orquesta cada emergencia y es quien llama a la
+API del Sistema Nacional (repositorio `RescueSync-API-Sistema-Nacional`) para evaluar las ofertas
+y comprometer y liberar recursos. **La aplicación web nunca llama a esa API directamente**
+([arquitectura](docs/arquitectura/componentes.md)).
 
 ---
 
@@ -129,16 +131,17 @@ BONITA_PASSWORD=la-de-walter.bates-en-la-organizacion-de-bonita
 BONITA_PROCESO_NOMBRE=RescueSync
 BONITA_CALLBACK_TOKEN=un-token-compartido-del-equipo
 API_NACIONAL_BASE_URL=http://api-nacional.invalido
-API_NACIONAL_CLIENT_ID=pendiente-entrega-3
-API_NACIONAL_CLIENT_SECRET=pendiente-entrega-3
+API_NACIONAL_CLIENT_ID=sin-uso
+API_NACIONAL_CLIENT_SECRET=sin-uso
 ```
 
 > `DATABASE_URL` tiene que ser consistente con `POSTGRES_USER`, `POSTGRES_PASSWORD` y
 > `POSTGRES_DB`, y apuntar al host `db` (el nombre del servicio en la red de contenedores),
 > nunca a `localhost`.
 >
-> Las variables `API_NACIONAL_*` no se usan hasta la Entrega 3, pero son obligatorias: la
-> aplicación no arranca sin ellas. Cualquier valor de relleno sirve por ahora.
+> Las variables `API_NACIONAL_*` son obligatorias (la aplicación no arranca sin ellas), pero la
+> web no las usa: a la API del Sistema Nacional la llama Bonita, con sus propios parámetros.
+> Cualquier valor de relleno sirve.
 
 **5. Construir las imágenes** (solo la primera vez, o cuando cambien las dependencias)
 
@@ -171,13 +174,9 @@ o abrir esa URL en el navegador.
 
 <http://localhost:5000>
 
-Vas a ver la página de estado del entorno: si se ve **con estilos**, la cadena completa
-funciona (Flask sirve, encuentra las plantillas de `frontend/` y Tailwind compiló el CSS). La
-página informa el estado de la base, la revisión del esquema aplicada y qué módulos de dominio
-están registrados y cuáles siguen pendientes.
-
-> Es una página de diagnóstico, no una pantalla de producto. Cuando exista el módulo
-> `usuarios_roles`, la ruta `/` pasa a ser el login o el panel según la sesión.
+Vas a ver la página de inicio pública, con el acceso al login (con una sesión abierta, `/` lleva
+al panel). Si se ve **con estilos**, la cadena completa funciona: Flask sirve, encuentra las
+plantillas de `frontend/` y Tailwind compiló el CSS.
 
 Eso es todo. El contenedor `web` aplica las migraciones pendientes solo, antes de levantar el
 servidor, y el contenedor `tailwind` compila el CSS y se queda vigilando cambios.
@@ -211,11 +210,14 @@ falta. Al terminar imprime los emails disponibles; las contraseñas están en
 | Cadena de build del frontend | Node.js (dockerizado, imagen `node:22-alpine`) | 22 LTS |
 | Autenticación | Flask-Login | 0.6.3 |
 | Formularios | Flask-WTF / WTForms | 1.3.0 / 3.2.2 |
+| Cliente HTTP (Bonita) | httpx | 0.28.1 (en `uv.lock`; `pyproject.toml` la declara como `>=0.28.1`) |
+| Gráficos del panel de auditoría | Chart.js, copiado en `frontend/estaticos/js/vendor/` ([ADR-010](docs/adr/ADR-010-libreria-de-graficos.md)) | 4.4.9 |
 | Servidor de producción | gunicorn | 26.2.0 |
 | Carga de `.env` | python-dotenv | 1.2.3 |
 | Linter / formateador | Ruff | 0.16.7 |
 | Tests | pytest | 9.1.1 |
-| Motor de procesos | Bonita Open Solution >= 7.9.0 (versión exacta a confirmar por el equipo) | — |
+| Motor de procesos | Bonita Studio Community (proceso `RescueSync-1.0`) | 2025.2 |
+| Identificadores | UUIDv7 en todas las claves ([ADR-011](docs/adr/ADR-011-claves-uuid.md)) | — |
 
 Estilo arquitectónico: **monolito modular** (ver `docs/adr/ADR-005-estilo-arquitectonico.md`).
 
@@ -227,7 +229,8 @@ Estilo arquitectónico: **monolito modular** (ver `docs/adr/ADR-005-estilo-arqui
 .
 ├── backend/                     codigo Python de la aplicacion
 │   ├── app/
-│   │   ├── core/                 configuracion, errores, logging; acceso/ (RBAC), interfaz/, integraciones/
+│   │   ├── core/                 configuracion, errores, logging, identificadores (UUID);
+│   │   │                         acceso/ (RBAC), interfaz/, integraciones/ (Bonita)
 │   │   └── modulos/              un paquete por modulo de dominio
 │   ├── migrations/               migraciones de Alembic
 │   ├── tests/
@@ -244,7 +247,8 @@ Estilo arquitectónico: **monolito modular** (ver `docs/adr/ADR-005-estilo-arqui
 ├── docs/
 │   ├── adr/                     decisiones de arquitectura (ADRs)
 │   ├── arquitectura/            diagrama de componentes e integraciones
-│   └── contratos/                contratos transversales: errores, logging, configuracion, autorizacion
+│   └── contratos/                contratos transversales: errores, logging, configuracion,
+│                                 autorizacion, interfaz
 ├── .github/
 ├── docker-compose.yml           db + web + tailwind
 ├── .env.example                 variables de entorno de referencia (sin valores reales)
@@ -281,9 +285,9 @@ secretos, está en [`docs/contratos/configuracion.md`](docs/contratos/configurac
 | `BONITA_PROCESO_VERSION` | No | `1.0` | Versión del proceso BPMN publicado |
 | `BONITA_TIMEOUT_S` | No | `10` | Timeout de lectura, en segundos, hacia Bonita |
 | `BONITA_CALLBACK_TOKEN` | **Sí** | `token-compartido` | Token con el que Bonita se autentica al pedir las ofertas consolidadas |
-| `API_NACIONAL_BASE_URL` | **Sí** | `http://api-nacional.invalido` | URL base de la API Nacional (real desde la Entrega 3) |
-| `API_NACIONAL_CLIENT_ID` | **Sí** | `pendiente-entrega-3` | Client ID para la autenticación JWT |
-| `API_NACIONAL_CLIENT_SECRET` | **Sí** | `pendiente-entrega-3` | Client secret para la autenticación JWT |
+| `API_NACIONAL_BASE_URL` | **Sí** | `http://api-nacional.invalido` | Reservada para un cliente de la API del Sistema Nacional que hoy no se usa: a la API la llama Bonita. Cualquier valor |
+| `API_NACIONAL_CLIENT_ID` | **Sí** | `sin-uso` | Ídem |
+| `API_NACIONAL_CLIENT_SECRET` | **Sí** | `sin-uso` | Ídem |
 | `API_NACIONAL_TIMEOUT_S` | No | `10` | Timeout de lectura, en segundos, hacia la API Nacional |
 | `API_NACIONAL_REINTENTOS` | No | `2` | Reintentos ante error transitorio (sin contar el intento original) |
 | `API_NACIONAL_BACKOFF_MS` | No | `500` | Backoff inicial entre reintentos, en milisegundos |
@@ -522,6 +526,25 @@ El instalador agregó uv al `PATH`, pero la terminal que ya tenías abierta cons
 viejo: cerrala y abrí una nueva. Si aun así no aparece, verificá que `~/.local/bin`
 (Linux/macOS) o `%USERPROFILE%\.local\bin` (Windows) esté en el `PATH`.
 
+**11. Después de actualizar, la aplicación me pide iniciar sesión de nuevo**
+
+Es lo esperado tras la migración a claves UUID ([ADR-011](docs/adr/ADR-011-claves-uuid.md)): la
+cookie de sesión guardaba el id viejo de la cuenta. Se vuelve a entrar con las mismas
+credenciales. Un enlace guardado con un id entero (`/emergencias/3`) también deja de existir.
+
+**12. La tarea de Bonita "Registrar evaluación y obtener cobertura" falla con 400 "La evaluación
+recibida es inválida."**
+
+El proceso todavía convierte `convocatoriaId` a número. En Bonita Studio, en el cuerpo del
+conector *Enviar evaluacion*, `convocatoria_id: Integer.parseInt(convocatoriaId)` pasa a
+`convocatoria_id: convocatoriaId`, y se vuelve a desplegar el proceso.
+
+**13. "Enviar ofertas a Sistema Nacional" falla con 400 `Debe ser un UUID válido.`**
+
+La API del Sistema Nacional ya exige UUID y la web que generó el caso es anterior al cambio (o al
+revés). Actualizar la web, la API y el proceso a la misma versión; un caso iniciado antes de
+actualizar no se puede continuar.
+
 ---
 
 ## Bonita
@@ -532,12 +555,47 @@ ciclo de vida, y así lo fijaron el
 [ADR-005](docs/adr/ADR-005-estilo-arquitectonico.md). La aplicación se integra con él
 únicamente por HTTP.
 
+### Integración con Bonita y con el Sistema Nacional
+
+Bonita llama a dos endpoints de la web, autenticados con `BONITA_CALLBACK_TOKEN` (no con sesión):
+
+| Endpoint | Tarea de servicio del proceso | Qué hace |
+|---|---|---|
+| `GET /ofertas/consolidadas/<convocatoria_id>` | *Obtener ofertas*, al vencer el timer de la ventana | Cierra las convocatorias vencidas y devuelve las ofertas presentadas, con CUIT y `codigo_recurso` |
+| `POST /ofertas/evaluaciones` | *Registrar evaluación y obtener cobertura* | Guarda la clasificación que devolvió la API para cada línea y responde la cobertura de cada lote |
+
+Las llamadas a la API del Sistema Nacional las hace Bonita, nunca la web: *Enviar ofertas a
+Sistema Nacional* (evaluación, que además compromete los recursos no consumibles aceptados),
+*Solicitar liberación de recursos reservados* (al reiniciar la convocatoria), *Liberar ofertas no
+seleccionadas* (un script Groovy que libera a cada ONG de `ongsNoSeleccionadas`) e *Informar
+finalización*. El detalle está en la [arquitectura](docs/arquitectura/componentes.md) y en el
+README de la API. Los parámetros del proceso son `backendBaseUrl` y `bonitaCallbackToken` (para
+la web) y `urlSistemaNacional`, `snClientId` y `snClientSecret` (para la API); sus valores no se
+versionan: cada integrante los carga en *Configurar*.
+
 ### Código de recurso en las ofertas consolidadas
 
-`GET /ofertas/consolidadas/<convocatoria_id>` conserva la estructura e IDs locales actuales. Para
-integrar, cada organización y aporte incluye `identificador_nacional`, y cada ítem incluye
-`codigo_recurso`. Los IDs locales (`convocatoria_id`, `oferta_id`, `organizacion_id` y
-`lote_item_id`) sirven para trazabilidad en la web; no son claves de las tablas de la API Nacional.
+`GET /ofertas/consolidadas/<convocatoria_id>` informa, además de los ids de la web, el
+`identificador_nacional` de cada organización y aporte, y el `codigo_recurso` de cada ítem: la
+API cruza por esos dos datos. Los ids de la web (`convocatoria_id`, `oferta_id`,
+`organizacion_id` y `lote_item_id`) sirven para trazabilidad; no son claves de las tablas de la
+API.
+
+Todos los ids son UUID, en el JSON y en las variables que la web le pasa al proceso
+(`emergenciaIdInput`, `convocatoriaIdInput`, `adjudicacionIdInput`). El `emergencia_id` sí es la
+clave de los compromisos en la API Nacional, y como todas las webs locales usan la misma API, con
+enteros la emergencia `1` de un entorno pisaba los compromisos de la emergencia `1` de otro.
+Bonita los tiene que tratar como texto: un `Integer.parseInt` o un `as Long` en un script del
+proceso falla con un UUID. `POST /ofertas/evaluaciones` también los espera como texto y responde
+400 si llega un entero.
+
+`identificador_nacional` es el CUIT, y la API Nacional lo usa para encontrar a cada ONG en su
+padrón. Por eso es obligatorio para las ONG y se guarda siempre como `NN-NNNNNNNN-N`, aunque se
+cargue sin guiones. Para municipios y el centro coordinador sigue siendo opcional.
+
+Un lote no admite el mismo ítem dos veces: la cantidad se suma en una sola fila. El mismo ítem sí
+puede aparecer en dos lotes de una convocatoria; si una ONG lo ofrece en los dos, la API Nacional
+controla el stock entre las dos líneas y compromete la suma.
 
 `codigo_recurso` es único y se guarda en el catálogo web. Los códigos iniciales se generan
 normalizando el nombre del recurso y quedan persistidos en la base. La API Nacional siembra el
@@ -549,10 +607,9 @@ replicarlo en las semillas de la API y en las dos copias.
 
 ### Instalación
 
-1. Descargar **Bonita Community** (Studio, que incluye el runtime) desde
-   [bonitasoft.com](https://www.bonitasoft.com/downloads). La versión mínima acordada es
-   **7.9.0**; el equipo tiene que confirmar y fijar la versión exacta que usará en la entrega,
-   y todos instalar la misma.
+1. Descargar **Bonita Studio Community 2025.2** (incluye el runtime) desde
+   [bonitasoft.com](https://www.bonitasoft.com/downloads). Es la versión con la que está hecho el
+   proceso `RescueSync-1.0`; todos instalan la misma.
 2. Bonita Studio necesita una JDK. El instalador la incluye en la mayoría de las
    distribuciones; si no, instalar la que indique la documentación de la versión elegida.
 3. Descomprimir e iniciar el Studio. La primera vez tarda varios minutos en levantar el
@@ -640,6 +697,8 @@ Lo que falle se corrige en el README antes de cerrar la HU.
 | ADR-007 | Estructura del esqueleto ejecutable y cadena de build de frontend | Propuesto | [docs/adr/ADR-007-estructura-esqueleto-ejecutable.md](docs/adr/ADR-007-estructura-esqueleto-ejecutable.md) |
 | ADR-008 | Gestión de dependencias de Python con uv | Propuesto | [docs/adr/ADR-008-gestion-dependencias-uv.md](docs/adr/ADR-008-gestion-dependencias-uv.md) |
 | ADR-009 | Autenticación por sesión y control de accesos basado en roles | Propuesto | [docs/adr/ADR-009-autenticacion-y-rbac.md](docs/adr/ADR-009-autenticacion-y-rbac.md) |
+| ADR-010 | Librería de gráficos del panel de auditoría (Chart.js) | Propuesto | [docs/adr/ADR-010-libreria-de-graficos.md](docs/adr/ADR-010-libreria-de-graficos.md) |
+| ADR-011 | Claves UUID en todas las entidades | Propuesto | [docs/adr/ADR-011-claves-uuid.md](docs/adr/ADR-011-claves-uuid.md) |
 
 El índice completo de ADRs, con el ciclo de vida de estados, la regla de reemplazo y la de
 enmienda parcial, está en [docs/adr/README.md](docs/adr/README.md).
@@ -647,8 +706,9 @@ enmienda parcial, está en [docs/adr/README.md](docs/adr/README.md).
 ### Arquitectura
 
 [docs/arquitectura/componentes.md](docs/arquitectura/componentes.md) — diagrama de los 5
-componentes del sistema, tabla de integraciones y módulos internos de la aplicación web con su
-regla de dependencia.
+componentes del sistema, las 9 integraciones (incluidas las que Bonita hace contra la web y
+contra la API del Sistema Nacional) y los módulos internos de la aplicación web con su regla de
+dependencia y sus desvíos conocidos.
 
 ### Contratos transversales
 
@@ -658,6 +718,7 @@ regla de dependencia.
 | Logging | Formato de logs, campos obligatorios y datos que nunca se registran | [docs/contratos/logging.md](docs/contratos/logging.md) |
 | Configuración | Variables de entorno, fail-fast y gestión de secretos | [docs/contratos/configuracion.md](docs/contratos/configuracion.md) |
 | Autorización | Perfiles, catálogo de permisos, cómo se protege una pantalla, sesión y respuesta ante acceso no autorizado | [docs/contratos/autorizacion.md](docs/contratos/autorizacion.md) |
+| Interfaz | Capa web compartida: respuestas HTML/JSON, formularios (incluido `CampoId`), navegación y paginación | [docs/contratos/interfaz.md](docs/contratos/interfaz.md) |
 
 ---
 

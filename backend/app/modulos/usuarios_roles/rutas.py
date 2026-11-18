@@ -24,6 +24,7 @@ La misma ruta sirve a la interfaz y a los clientes JSON (ver `app.core.interfaz.
 from __future__ import annotations
 
 import json
+import uuid
 from typing import Any
 
 from flask import Blueprint, jsonify, redirect, render_template, request, url_for
@@ -42,7 +43,7 @@ from app.core.acceso.sesion import cerrar_sesion, iniciar_sesion
 from app.core.interfaz.formularios import (
     construir_formulario,
     parametro_booleano,
-    parametro_entero,
+    parametro_id,
     validar_o_fallar,
 )
 from app.core.interfaz.navegacion import EntradaDeMenu
@@ -162,7 +163,7 @@ def _opciones_de_organizacion(*, solo_activas: bool) -> list[tuple[int, str, str
     return [(una.id, una.nombre, una.tipo.value) for una in organizaciones]
 
 
-def _contexto_del_formulario(usuario_id: int | None = None) -> dict[str, Any]:
+def _contexto_del_formulario(usuario_id: uuid.UUID | None = None) -> dict[str, Any]:
     """Lo que la plantilla de alta y edicion necesita además del formulario."""
     tipos_por_rol = {rol.value: tipo for rol, tipo in TIPO_DE_ORGANIZACION_POR_ROL.items()}
     return {
@@ -178,7 +179,7 @@ def _contexto_del_formulario(usuario_id: int | None = None) -> dict[str, Any]:
     }
 
 
-def _contexto_del_detalle(usuario_id: int) -> dict[str, Any]:
+def _contexto_del_detalle(usuario_id: uuid.UUID) -> dict[str, Any]:
     return {
         "usuario": servicios.a_diccionario(servicios.obtener_usuario(usuario_id)),
         "formulario_contrasena": FormularioRestablecerContrasena(formdata=None),
@@ -194,7 +195,7 @@ def listar():
         pagina=pagina,
         por_pagina=por_pagina,
         nombre_rol=request.args.get("rol") or None,
-        organizacion_id=parametro_entero("organizacion_id"),
+        organizacion_id=parametro_id("organizacion_id"),
         activo=parametro_booleano("activo"),
         texto=request.args.get("texto") or None,
     ).mapear(servicios.a_diccionario)
@@ -223,14 +224,12 @@ def formulario_de_alta():
     """
     return render_template(
         "usuarios/formulario.html",
-        formulario=FormularioAltaDeUsuario(
-            data=_datos_de_vinculo(parametro_entero("organizacion_id"))
-        ),
+        formulario=FormularioAltaDeUsuario(data=_datos_de_vinculo(parametro_id("organizacion_id"))),
         **_contexto_del_formulario(),
     )
 
 
-def _datos_de_vinculo(organizacion_id: int | None) -> dict[str, Any]:
+def _datos_de_vinculo(organizacion_id: uuid.UUID | None) -> dict[str, Any]:
     """Organizacion y rol para precargar el alta, o nada si la organizacion no existe."""
     if organizacion_id is None:
         return {}
@@ -246,9 +245,9 @@ def _datos_de_vinculo(organizacion_id: int | None) -> dict[str, Any]:
     return {"organizacion_id": organizacion_id, "rol": rol.value}
 
 
-@blueprint_usuarios.get("/<int:usuario_id>")
+@blueprint_usuarios.get("/<uuid:usuario_id>")
 @requiere_permiso(USUARIOS_LISTAR)
-def ver(usuario_id: int):
+def ver(usuario_id: uuid.UUID):
     """Detalle de una cuenta."""
     if pide_json():
         return jsonify(servicios.a_diccionario(servicios.obtener_usuario(usuario_id)))
@@ -283,9 +282,9 @@ def crear():
     )
 
 
-@blueprint_usuarios.get("/<int:usuario_id>/edicion")
+@blueprint_usuarios.get("/<uuid:usuario_id>/edicion")
 @requiere_permiso(USUARIOS_EDITAR)
-def formulario_de_edicion(usuario_id: int):
+def formulario_de_edicion(usuario_id: uuid.UUID):
     """Pantalla de edición de una cuenta, precargada con sus datos actuales."""
     usuario = servicios.obtener_usuario(usuario_id)
     formulario = FormularioEdicionDeUsuario(
@@ -302,10 +301,10 @@ def formulario_de_edicion(usuario_id: int):
     )
 
 
-@blueprint_usuarios.post("/<int:usuario_id>/edicion")
+@blueprint_usuarios.post("/<uuid:usuario_id>/edicion")
 @requiere_permiso(USUARIOS_EDITAR)
 @plantilla_ante_error("usuarios/formulario.html", contexto=_contexto_del_formulario)
-def editar(usuario_id: int):
+def editar(usuario_id: uuid.UUID):
     """Edición del nombre, el rol y la organización de una cuenta."""
     formulario = construir_formulario(FormularioEdicionDeUsuario)
     validar_o_fallar(formulario)
@@ -324,9 +323,9 @@ def editar(usuario_id: int):
     )
 
 
-@blueprint_usuarios.post("/<int:usuario_id>/estado")
+@blueprint_usuarios.post("/<uuid:usuario_id>/estado")
 @requiere_permiso(USUARIOS_CAMBIAR_ESTADO)
-def cambiar_estado(usuario_id: int):
+def cambiar_estado(usuario_id: uuid.UUID):
     """Activación o desactivación de una cuenta."""
     formulario = construir_formulario(FormularioEstadoDeUsuario)
     validar_o_fallar(formulario)
@@ -340,14 +339,14 @@ def cambiar_estado(usuario_id: int):
     )
 
 
-@blueprint_usuarios.post("/<int:usuario_id>/contrasena")
+@blueprint_usuarios.post("/<uuid:usuario_id>/contrasena")
 @requiere_permiso(USUARIOS_RESTABLECER_CONTRASENA)
 @plantilla_ante_error(
     "usuarios/detalle.html",
     contexto=_contexto_del_detalle,
     nombre_formulario="formulario_contrasena",
 )
-def restablecer_contrasena(usuario_id: int):
+def restablecer_contrasena(usuario_id: uuid.UUID):
     """Asignación de una contraseña nueva por parte del administrador.
 
     Reemplaza al 'olvidé mi contraseña' por correo, que la épica deja fuera de alcance.
@@ -364,9 +363,9 @@ def restablecer_contrasena(usuario_id: int):
     )
 
 
-@blueprint_usuarios.post("/<int:usuario_id>/desbloqueo")
+@blueprint_usuarios.post("/<uuid:usuario_id>/desbloqueo")
 @requiere_permiso(USUARIOS_RESTABLECER_CONTRASENA)
-def desbloquear(usuario_id: int):
+def desbloquear(usuario_id: uuid.UUID):
     """Levanta el bloqueo por intentos fallidos, sin tocar la contraseña."""
     usuario = servicios.desbloquear(usuario_id)
     return redirigir(
