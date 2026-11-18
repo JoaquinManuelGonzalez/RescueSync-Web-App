@@ -133,6 +133,18 @@ reintentar, en lugar de dejar el caso trabado en esa tarea. Una emergencia sin c
 motor estaba caído cuando se creó) no tiene tarea que completar: la decisión se guarda igual y se
 registra el evento `bonita_decision_sin_caso`.
 
+La selección de ofertas del municipio (tarea "Seleccionar ofertas", con `adjudicacionIdInput`,
+`compromisosInput` y `ongsNoSeleccionadasInput`) y la finalización de la última ONG de una
+emergencia (tarea "Esperar finalizacion de tareas") siguen la misma regla: se envían a Bonita
+**antes** de guardarse. Si el motor no las recibe, la selección no se guarda o la actividad sigue
+en ejecución, y se registran `bonita_seleccion_no_comunicada` o
+`bonita_finalizacion_no_comunicada`. Sin caso en Bonita siguen su curso local, con
+`bonita_seleccion_sin_caso` o `bonita_finalizacion_sin_caso`.
+
+Cuando Bonita rechaza una tarea con un 4xx y explica por qué (las `explanations` de una violación
+de contrato, que son los mensajes de error de las restricciones del proceso), el motivo viaja en
+`detalle.motivo` del error, se muestra en el aviso y queda en el evento `bonita_rechazo`.
+
 **4. Bonita → Aplicación web (backend).** Esta es la integración inversa del sistema y la única
 en la que Bonita actúa como cliente HTTP de la aplicación web. Se detalla en la sección 3.
 

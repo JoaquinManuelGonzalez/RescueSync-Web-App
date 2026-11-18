@@ -212,6 +212,13 @@ Todo lo que puede fallar al hablar con Bonita sale como un error de este contrat
 desplegado (`PROCESO_NO_DESPLEGADO`), o una respuesta sin el token de sesión o sin el `caseId` de
 la instancia creada (502 `RESPUESTA_EXTERNA_INVALIDA`). Así cada pantalla lo muestra como aviso.
 
+Ante un 4xx, `detalle.motivo` lleva las `explanations` que da Bonita (en una violación de
+contrato, el mensaje de error de cada restricción que falló). Del `message` de la respuesta no se
+toma nada, porque en otros 4xx puede repetir datos de la solicitud. Las operaciones que se
+comunican a Bonita antes de guardarse (decisión de cobertura, selección de ofertas y finalización
+de la última ONG) muestran ese motivo sin invitar a reintentar si es un rechazo, e invitan a
+reintentar si Bonita no responde o el caso todavía no habilitó la tarea.
+
 La instanciación de un proceso (integración 3, disparada al registrar una emergencia) no es
 idempotente por naturaleza, por lo que su cliente debe generar y enviar una clave de idempotencia
 propia antes de considerarla reintentable; sin esa clave, ante un timeout se prefiere reportar el

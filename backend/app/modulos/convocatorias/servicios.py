@@ -20,7 +20,7 @@ from app.core.errores import (
     ReglaDeNegocioIncumplida,
     SolicitudInvalida,
 )
-from app.core.integraciones.bonita.proceso import decidir_cobertura_insuficiente
+from app.core.integraciones.bonita.proceso import decidir_cobertura_insuficiente, error_sin_guardar
 from app.core.interfaz.paginacion import Pagina, paginar
 from app.core.logging import registrar_evento
 from app.extensiones import db
@@ -41,11 +41,6 @@ from app.modulos.ofertas.modelos import Oferta, OfertaLinea, TipoAsignacion
 from app.modulos.usuarios_roles.modelos import Usuario
 
 PORCENTAJE_MINIMO_COBERTURA_PARCIAL = Decimal("75.00")
-
-MENSAJE_DECISION_NO_COMUNICADA = (
-    "No pudimos comunicar la decisión al motor de procesos, así que no se guardó ningún "
-    "cambio. Intentá de nuevo en unos minutos."
-)
 
 
 def _consulta_de_convocatorias(
@@ -412,14 +407,7 @@ def _comunicar_decision_a_bonita(
         )
     except ErrorDeAplicacion as error:
         db.session.rollback()
-        # Mismo tipo y codigo (503 si Bonita esta caido, 422 si rechazo), con un mensaje que
-        # le dice al coordinador que la decision no quedo guardada.
-        raise error.__class__(
-            MENSAJE_DECISION_NO_COMUNICADA,
-            codigo=error.codigo,
-            estado_http=error.estado_http,
-            detalle=error.detalle,
-        ) from error
+        raise error_sin_guardar(error, "la decisión", "No se guardó ningún cambio.") from error
 
 
 def reabrir_convocatoria_por_cobertura_insuficiente(convocatoria_id: uuid.UUID) -> Emergencia:
