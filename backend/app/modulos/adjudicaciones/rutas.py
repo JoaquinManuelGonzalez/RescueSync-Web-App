@@ -10,8 +10,6 @@ from flask_login import current_user
 from app.core.acceso.autorizacion import requiere_permiso
 from app.core.acceso.permisos import ADJUDICACIONES_SELECCIONAR
 from app.core.errores import ErrorDeAplicacion
-from app.core.integraciones.bonita.proceso import confirmar_seleccion_ofertas
-from app.core.integraciones.bonita.sesion import BONITA_USER
 from app.core.interfaz.navegacion import EntradaDeMenu
 from app.core.interfaz.vistas import ERROR, redirigir
 from app.modulos.adjudicaciones import servicios
@@ -58,22 +56,8 @@ def confirmar(convocatoria_id: uuid.UUID):
     try:
         # uuid.UUID levanta ValueError ante un valor inválido, igual que antes int().
         linea_ids = [uuid.UUID(valor) for valor in request.form.getlist("linea_id")]
+        # Completa también la tarea de Bonita: si el motor no la recibe, no se guarda nada.
         servicios.seleccionar_lineas(convocatoria, linea_ids)
-
-        (
-            case_id,
-            compromisos_json,
-            ongs_no_seleccionadas_json,
-        ) = servicios.obtener_datos_integracion_bonita(convocatoria)
-
-        confirmar_seleccion_ofertas(
-            username=BONITA_USER,
-            case_id=case_id,
-            adjudicacion_id=convocatoria.id,
-            compromisos_json=compromisos_json,
-            ongs_no_seleccionadas_json=ongs_no_seleccionadas_json,
-        )
-
     except (ValueError, ErrorDeAplicacion) as error:
         flash(
             error.mensaje

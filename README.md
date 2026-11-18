@@ -545,6 +545,18 @@ La API del Sistema Nacional ya exige UUID y la web que generó el caso es anteri
 revés). Actualizar la web, la API y el proceso a la misma versión; un caso iniciado antes de
 actualizar no se puede continuar.
 
+**14. Al confirmar la selección de ofertas aparece «El motor de procesos rechazó la selección: El
+identificador de adjudicación es inválido.»**
+
+El proceso desplegado es anterior a las claves UUID: la restricción `validarAdjudicacionId` de la
+tarea *Seleccionar ofertas* todavía exige un entero. Hay que pullear `master` del proyecto de Bonita
+y volver a desplegar el proceso desde Studio. La selección no se guardó, así que se puede
+confirmar de nuevo en cuanto el proceso esté desplegado. Un caso iniciado antes de volver a
+desplegar no se puede continuar: Studio lo borra al desplegar otra vez la misma versión.
+
+Ante cualquier otro rechazo de Bonita, el motivo aparece en el aviso y en el evento
+`bonita_rechazo` de `docker compose logs web`.
+
 ---
 
 ## Bonita

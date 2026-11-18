@@ -5,6 +5,7 @@ Gestiona el ciclo de vida local de las tareas de campo asignadas a las ONGs.
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from dataclasses import dataclass
@@ -13,12 +14,14 @@ from datetime import UTC, datetime
 from sqlalchemy import Select, and_, exists, select
 from sqlalchemy.orm import selectinload
 
-from app.core.errores import ConflictoDeEstado, RecursoNoEncontrado
+from app.core.errores import ConflictoDeEstado, ErrorDeAplicacion, RecursoNoEncontrado
+from app.core.integraciones.bonita.proceso import error_sin_guardar, finalizar_actividad_ong
+from app.core.integraciones.bonita.sesion import BONITA_USER
 from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import Convocatoria
 from app.modulos.ejecucion_cierre.modelos import EstadoTareaEjecucion, TareaEjecucion
-from app.modulos.emergencias.modelos import LoteItem
+from app.modulos.emergencias.modelos import Emergencia, EstadoEmergencia, LoteItem
 from app.modulos.ofertas.modelos import (
     EstadoOferta,
     Oferta,
@@ -123,7 +126,12 @@ def finalizar_tarea_ong(
     usuario_id: uuid.UUID,
     observaciones: str | None = None,
 ) -> TareaEjecucion:
-    """Registra localmente que la ONG completó una actividad adjudicada."""
+    """Registra que la ONG completó una actividad adjudicada.
+
+    Si con esta terminan todas las ONG de la emergencia, completa la tarea de Bonita y deja la
+    emergencia finalizada en la misma transacción: si el motor no recibe la finalización, no se
+    guarda nada y la ONG puede reintentar (ver `_comunicar_finalizacion_a_bonita`).
+    """
     sincronizar_tareas_para_ong(organizacion_id)
     tarea = obtener_tarea_ong(tarea_id, organizacion_id)
 
@@ -137,6 +145,12 @@ def finalizar_tarea_ong(
     tarea.fecha_fin = datetime.now(UTC)
     tarea.usuario_id = usuario_id
     tarea.observaciones = observaciones.strip() if observaciones else None
+    db.session.flush()
+
+    if obtener_estado_finalizacion_emergencia(tarea.emergencia_id)["todas_finalizadas"]:
+        _comunicar_finalizacion_a_bonita(tarea.emergencia)
+        tarea.emergencia.estado = EstadoEmergencia.finalizada
+
     db.session.commit()
     registrar_evento(
         logging.INFO,
@@ -148,6 +162,45 @@ def finalizar_tarea_ong(
         organizacion_id=organizacion_id,
     )
     return tarea
+
+
+def _comunicar_finalizacion_a_bonita(emergencia: Emergencia) -> None:
+    """Completa en Bonita la tarea "Esperar finalizacion de tareas" de la emergencia.
+
+    Se llama antes del commit a proposito: si Bonita no la recibe, la ultima actividad no queda
+    finalizada y la ONG conserva el boton para reintentar. Guardarla igual dejaria la emergencia
+    activa para siempre, sin nadie que pueda volver a avisarle al motor.
+
+    Una emergencia sin caso en Bonita (el motor estaba caido cuando se creo) no tiene ninguna
+    tarea que completar: se deja constancia en el log y la emergencia finaliza en la web.
+    """
+    if not emergencia.bonita_case_id:
+        registrar_evento(
+            logging.WARNING,
+            "bonita_finalizacion_sin_caso",
+            emergencia_id=emergencia.id,
+        )
+        return
+
+    emergencia_id, case_id = emergencia.id, emergencia.bonita_case_id
+    try:
+        finalizar_actividad_ong(
+            username=BONITA_USER,
+            case_id=case_id,
+            ofertas_finalizadas_input=json.dumps({"todas_finalizadas": True}),
+        )
+    except ErrorDeAplicacion as error:
+        db.session.rollback()
+        registrar_evento(
+            logging.WARNING,
+            "bonita_finalizacion_no_comunicada",
+            emergencia_id=emergencia_id,
+            bonita_case_id=case_id,
+            codigo=error.codigo,
+        )
+        raise error_sin_guardar(
+            error, "la finalización", "La actividad sigue en ejecución."
+        ) from error
 
 
 def obtener_estado_finalizacion_emergencia(emergencia_id: uuid.UUID) -> dict[str, int | bool]:

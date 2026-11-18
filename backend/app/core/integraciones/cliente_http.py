@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import random
 import time
+from collections.abc import Callable
 
 import httpx
 
@@ -77,8 +78,15 @@ def ejecutar_solicitud(
     idempotente: bool,
     headers: dict[str, str] | None = None,
     timeout_lectura_s: float = TIMEOUT_LECTURA_S,
+    motivo_de_rechazo: Callable[[httpx.Response], str | None] | None = None,
     **kwargs,
 ) -> httpx.Response:
+    """Ejecuta la llamada con la politica comun de reintentos.
+
+    `motivo_de_rechazo` extrae de una respuesta 4xx la explicacion que da el externo; si devuelve
+    texto, queda en `detalle["motivo"]` del `SistemaExternoRechazo`. Cada destino decide que parte
+    de su respuesta es segura de exponer: por defecto no se toma nada del cuerpo.
+    """
     id_correlacion = id_correlacion_actual()
 
     cabeceras = dict(headers or {})
@@ -146,12 +154,14 @@ def ejecutar_solicitud(
         )
 
         if 400 <= respuesta.status_code < 500:
-            raise SistemaExternoRechazo(
-                detalle={
-                    "componente": componente,
-                    "codigo_estado": respuesta.status_code,
-                }
-            )
+            detalle = {
+                "componente": componente,
+                "codigo_estado": respuesta.status_code,
+            }
+            motivo = motivo_de_rechazo(respuesta) if motivo_de_rechazo else None
+            if motivo:
+                detalle["motivo"] = motivo
+            raise SistemaExternoRechazo(detalle=detalle)
 
         if respuesta.status_code >= 500:
             if intento == cantidad_intentos:

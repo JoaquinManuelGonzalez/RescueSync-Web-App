@@ -7,6 +7,7 @@ al final, las lecturas agregadas que necesita el panel de auditoria.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass
@@ -18,10 +19,14 @@ from sqlalchemy.orm import selectinload
 
 from app.core.errores import (
     ConflictoDeEstado,
+    ErrorDeAplicacion,
     RecursoNoEncontrado,
     ReglaDeNegocioIncumplida,
     SolicitudInvalida,
 )
+from app.core.integraciones.bonita.proceso import confirmar_seleccion_ofertas, error_sin_guardar
+from app.core.integraciones.bonita.sesion import BONITA_USER
+from app.core.logging import registrar_evento
 from app.extensiones import db
 from app.modulos.convocatorias import servicios as servicios_de_convocatorias
 from app.modulos.convocatorias.modelos import (
@@ -193,8 +198,60 @@ def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[uuid.UUID]) -
     # El momento de la adjudicacion: desde aca miden los tiempos y las series mensuales del
     # panel de auditoria.
     convocatoria.adjudicada_en = datetime.now(UTC)
+    _comunicar_seleccion_a_bonita(convocatoria)
     db.session.commit()
     return [oferta for oferta in ofertas if any(linea.seleccionada for linea in oferta.items)]
+
+
+def _comunicar_seleccion_a_bonita(convocatoria: Convocatoria) -> None:
+    """Completa en Bonita la tarea "Seleccionar ofertas" con la seleccion todavia sin guardar.
+
+    Se llama antes del commit a proposito: si Bonita no recibe la seleccion, no se guarda nada y
+    el municipio puede reintentar. Guardarla igual dejaria el caso trabado en esa tarea mientras
+    la web sigue adelante, y al final la finalizacion de las ONG no encontraria su tarea.
+
+    Una emergencia sin caso en Bonita (el motor estaba caido cuando se creo) no tiene ninguna
+    tarea que completar: se deja constancia en el log y la seleccion sigue su curso local, para
+    no bloquear al municipio para siempre.
+    """
+    emergencia = convocatoria.emergencia
+    if not emergencia.bonita_case_id:
+        registrar_evento(
+            logging.WARNING,
+            "bonita_seleccion_sin_caso",
+            convocatoria_id=convocatoria.id,
+            emergencia_id=emergencia.id,
+        )
+        return
+
+    convocatoria_id, case_id = convocatoria.id, emergencia.bonita_case_id
+    try:
+        # Armar los datos tambien puede fallar (una ONG seleccionada sin CUIT): ese error ya
+        # explica que corregir, asi que sale tal cual, pero tampoco se guarda nada.
+        compromisos_json = construir_compromisos_json(convocatoria)
+        ongs_no_seleccionadas_json = construir_ongs_no_seleccionadas_json(convocatoria)
+    except ErrorDeAplicacion:
+        db.session.rollback()
+        raise
+
+    try:
+        confirmar_seleccion_ofertas(
+            username=BONITA_USER,
+            case_id=case_id,
+            adjudicacion_id=convocatoria_id,
+            compromisos_json=compromisos_json,
+            ongs_no_seleccionadas_json=ongs_no_seleccionadas_json,
+        )
+    except ErrorDeAplicacion as error:
+        db.session.rollback()
+        registrar_evento(
+            logging.WARNING,
+            "bonita_seleccion_no_comunicada",
+            convocatoria_id=convocatoria_id,
+            bonita_case_id=case_id,
+            codigo=error.codigo,
+        )
+        raise error_sin_guardar(error, "la selección", "No se guardó ningún cambio.") from error
 
 
 def construir_compromisos_json(convocatoria: Convocatoria) -> str:
@@ -245,23 +302,6 @@ def construir_compromisos_json(convocatoria: Convocatoria) -> str:
     }
 
     return json.dumps(compromisos, ensure_ascii=False)
-
-
-def obtener_datos_integracion_bonita(
-    convocatoria: Convocatoria,
-) -> tuple[str, str, str]:
-    """Obtiene los datos necesarios para completar la tarea en Bonita."""
-
-    case_id = convocatoria.emergencia.bonita_case_id
-
-    if not case_id:
-        raise ReglaDeNegocioIncumplida("La emergencia no tiene un proceso asociado en Bonita.")
-
-    compromisos_json = construir_compromisos_json(convocatoria)
-
-    ongs_no_seleccionadas_json = construir_ongs_no_seleccionadas_json(convocatoria)
-
-    return case_id, compromisos_json, ongs_no_seleccionadas_json
 
 
 def construir_ongs_no_seleccionadas_json(convocatoria: Convocatoria) -> str:

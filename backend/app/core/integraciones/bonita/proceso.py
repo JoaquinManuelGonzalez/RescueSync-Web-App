@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 
+from app.core.errores import ErrorDeAplicacion, SistemaExternoRechazo
 from app.core.integraciones.bonita.api import (
     asignar_tarea,
     buscar_tarea_humana,
@@ -19,6 +20,35 @@ NOMBRE_TAREA_DECIDIR_COBERTURA = "Decidir accion ante cobertura insuficiente"
 # inicia el caso y el coordinador publica la convocatoria y decide ante cobertura insuficiente.
 ACTOR_MUNICIPAL = "Empleado municipal"
 ACTOR_CENTRO_COORDINADOR = "Empleado centro coordinador"
+
+
+def error_sin_guardar(
+    error: ErrorDeAplicacion, operacion: str, consecuencia: str
+) -> ErrorDeAplicacion:
+    """El mismo error de Bonita, con un mensaje que dice que la operación no quedó guardada.
+
+    Para las operaciones que se comunican al motor antes del commit. Conserva tipo, código y
+    detalle, y distingue lo que docs/contratos/errores.md exige distinguir: un rechazo de Bonita
+    muestra su motivo y no invita a reintentar, porque con los mismos datos se repetiría; una
+    caída o una tarea que el caso todavía no habilitó sí invitan a reintentar.
+
+    `operacion` va con su artículo ("la selección") y `consecuencia` es una oración completa
+    ("No se guardó ningún cambio.").
+    """
+    # TAREA_DE_PROCESO_NO_DISPONIBLE y PROCESO_NO_DESPLEGADO tambien son SistemaExternoRechazo,
+    # pero con codigo propio: no son un rechazo de los datos enviados.
+    if error.codigo == SistemaExternoRechazo.codigo:
+        motivo = error.detalle.get("motivo") if isinstance(error.detalle, dict) else None
+        sufijo = f": {motivo}" if motivo else ""
+        mensaje = f"El motor de procesos rechazó {operacion}{sufijo}. {consecuencia}"
+    else:
+        mensaje = (
+            f"No pudimos comunicar {operacion} al motor de procesos. {consecuencia} "
+            "Intentá de nuevo en unos minutos."
+        )
+    return error.__class__(
+        mensaje, codigo=error.codigo, estado_http=error.estado_http, detalle=error.detalle
+    )
 
 
 def iniciar_gestion(

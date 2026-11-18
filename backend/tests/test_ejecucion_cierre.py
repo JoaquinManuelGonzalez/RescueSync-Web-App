@@ -8,14 +8,16 @@ from unittest.mock import patch
 
 import pytest
 
-from app.core.errores import ConflictoDeEstado, RecursoNoEncontrado
+from app.core.errores import ConflictoDeEstado, RecursoNoEncontrado, SistemaExternoRechazo
 from app.core.integraciones.bonita.proceso import finalizar_actividad_ong
+from app.core.integraciones.bonita.sesion import BONITA_USER
 from app.extensiones import db
 from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 from app.modulos.ejecucion_cierre import servicios
-from app.modulos.ejecucion_cierre.modelos import EstadoTareaEjecucion
+from app.modulos.ejecucion_cierre.modelos import EstadoTareaEjecucion, TareaEjecucion
 from app.modulos.emergencias.modelos import (
     Emergencia,
+    EstadoEmergencia,
     Item,
     LoteItem,
     LoteNecesidad,
@@ -31,6 +33,24 @@ from app.modulos.ofertas.modelos import (
 )
 from app.modulos.organizaciones.modelos import Organizacion, TipoOrganizacion
 from app.modulos.usuarios_roles.modelos import Usuario
+
+CASO_DE_BONITA = "10042"
+
+
+@pytest.fixture(autouse=True)
+def finalizaciones_enviadas(monkeypatch) -> list[dict[str, str]]:
+    """Reemplaza el aviso de finalizacion a Bonita y devuelve las llamadas que recibio.
+
+    Es autouse porque la ultima actividad de una emergencia siempre le avisa al motor: ningun
+    test de este modulo tiene que salir a la red.
+    """
+    llamadas: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        servicios,
+        "finalizar_actividad_ong",
+        lambda **argumentos: llamadas.append(argumentos),
+    )
+    return llamadas
 
 
 def test_finalizar_actividad_usa_nombre_de_tarea_del_bpmn():
@@ -108,7 +128,7 @@ def datos_prueba(app):
             zona_afectada="Ribera Este",
             municipio_id=municipio.id,
             usuario_id=usuario_muni.id,
-            bonita_case_id="10042",
+            bonita_case_id=CASO_DE_BONITA,
         )
         db.session.add(emergencia)
         db.session.flush()
@@ -351,7 +371,9 @@ def test_finalizar_tarea_registra_finalizacion_localmente(app, datos_prueba):
         assert tarea_finalizada.observaciones == "Misión cumplida en su totalidad"
 
 
-def test_estado_emergencia_incluye_participantes_sin_tarea_sincronizada(app, datos_prueba):
+def test_estado_emergencia_incluye_participantes_sin_tarea_sincronizada(
+    app, datos_prueba, finalizaciones_enviadas
+):
     with app.app_context():
         ong_principal_id = datos_prueba["ong_id"]
         usuario_id = datos_prueba["usuario_ong_id"]
@@ -412,6 +434,7 @@ def test_estado_emergencia_incluye_participantes_sin_tarea_sincronizada(app, dat
         estado = servicios.obtener_estado_finalizacion_emergencia(datos_prueba["emergencia_id"])
         assert estado["organizaciones_finalizadas"] == 1
         assert estado["todas_finalizadas"] is False
+        assert finalizaciones_enviadas == [], "falta una ONG: Bonita todavia no se entera"
 
         tarea_invitada = servicios.sincronizar_tareas_para_ong(ong_invitada.id)[0]
         servicios.finalizar_tarea_ong(
@@ -422,6 +445,7 @@ def test_estado_emergencia_incluye_participantes_sin_tarea_sincronizada(app, dat
         estado = servicios.obtener_estado_finalizacion_emergencia(datos_prueba["emergencia_id"])
         assert estado["organizaciones_finalizadas"] == 2
         assert estado["todas_finalizadas"] is True
+        assert len(finalizaciones_enviadas) == 1
 
 
 def test_estado_emergencia_espera_todas_las_tareas_de_cada_ong(app, datos_prueba):
@@ -547,3 +571,87 @@ def test_ruta_finalizar_tarea_no_pasa_credenciales_de_bonita(
 
     assert respuesta.status_code == 302
     assert "username" not in mock_finalizar.call_args.kwargs
+
+
+# --- La ultima finalizacion viaja a Bonita antes de guardarse ---------------------
+
+
+def _finalizar_unica_actividad(datos_prueba) -> uuid.UUID:
+    """Finaliza la actividad de la unica ONG de `datos_prueba`, que es la ultima de la emergencia.
+
+    Devuelve el id de la tarea. Se llama dentro de un app_context.
+    """
+    tarea_id = servicios.sincronizar_tareas_para_ong(datos_prueba["ong_id"])[0].id
+    servicios.finalizar_tarea_ong(
+        tarea_id=tarea_id,
+        organizacion_id=datos_prueba["ong_id"],
+        usuario_id=datos_prueba["usuario_ong_id"],
+    )
+    return tarea_id
+
+
+def test_la_ultima_finalizacion_completa_la_tarea_de_bonita_y_finaliza_la_emergencia(
+    app, datos_prueba, finalizaciones_enviadas
+):
+    with app.app_context():
+        _finalizar_unica_actividad(datos_prueba)
+
+        assert finalizaciones_enviadas == [
+            {
+                "username": BONITA_USER,
+                "case_id": CASO_DE_BONITA,
+                "ofertas_finalizadas_input": '{"todas_finalizadas": true}',
+            }
+        ]
+        emergencia = db.session.get(Emergencia, datos_prueba["emergencia_id"])
+        assert emergencia.estado == EstadoEmergencia.finalizada
+
+
+def test_si_bonita_no_recibe_la_finalizacion_la_actividad_sigue_en_ejecucion(
+    app, datos_prueba, monkeypatch
+):
+    """Antes la actividad quedaba finalizada igual: la ONG perdia el boton y el caso, la tarea."""
+
+    def _tarea_no_habilitada(**_argumentos):
+        raise SistemaExternoRechazo(
+            codigo="TAREA_DE_PROCESO_NO_DISPONIBLE",
+            detalle={"componente": "bonita", "tarea": "Esperar finalizacion de tareas"},
+        )
+
+    monkeypatch.setattr(servicios, "finalizar_actividad_ong", _tarea_no_habilitada)
+
+    with app.app_context():
+        estado_inicial = db.session.get(Emergencia, datos_prueba["emergencia_id"]).estado
+        tarea_id = servicios.sincronizar_tareas_para_ong(datos_prueba["ong_id"])[0].id
+
+        with pytest.raises(SistemaExternoRechazo) as error:
+            servicios.finalizar_tarea_ong(
+                tarea_id=tarea_id,
+                organizacion_id=datos_prueba["ong_id"],
+                usuario_id=datos_prueba["usuario_ong_id"],
+            )
+
+        assert error.value.mensaje == (
+            "No pudimos comunicar la finalización al motor de procesos. La actividad sigue en "
+            "ejecución. Intentá de nuevo en unos minutos."
+        )
+        assert error.value.codigo == "TAREA_DE_PROCESO_NO_DISPONIBLE"
+        tarea = db.session.get(TareaEjecucion, tarea_id)
+        assert tarea.estado == EstadoTareaEjecucion.en_progreso
+        assert tarea.fecha_fin is None
+        emergencia = db.session.get(Emergencia, datos_prueba["emergencia_id"])
+        assert emergencia.estado == estado_inicial != EstadoEmergencia.finalizada
+
+
+def test_sin_caso_en_bonita_la_emergencia_finaliza_sin_llamar_al_motor(
+    app, datos_prueba, finalizaciones_enviadas
+):
+    with app.app_context():
+        db.session.get(Emergencia, datos_prueba["emergencia_id"]).bonita_case_id = None
+        db.session.commit()
+
+        _finalizar_unica_actividad(datos_prueba)
+
+        assert finalizaciones_enviadas == []
+        emergencia = db.session.get(Emergencia, datos_prueba["emergencia_id"])
+        assert emergencia.estado == EstadoEmergencia.finalizada
