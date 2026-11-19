@@ -7,7 +7,6 @@ ninguna semilla cae en ese anio, asi que las cifras son exactas.
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal
 
 from app.modulos.emergencias.modelos import EstadoEmergencia
 from app.modulos.indicadores.formularios import OrdenDelRanking
@@ -112,7 +111,7 @@ def test_en_un_consorcio_el_lote_cuenta_para_cada_participante(
 def test_ca02_y_ca03_tiempo_medio_de_ejecucion(
     app, crear_emergencias, cargar_necesidades, finalizar_actividad
 ) -> None:
-    """A tardo 4 y 6 dias en dos emergencias: 5,0. C no finalizo nada: "—"."""
+    """A tardo 4 y 6 dias en dos emergencias: 5 d. C no finalizo nada: "—"."""
     primera, segunda = _emergencias(crear_emergencias, 2)
     oferta_1 = cargar_necesidades(primera, (10, 10), ong=A, adjudicada_en=ADJUDICADA_EN)
     oferta_2 = cargar_necesidades(segunda, (10, 10), ong=A, adjudicada_en=ADJUDICADA_EN)
@@ -123,8 +122,8 @@ def test_ca02_y_ca03_tiempo_medio_de_ejecucion(
 
     filas = {fila.nombre: fila for fila in _seccion(app).ranking.filas}
 
-    assert filas[A].tiempo_medio_de_ejecucion == Decimal("5.0")
-    assert filas[A].tiempo_como_texto == "5,0 días"
+    assert filas[A].tiempo_medio_de_ejecucion == timedelta(days=5)
+    assert filas[A].tiempo_como_texto == "5\xa0d"
     assert filas[C].tiempo_medio_de_ejecucion is None
     assert filas[C].tiempo_como_texto == "—"
     assert filas[C].lotes_adjudicados == 1

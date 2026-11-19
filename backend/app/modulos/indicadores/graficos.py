@@ -15,20 +15,29 @@ Criterios de lectura que siguen todos los graficos del panel:
 - Los colores se piden por tono, nunca en hexadecimal. Los tonos `serie-1` a `serie-8` son la
   paleta categorica validada para daltonismo; el color sigue a la entidad (un rubro, una
   gravedad) y no a su posicion en el ranking.
+- Las duraciones (`barras_de_duracion`) se dibujan en la unidad que mejor se lee para el valor
+  mas alto (minutos, horas o dias) y cada valor lleva su texto exacto, formateado aca: el
+  navegador no redondea ni elige como escribir un tiempo.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
 from app.modulos.emergencias.modelos import NivelGravedad, TipoNecesidad
+from app.modulos.indicadores.tiempos import (
+    UNIDADES_DE_TIEMPO,
+    UnidadDeTiempo,
+    duracion_abreviada,
+    duracion_como_texto,
+)
 
 Unidad = tuple[str, str]
 
-DIAS: Unidad = ("día", "días")
 PORCIENTO: Unidad = ("%", "%")
 
 # Cada rubro conserva su color en todos los graficos y con cualquier filtro.
@@ -77,13 +86,21 @@ class Marcadores:
     """Una referencia por barra, dibujada como una marca horizontal sobre el mismo eje.
 
     Sirve para comparar cada valor con su objetivo (el tiempo medio con el plazo de su gravedad).
+    `textos`, si se indica, es lo que muestra el tooltip de cada marca en lugar del numero.
     """
 
     nombre: str
     valores: Sequence[Any]
+    textos: Sequence[str] | None = None
 
     def a_diccionario(self) -> dict[str, Any]:
-        return {"nombre": self.nombre, "valores": [_numero(valor) for valor in self.valores]}
+        definicion: dict[str, Any] = {
+            "nombre": self.nombre,
+            "valores": [_numero(valor) for valor in self.valores],
+        }
+        if self.textos is not None:
+            definicion["textos"] = list(self.textos)
+        return definicion
 
 
 def barras(
@@ -100,6 +117,9 @@ def barras(
     maximo: float | None = None,
     marcadores: Marcadores | None = None,
     enlaces: Sequence[str] | None = None,
+    textos: Sequence[str | None] | None = None,
+    textos_cortos: Sequence[str | None] | None = None,
+    unidad_del_eje: str | None = None,
 ) -> dict[str, Any]:
     """Barras de una sola serie, con un color por barra.
 
@@ -110,6 +130,10 @@ def barras(
     `enlaces`, una URL por barra, hace que tocar una barra aplique el filtro de la seccion que
     lleva a esa URL (el mismo enlace del filtro segmentado, que sigue siendo el camino accesible
     con teclado y sin JavaScript).
+
+    `textos` (el tooltip) y `textos_cortos` (la etiqueta sobre la barra) reemplazan al numero
+    cuando el servidor ya sabe como escribir cada valor; `unidad_del_eje` acompaña a los numeros
+    del eje ("12 h"). Los usa `barras_de_duracion`.
     """
     definicion: dict[str, Any] = {
         "tipo": "barras",
@@ -132,7 +156,75 @@ def barras(
         definicion["marcadores"] = marcadores.a_diccionario()
     if enlaces is not None:
         definicion["enlaces"] = list(enlaces)
+    if textos is not None:
+        definicion["textos"] = list(textos)
+    if textos_cortos is not None:
+        definicion["textosCortos"] = list(textos_cortos)
+    if unidad_del_eje is not None:
+        definicion["unidadDelEje"] = unidad_del_eje
     return definicion
+
+
+def escala_para(duraciones: Iterable[timedelta | None]) -> UnidadDeTiempo:
+    """La mayor unidad en la que la duracion mas larga vale al menos 2.
+
+    Deja el eje en numeros comodos: hasta 1 h 59 min se lee en minutos y hasta 47 h en horas, en
+    vez de "1,9 h" o "1,9 d". Sin duraciones, segundos.
+    """
+    maxima = max((duracion for duracion in duraciones if duracion is not None), default=None)
+    if maxima is None:
+        return UNIDADES_DE_TIEMPO[-1]
+    return next(
+        (unidad for unidad in UNIDADES_DE_TIEMPO if maxima >= 2 * unidad.tamano),
+        UNIDADES_DE_TIEMPO[-1],
+    )
+
+
+def _en_escala(duracion: timedelta | None, escala: UnidadDeTiempo) -> float | None:
+    return None if duracion is None else round(duracion / escala.tamano, 3)
+
+
+def barras_de_duracion(
+    etiquetas: Sequence[str],
+    duraciones: Sequence[timedelta | None],
+    *,
+    tonos: Sequence[str],
+    detalles: Sequence[str | None] | None = None,
+    horizontal: bool = False,
+    sin_dato: str | None = None,
+    marcadores: Marcadores | None = None,
+) -> dict[str, Any]:
+    """Barras de duraciones (`timedelta`, o None sin dato), como `barras`.
+
+    El eje queda en la unidad de `escala_para`, elegida con las barras y las marcas, y sus
+    numeros llevan la abreviatura ("12 h"). Sobre cada barra va la duracion abreviada
+    ("1 d 4 h") y en el tooltip, la completa ("1 d 4 h 12 min 5 s"). Los valores de `marcadores`
+    tambien son `timedelta`.
+    """
+    valores_de_marcas = marcadores.valores if marcadores else ()
+    escala = escala_para([*duraciones, *valores_de_marcas])
+    return barras(
+        etiquetas,
+        [_en_escala(duracion, escala) for duracion in duraciones],
+        tonos=tonos,
+        unidad=(escala.abreviatura, escala.abreviatura),
+        detalles=detalles,
+        horizontal=horizontal,
+        decimales=1,
+        sin_dato=sin_dato,
+        marcadores=(
+            Marcadores(
+                marcadores.nombre,
+                [_en_escala(valor, escala) for valor in valores_de_marcas],
+                textos=[duracion_como_texto(valor) for valor in valores_de_marcas],
+            )
+            if marcadores
+            else None
+        ),
+        textos=[duracion_como_texto(d) if d is not None else None for d in duraciones],
+        textos_cortos=[duracion_abreviada(d) if d is not None else None for d in duraciones],
+        unidad_del_eje=escala.abreviatura,
+    )
 
 
 def barras_apiladas(etiquetas: Sequence[str], series: Sequence[Serie]) -> dict[str, Any]:

@@ -14,14 +14,23 @@
  *   valores        numero de cada barra o porcion; null es "sin dato" (no es un cero)
  *   tonos          color de cada una (ver TONOS)
  *   unidad         [singular, plural], para tooltips y etiquetas: "3 emergencias"
- *   decimales      (opcional) decimales de los valores: 1 para "5,0 días"
+ *   decimales      (opcional) decimales de los valores: 1 para "2,5"
  *   detalles       (opcional) una linea extra del tooltip por valor, o null
+ *   textos         (opcional, barras) el valor ya escrito por el servidor, para el tooltip, en
+ *                  lugar del numero con su unidad: "1 d 4 h 12 min 5 s"; null donde no hay valor
+ *   textosCortos   (opcional, barras) idem, para la etiqueta sobre la barra: "1 d 4 h"
+ *   unidadDelEje   (opcional, barras) abreviatura que acompaña a los numeros del eje: "12 h"
  *   porcentajes    (opcional, dona) el porcentaje de cada porcion, ya calculado por el servidor
  *   orientacion    (opcional, barras) "horizontal": para etiquetas largas (ONGs, rubros, etapas)
  *   mostrarValores (opcional, barras) escribe el valor al final de cada barra
  *   maximo         (opcional, barras) tope del eje de valores: 100 para porcentajes
- *   marcadores     (opcional, barras) {nombre, valores}: una marca de referencia por barra sobre el
- *                  mismo eje (el plazo objetivo de cada gravedad)
+ *   marcadores     (opcional, barras) {nombre, valores, textos}: una marca de referencia por barra
+ *                  sobre el mismo eje (el plazo objetivo de cada gravedad); `textos` (opcional) es
+ *                  lo que dice el tooltip de cada marca en lugar del numero
+ *
+ *   Las duraciones (app/modulos/indicadores/graficos.py::barras_de_duracion) llegan con los
+ *   valores en la unidad del eje (minutos, horas o dias, segun el valor mas alto) y con
+ *   `textos`, `textosCortos` y `unidadDelEje`: aca no se formatea ni se redondea un tiempo.
  *   sinDato        (opcional) texto que se escribe donde el valor es null ("Sin ocurrencias")
  *   enlaces        (opcional, barras) una URL por barra: tocarla sigue el enlace del filtro de la
  *                  seccion que lleva a esa URL (indicadores.js lo aplica sin recargar). El filtro
@@ -156,7 +165,8 @@
     };
   }
 
-  function ejeDeValores({ decimales = 0, maximo, porcentaje = false } = {}) {
+  // `sufijo` acompaña a cada numero del eje: " %" o la unidad de una duracion (" h").
+  function ejeDeValores({ decimales = 0, maximo, sufijo = "" } = {}) {
     return {
       beginAtZero: true,
       max: maximo ?? undefined,
@@ -168,9 +178,15 @@
         precision: decimales ? undefined : 0,
         maxTicksLimit: 6,
         // Con decimales la escala puede ir de a 0,5: sin ellos, 2,5 se leeria como "3".
-        callback: (valor) => `${formato(Number.isInteger(valor) ? 0 : decimales || 1).format(valor)}${porcentaje ? " %" : ""}`,
+        callback: (valor) => `${formato(Number.isInteger(valor) ? 0 : decimales || 1).format(valor)}${sufijo}`,
       },
     };
+  }
+
+  // La marca de referencia de una barra (ver `marcadores`), o null si el grafico no tiene.
+  function marcaDe(grafico, indice) {
+    const marca = grafico.data.datasets.length > 1 ? grafico.getDatasetMeta(1).data[indice] : null;
+    return marca && !marca.skip ? marca : null;
   }
 
   // Escribe el valor al final de cada barra y `sinDato` donde no hay valor.
@@ -196,16 +212,21 @@
               ctx.textBaseline = "middle";
               ctx.fillText(definicion.sinDato, chartArea.left + 8, posicion);
             } else {
+              // Sobre la base del eje, salvo que la marca de referencia caiga en ese renglon: ahi
+              // va encima de la marca, para que no la tache.
+              const base = chartArea.bottom - 8;
+              const marca = marcaDe(grafico, indice);
+              const tapado = marca && marca.y > base - tamano - 4;
               ctx.textAlign = "center";
               ctx.textBaseline = "bottom";
-              ctx.fillText(definicion.sinDato, posicion, chartArea.bottom - 8);
+              ctx.fillText(definicion.sinDato, posicion, tapado ? marca.y - 7 : base);
             }
             return;
           }
           if (!definicion.mostrarValores) return;
           ctx.fillStyle = TINTA;
           ctx.font = `600 ${tamano}px ${familia}`;
-          const texto = valorCorto(valor, definicion.unidad, definicion.decimales || 0);
+          const texto = definicion.textosCortos?.[indice] ?? valorCorto(valor, definicion.unidad, definicion.decimales || 0);
           if (horizontal) {
             const ancho = ctx.measureText(texto).width;
             // Si no entra a la derecha de la barra, va adentro, en blanco.
@@ -216,8 +237,8 @@
             ctx.fillText(texto, afuera ? elemento.x + 6 : elemento.x - 6, elemento.y);
           } else {
             // Por encima de la barra y, si hay una marca de referencia mas arriba, de la marca.
-            const marca = grafico.data.datasets.length > 1 ? grafico.getDatasetMeta(1).data[indice] : null;
-            const tope = marca && !marca.skip ? Math.min(elemento.y, marca.y - 3) : elemento.y;
+            const marca = marcaDe(grafico, indice);
+            const tope = marca ? Math.min(elemento.y, marca.y - 3) : elemento.y;
             ctx.textAlign = "center";
             ctx.textBaseline = "bottom";
             ctx.fillText(texto, elemento.x, tope - 4);
@@ -293,12 +314,17 @@
     const opciones = opcionesComunes(definicion);
     opciones.indexAxis = horizontal ? "y" : "x";
     opciones.plugins.tooltip.callbacks.label = (contexto) => {
+      const indice = contexto.dataIndex;
       const valor = horizontal ? contexto.parsed.x : contexto.parsed.y;
-      if (contexto.datasetIndex === 1) return `${definicion.marcadores.nombre}: ${conUnidad(valor, definicion.unidad)}`;
-      return conUnidad(valor, definicion.unidad, decimales);
+      if (contexto.datasetIndex === 1) {
+        const { nombre, textos } = definicion.marcadores;
+        return `${nombre}: ${textos?.[indice] ?? conUnidad(valor, definicion.unidad)}`;
+      }
+      return definicion.textos?.[indice] ?? conUnidad(valor, definicion.unidad, decimales);
     };
 
-    const valores = ejeDeValores({ decimales, maximo: definicion.maximo, porcentaje: definicion.unidad?.[1] === "%" });
+    const sufijo = definicion.unidad?.[1] === "%" ? " %" : definicion.unidadDelEje ? ` ${definicion.unidadDelEje}` : "";
+    const valores = ejeDeValores({ decimales, maximo: definicion.maximo, sufijo });
     // Con un tope fijo (100 %) la barra llena llega al borde: se deja lugar para su etiqueta.
     if (definicion.maximo && definicion.mostrarValores) {
       opciones.layout.padding = horizontal ? { top: 4, right: 44 } : { top: 22, right: 8 };

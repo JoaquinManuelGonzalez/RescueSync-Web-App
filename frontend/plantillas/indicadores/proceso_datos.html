@@ -64,7 +64,7 @@
   {%- set filas_tiempo = [] %}
   {%- for fila in resolucion.filas %}
   {%- set _ = filas_en_termino.append((fila.etiqueta, (fila.porcentaje_en_termino ~ " %") if fila.porcentaje_en_termino is not none else "Sin casos")) %}
-  {%- set _ = filas_tiempo.append((fila.etiqueta, ((fila.tiempo_medio|numero(1)) ~ " días") if fila.tiempo_medio is not none else "Sin casos", fila.plazo_dias ~ " días")) %}
+  {%- set _ = filas_tiempo.append((fila.etiqueta, fila.tiempo_medio_como_texto, fila.plazo_dias ~ " días")) %}
   {%- endfor %}
   <div class="graficos-grilla-pareja">
     {{ tarjeta_grafico(
@@ -81,7 +81,7 @@
     {{ tarjeta_grafico(
         "grafico-tiempo-medio",
         "Tiempo medio de resolución",
-        "Días promedio desde el inicio hasta el fin del caso. La raya marca el plazo objetivo de cada gravedad.",
+        "Tiempo promedio desde el inicio hasta el fin del caso. La raya marca el plazo objetivo de cada gravedad.",
         resolucion.grafico_de_tiempo_medio(),
         filas_tiempo,
         encabezados=["Gravedad", "Tiempo medio", "Plazo objetivo"],
@@ -103,7 +103,7 @@
       <p class="gravedad-tarjeta-cifra">{{ porcentaje }} %</p>
       <p class="gravedad-tarjeta-texto">En término: {{ porcentaje }} % <span class="text-gray-400">({{ fila.en_termino }} de {{ fila.casos }})</span></p>
       <div class="kpi-barra" aria-hidden="true"><span class="kpi-barra-relleno gravedad-relleno-{{ fila.gravedad.value }}" style="width: {{ porcentaje }}%"></span></div>
-      <p class="gravedad-tarjeta-texto">Tiempo medio: <strong>{{ fila.tiempo_medio|numero(1) }} días</strong></p>
+      <p class="gravedad-tarjeta-texto">Tiempo medio: <strong>{{ fila.tiempo_medio_como_texto }}</strong></p>
       {%- else %}
       <p class="gravedad-tarjeta-cifra gravedad-tarjeta-sin-dato">—</p>
       <p class="gravedad-tarjeta-texto">Sin casos terminados de esta gravedad.</p>

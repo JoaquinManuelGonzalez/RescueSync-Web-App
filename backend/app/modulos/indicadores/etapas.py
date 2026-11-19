@@ -15,8 +15,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
-from decimal import Decimal
+from datetime import datetime, timedelta
 
 from app.core.integraciones.bonita.consultas import (
     ESTADO_COMPLETADO,
@@ -30,7 +29,7 @@ from app.core.integraciones.bonita.proceso import (
     NOMBRE_TAREA_SELECCIONAR,
 )
 from app.modulos.emergencias.modelos import NivelGravedad
-from app.modulos.indicadores.tiempos import duracion_en_dias
+from app.modulos.indicadores.tiempos import duracion_entre
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,8 +64,8 @@ def _instante(nodo: NodoArchivado) -> datetime | None:
 
 def duraciones_por_tarea(
     linea_de_tiempo: Iterable[NodoArchivado], inicio_del_caso: datetime
-) -> dict[str, Decimal]:
-    """Dias que estuvo disponible cada tarea humana del caso, sumando sus ejecuciones.
+) -> dict[str, timedelta]:
+    """Tiempo que estuvo disponible cada tarea humana del caso, sumando sus ejecuciones.
 
     Cuando quedo disponible una ejecucion:
 
@@ -82,7 +81,7 @@ def duraciones_por_tarea(
         nodo.nodo_id: _instante(nodo) for nodo in nodos if nodo.estado == ESTADO_LISTO
     }
 
-    totales: dict[str, Decimal] = defaultdict(Decimal)
+    totales: dict[str, timedelta] = defaultdict(timedelta)
     ultimo_fin = inicio_del_caso
     for nodo in nodos:
         if nodo.estado == ESTADO_LISTO:
@@ -90,6 +89,6 @@ def duraciones_por_tarea(
         fin = _instante(nodo)
         if nodo.tipo in TIPOS_DE_TAREA_HUMANA and nodo.estado == ESTADO_COMPLETADO:
             inicio = disponible_desde.get(nodo.nodo_id, ultimo_fin)
-            totales[nodo.nombre] += duracion_en_dias(inicio, fin)
+            totales[nodo.nombre] += duracion_entre(inicio, fin)
         ultimo_fin = max(ultimo_fin, fin)
     return dict(totales)
