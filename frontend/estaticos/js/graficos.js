@@ -183,6 +183,12 @@
     };
   }
 
+  // La marca de referencia de una barra (ver `marcadores`), o null si el grafico no tiene.
+  function marcaDe(grafico, indice) {
+    const marca = grafico.data.datasets.length > 1 ? grafico.getDatasetMeta(1).data[indice] : null;
+    return marca && !marca.skip ? marca : null;
+  }
+
   // Escribe el valor al final de cada barra y `sinDato` donde no hay valor.
   function pluginDeEtiquetas(definicion, horizontal) {
     return {
@@ -206,9 +212,14 @@
               ctx.textBaseline = "middle";
               ctx.fillText(definicion.sinDato, chartArea.left + 8, posicion);
             } else {
+              // Sobre la base del eje, salvo que la marca de referencia caiga en ese renglon: ahi
+              // va encima de la marca, para que no la tache.
+              const base = chartArea.bottom - 8;
+              const marca = marcaDe(grafico, indice);
+              const tapado = marca && marca.y > base - tamano - 4;
               ctx.textAlign = "center";
               ctx.textBaseline = "bottom";
-              ctx.fillText(definicion.sinDato, posicion, chartArea.bottom - 8);
+              ctx.fillText(definicion.sinDato, posicion, tapado ? marca.y - 7 : base);
             }
             return;
           }
@@ -226,8 +237,8 @@
             ctx.fillText(texto, afuera ? elemento.x + 6 : elemento.x - 6, elemento.y);
           } else {
             // Por encima de la barra y, si hay una marca de referencia mas arriba, de la marca.
-            const marca = grafico.data.datasets.length > 1 ? grafico.getDatasetMeta(1).data[indice] : null;
-            const tope = marca && !marca.skip ? Math.min(elemento.y, marca.y - 3) : elemento.y;
+            const marca = marcaDe(grafico, indice);
+            const tope = marca ? Math.min(elemento.y, marca.y - 3) : elemento.y;
             ctx.textAlign = "center";
             ctx.textBaseline = "bottom";
             ctx.fillText(texto, elemento.x, tope - 4);
