@@ -139,12 +139,12 @@
         formulario.querySelectorAll("[data-requisito-item]").forEach((requisito) => {
           const requerida = Number(requisito.dataset.cantidadRequerida);
           const seleccionada = cantidades.get(requisito.dataset.requisitoItem) || 0;
-          const valido = seleccionada * 4 >= requerida * 3 && seleccionada * 4 <= requerida * 5;
+          const valido = seleccionada * 4 >= requerida * 3 && seleccionada * 2 <= requerida * 3;
           cumple = cumple && valido;
 
           const estado = requisito.querySelector("[data-estado-requisito]");
           if (estado) {
-            estado.textContent = `${seleccionada} / ${requerida} (75% mínimo · 125% máximo)`;
+            estado.textContent = `${seleccionada} / ${requerida} (75% mínimo · 150% máximo)`;
             estado.classList.toggle("text-green-700", valido);
             estado.classList.toggle("text-red-700", !valido);
           }
