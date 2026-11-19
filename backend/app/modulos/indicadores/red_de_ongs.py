@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass
-from decimal import Decimal
+from datetime import timedelta
 from typing import Any
 
 from app.modulos.adjudicaciones import servicios as servicios_de_adjudicaciones
@@ -26,10 +26,11 @@ from app.modulos.indicadores.exportacion import TablaExportable
 from app.modulos.indicadores.formularios import OrdenDelRanking
 from app.modulos.indicadores.periodo import Periodo
 from app.modulos.indicadores.tiempos import (
-    dias_como_texto,
-    duracion_en_dias,
+    columnas_de_duracion,
+    duracion_como_texto,
+    duracion_entre,
     porcentaje_entero,
-    promedio_en_dias,
+    promedio_de_duraciones,
 )
 from app.modulos.organizaciones import servicios as servicios_de_organizaciones
 
@@ -123,19 +124,19 @@ def _consorcios(ofertas: list[OfertaAdjudicada]) -> Consorcios:
 class FilaDelRanking:
     """Una ONG del ranking.
 
-    `tiempo_medio_de_ejecucion` son los dias entre la adjudicacion y la finalizacion de cada
-    actividad, promediados; None si todavia no finalizo ninguna.
+    `tiempo_medio_de_ejecucion` es el tiempo entre la adjudicacion y la finalizacion de cada
+    actividad, promediado (al segundo); None si todavia no finalizo ninguna.
     """
 
     organizacion_id: uuid.UUID
     nombre: str
     lotes_adjudicados: int
     actividades_finalizadas: int
-    tiempo_medio_de_ejecucion: Decimal | None
+    tiempo_medio_de_ejecucion: timedelta | None
 
     @property
     def tiempo_como_texto(self) -> str:
-        return dias_como_texto(self.tiempo_medio_de_ejecucion)
+        return duracion_como_texto(self.tiempo_medio_de_ejecucion)
 
 
 def _por_volumen(fila: FilaDelRanking) -> tuple:
@@ -145,7 +146,7 @@ def _por_volumen(fila: FilaDelRanking) -> tuple:
 def _por_tiempo(fila: FilaDelRanking) -> tuple:
     """De menor a mayor tiempo; las que no tienen valor, al final (y entre ellas, por volumen)."""
     sin_valor = fila.tiempo_medio_de_ejecucion is None
-    return (sin_valor, fila.tiempo_medio_de_ejecucion or Decimal(0), *_por_volumen(fila))
+    return (sin_valor, fila.tiempo_medio_de_ejecucion or timedelta(0), *_por_volumen(fila))
 
 
 CLAVE_POR_ORDEN = {OrdenDelRanking.volumen: _por_volumen, OrdenDelRanking.tiempo: _por_tiempo}
@@ -180,7 +181,8 @@ class RankingDeOngs:
                 "ong",
                 "lotes_adjudicados",
                 "actividades_finalizadas",
-                "tiempo_medio_de_ejecucion_dias",
+                "tiempo_medio_de_ejecucion_segundos",
+                "tiempo_medio_de_ejecucion",
             ),
             filas=tuple(
                 (
@@ -188,7 +190,7 @@ class RankingDeOngs:
                     fila.nombre,
                     fila.lotes_adjudicados,
                     fila.actividades_finalizadas,
-                    fila.tiempo_medio_de_ejecucion,
+                    *columnas_de_duracion(fila.tiempo_medio_de_ejecucion),
                 )
                 for posicion, fila in enumerate(self.filas, start=1)
             ),
@@ -208,12 +210,12 @@ def _ranking(
         for organizacion_id in oferta.organizacion_ids:
             lotes_por_ong[organizacion_id] |= oferta.lote_ids
 
-    duraciones_por_ong: dict[uuid.UUID, list[Decimal]] = defaultdict(list)
+    duraciones_por_ong: dict[uuid.UUID, list[timedelta]] = defaultdict(list)
     for finalizacion in servicios_de_ejecucion.listar_finalizaciones(emergencia_ids=emergencia_ids):
         adjudicada_en = adjudicada_en_por_oferta.get(finalizacion.oferta_id)
         if adjudicada_en is not None and finalizacion.organizacion_id in lotes_por_ong:
             duraciones_por_ong[finalizacion.organizacion_id].append(
-                duracion_en_dias(adjudicada_en, finalizacion.fecha_fin)
+                duracion_entre(adjudicada_en, finalizacion.fecha_fin)
             )
 
     nombres = servicios_de_organizaciones.obtener_nombres(lotes_por_ong)
@@ -223,7 +225,7 @@ def _ranking(
             nombre=nombres.get(organizacion_id, f"Organización {organizacion_id}"),
             lotes_adjudicados=len(lotes),
             actividades_finalizadas=len(duraciones_por_ong[organizacion_id]),
-            tiempo_medio_de_ejecucion=promedio_en_dias(duraciones_por_ong[organizacion_id]),
+            tiempo_medio_de_ejecucion=promedio_de_duraciones(duraciones_por_ong[organizacion_id]),
         )
         for organizacion_id, lotes in lotes_por_ong.items()
     ]

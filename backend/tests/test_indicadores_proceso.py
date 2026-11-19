@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal
 
 import pytest
 
@@ -103,14 +102,14 @@ def _seccion(app, gravedad=None):
 
 
 def test_ca01_promedio_por_etapa(app, bonita, emergencias_con_caso) -> None:
-    """Tres casos cuya tarea "Seleccionar ofertas" tardo 1, 2 y 3 dias: 2,0 dias."""
+    """Tres casos cuya tarea "Seleccionar ofertas" tardo 1, 2 y 3 dias: 2 dias."""
     emergencias_con_caso((ALTA, "101"), (ALTA, "102"), (MEDIA, "103"))
     for caso, dias in (("101", 1), ("102", 2), ("103", 3)):
         bonita.terminar(caso, dias=10, seleccionar_en_dias=dias)
 
     etapas = {fila.etapa.etiqueta: fila for fila in _seccion(app).etapas.filas}
 
-    assert etapas["Seleccionar ofertas"].promedio == Decimal("2.0")
+    assert etapas["Seleccionar ofertas"].promedio == timedelta(days=2)
     assert etapas["Seleccionar ofertas"].casos == 3
     assert len(etapas) == 4
 
@@ -124,7 +123,7 @@ def test_ca02_el_filtro_de_gravedad_usa_la_gravedad_local(
 
     etapas = {fila.etapa.etiqueta: fila for fila in _seccion(app, ALTA).etapas.filas}
 
-    assert etapas["Seleccionar ofertas"].promedio == Decimal("1.0")
+    assert etapas["Seleccionar ofertas"].promedio == timedelta(days=1)
 
 
 def test_ca03_una_etapa_sin_ocurrencias_no_se_muestra_como_cero(
@@ -153,11 +152,36 @@ def test_los_casos_de_bonita_sin_emergencia_en_el_periodo_no_cuentan(
     assert _seccion(app).etapas.casos_terminados == 1
 
 
+def _en_dias(duracion: timedelta) -> float:
+    return duracion / timedelta(days=1)
+
+
+def test_un_caso_de_minutos_no_se_redondea_a_cero_dias(app, bonita, emergencias_con_caso) -> None:
+    """Regresion: un caso resuelto en 15 minutos se mostraba como "0,0 días"."""
+    emergencias_con_caso((ALTA, "101"))
+    bonita.terminar(
+        "101",
+        dias=_en_dias(timedelta(minutes=15)),
+        seleccionar_en_dias=_en_dias(timedelta(minutes=4, seconds=20)),
+    )
+
+    seccion = _seccion(app)
+    seleccionar = next(f for f in seccion.etapas.filas if f.etapa.etiqueta == "Seleccionar ofertas")
+    alta = next(f for f in seccion.resolucion.filas if f.gravedad == ALTA)
+
+    assert seleccionar.promedio == timedelta(minutes=4, seconds=20)
+    assert seleccionar.promedio_como_texto == "4\xa0min 20\xa0s"
+    assert seccion.etapas.grafico()["unidadDelEje"] == "min"
+    assert alta.tiempo_medio == timedelta(minutes=15)
+    assert alta.tiempo_medio_como_texto == "15\xa0min"
+    assert alta.en_termino == 1
+
+
 # --- Resolucion en termino -------------------------------------------------------------
 
 
 def test_hu10_ca01_tasa_en_termino_y_tiempo_medio(app, bonita, emergencias_con_caso) -> None:
-    """Plazo de 7 dias para Alta; 4 casos de 5, 6, 8 y 10 dias: 50 % y 7,3 dias."""
+    """Plazo de 7 dias para Alta; 4 casos de 5, 6, 8 y 10 dias: 50 % y 7 d 6 h."""
     emergencias_con_caso(*((ALTA, f"20{i}") for i in range(4)))
     for i, dias in enumerate((5, 6, 8, 10)):
         bonita.terminar(f"20{i}", dias=dias)
@@ -166,7 +190,7 @@ def test_hu10_ca01_tasa_en_termino_y_tiempo_medio(app, bonita, emergencias_con_c
 
     assert alta.plazo_dias == 7
     assert alta.porcentaje_en_termino == 50
-    assert alta.tiempo_medio == Decimal("7.3")
+    assert alta.tiempo_medio == timedelta(days=7, hours=6)
 
 
 def test_hu10_ca02_porcentaje_y_tiempo_en_dos_graficos_por_gravedad(
@@ -185,8 +209,14 @@ def test_hu10_ca02_porcentaje_y_tiempo_en_dos_graficos_por_gravedad(
     assert en_termino["etiquetas"] == tiempo["etiquetas"] == ["Baja", "Media", "Alta", "Crítica"]
     assert en_termino["valores"] == [None, 0, 100, None]
     assert en_termino["maximo"] == 100
+    # Los plazos (hasta 30 dias) llevan el eje a dias.
+    assert tiempo["unidadDelEje"] == "d"
     assert tiempo["valores"] == [None, 20.0, 5.0, None]
-    assert tiempo["marcadores"] == {"nombre": "Plazo objetivo", "valores": [30, 15, 7, 3]}
+    assert tiempo["marcadores"] == {
+        "nombre": "Plazo objetivo",
+        "valores": [30, 15, 7, 3],
+        "textos": ["30\xa0d", "15\xa0d", "7\xa0d", "3\xa0d"],
+    }
     assert en_termino["sinDato"] == tiempo["sinDato"] == "Sin casos"
 
 
@@ -289,8 +319,9 @@ def test_los_datos_diferidos_filtran_las_etapas_por_gravedad(
     cuerpo = respuesta.get_data(as_text=True)
     assert respuesta.status_code == 200
     assert 'id="grafico-etapas"' in cuerpo
-    assert re.search(r"1,0 día\b", cuerpo), "la etapa de la emergencia Alta (1 día)"
-    assert "3,0 días" not in cuerpo
+    etapas = cuerpo[cuerpo.index('id="etapas-titulo"') : cuerpo.index('id="resolucion-titulo"')]
+    assert re.search(r"\b1\xa0d\b", etapas), "la etapa de la emergencia Alta (1 dia)"
+    assert not re.search(r"\b3\xa0d\b", etapas)
 
 
 # --- Exportacion de los indicadores de Bonita -------------------------------------------------
@@ -314,7 +345,9 @@ def test_los_indicadores_de_bonita_se_exportan_en_csv(
     assert respuesta.headers["Content-Disposition"].endswith(
         f'filename="rescuesync-{slug}-2025-03-01_2025-03-31.csv"'
     )
-    assert len(respuesta.get_data(as_text=True).splitlines()) > 1
+    lineas = respuesta.get_data(as_text=True).splitlines()
+    assert len(lineas) > 1
+    assert "_segundos," in lineas[0]
 
 
 def test_el_json_de_etapas_lleva_el_filtro_de_gravedad(

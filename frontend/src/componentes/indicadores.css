@@ -112,8 +112,10 @@
         @apply inline-flex size-10 shrink-0 items-center justify-center rounded-full;
     }
 
+    /* `text-balance`: una cifra larga ("12 d 23 h 59 min 59 s") se parte en dos renglones
+       parejos y no deja una unidad sola abajo. */
     .kpi-valor {
-        @apply text-2xl font-bold tracking-tight break-words text-gray-900 tabular-nums sm:text-3xl;
+        @apply text-2xl font-bold tracking-tight break-words text-balance text-gray-900 tabular-nums sm:text-3xl;
     }
 
     .kpi-valor-sin-dato {

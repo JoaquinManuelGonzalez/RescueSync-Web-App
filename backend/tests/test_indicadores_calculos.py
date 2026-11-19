@@ -25,43 +25,14 @@ from app.modulos.indicadores.periodo import Periodo
 from app.modulos.indicadores.series import etiqueta_de_mes, mes_de, mes_iso, meses_contiguos
 from app.modulos.indicadores.tiempos import (
     columnas_de_duracion,
-    dias_como_texto,
     duracion_abreviada,
     duracion_como_texto,
-    duracion_en_dias,
     duracion_entre,
     porcentaje_entero,
     promedio_de_duraciones,
-    promedio_en_dias,
 )
 
-# --- Tiempos ---------------------------------------------------------------------
-
-
-def test_la_duracion_se_mide_en_dias_exactos() -> None:
-    inicio = datetime(2026, 10, 1, 12, tzinfo=UTC)
-    assert duracion_en_dias(inicio, inicio + timedelta(days=2, hours=12)) == Decimal("2.5")
-
-
-def test_una_fecha_sin_zona_se_toma_como_utc() -> None:
-    """SQLite devuelve las fechas sin zona; PostgreSQL, con zona. Restan igual."""
-    con_zona = datetime(2026, 10, 1, 12, tzinfo=UTC)
-    sin_zona = datetime(2026, 10, 3, 12)
-    assert duracion_en_dias(con_zona, sin_zona) == Decimal(2)
-
-
-def test_una_duracion_negativa_cuenta_como_cero() -> None:
-    inicio = datetime(2026, 10, 5, tzinfo=UTC)
-    assert duracion_en_dias(inicio, inicio - timedelta(days=1)) == Decimal(0)
-
-
-def test_el_promedio_redondea_mitad_hacia_arriba() -> None:
-    """La HU de resolucion en termino espera 7,3 para 5, 6, 8 y 10 dias (7,25)."""
-    assert promedio_en_dias([Decimal(5), Decimal(6), Decimal(8), Decimal(10)]) == Decimal("7.3")
-
-
-def test_sin_duraciones_no_hay_promedio() -> None:
-    assert promedio_en_dias([]) is None
+# --- Porcentajes ------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -69,11 +40,6 @@ def test_sin_duraciones_no_hay_promedio() -> None:
 )
 def test_porcentaje_entero(parte, total, esperado) -> None:
     assert porcentaje_entero(parte, total) == esperado
-
-
-def test_dias_como_texto() -> None:
-    assert dias_como_texto(Decimal("5.0")) == "5,0 días"
-    assert dias_como_texto(None) == "—"
 
 
 # --- Duraciones -----------------------------------------------------------------------
@@ -95,6 +61,8 @@ def test_la_duracion_es_exacta() -> None:
 
 
 def test_la_duracion_toma_sin_zona_como_utc_y_nunca_es_negativa() -> None:
+    """SQLite devuelve las fechas sin zona; PostgreSQL, con zona. Restan igual. Un fin anterior
+    al inicio (un dato inconsistente) cuenta como cero."""
     con_zona = datetime(2026, 10, 1, 12, tzinfo=UTC)
     assert duracion_entre(con_zona, datetime(2026, 10, 1, 12, 15)) == timedelta(minutes=15)
     assert duracion_entre(con_zona, con_zona - timedelta(days=1)) == timedelta(0)
@@ -309,8 +277,8 @@ def test_sin_registro_ready_la_tarea_arranca_cuando_termina_el_nodo_anterior() -
         _nodo("4", "Seleccionar ofertas", "USER_TASK", "completed", 120),
     ]
     assert duraciones_por_tarea(linea, INICIO) == {
-        "Publicar": Decimal(1),
-        "Seleccionar ofertas": Decimal(2),
+        "Publicar": timedelta(days=1),
+        "Seleccionar ofertas": timedelta(days=2),
     }
 
 
@@ -320,7 +288,7 @@ def test_con_registro_ready_la_tarea_arranca_cuando_quedo_disponible() -> None:
         _nodo("2", "Publicar", "USER_TASK", "ready", 12),
         _nodo("2", "Publicar", "USER_TASK", "completed", 36),
     ]
-    assert duraciones_por_tarea(linea, INICIO) == {"Publicar": Decimal(1)}
+    assert duraciones_por_tarea(linea, INICIO) == {"Publicar": timedelta(days=1)}
 
 
 def test_las_ejecuciones_repetidas_de_una_tarea_se_suman() -> None:
@@ -330,4 +298,4 @@ def test_las_ejecuciones_repetidas_de_una_tarea_se_suman() -> None:
         _nodo("2", "Liberar recursos", "AUTOMATIC_TASK", "completed", 48),
         _nodo("3", "Publicar", "USER_TASK", "completed", 96),
     ]
-    assert duraciones_por_tarea(linea, INICIO) == {"Publicar": Decimal(3)}
+    assert duraciones_por_tarea(linea, INICIO) == {"Publicar": timedelta(days=3)}

@@ -38,7 +38,6 @@ from app.modulos.indicadores.tiempos import (
 
 Unidad = tuple[str, str]
 
-DIAS: Unidad = ("día", "días")
 PORCIENTO: Unidad = ("%", "%")
 
 # Cada rubro conserva su color en todos los graficos y con cualquier filtro.

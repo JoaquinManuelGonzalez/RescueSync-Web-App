@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from decimal import Decimal
+from datetime import timedelta
 from typing import Any
 
 from app.core.errores import (
@@ -36,10 +36,11 @@ from app.modulos.indicadores.etapas import ETAPAS, PLAZO_OBJETIVO_DIAS, Etapa, d
 from app.modulos.indicadores.exportacion import TablaExportable
 from app.modulos.indicadores.periodo import Periodo
 from app.modulos.indicadores.tiempos import (
-    dias_como_texto,
-    duracion_en_dias,
+    columnas_de_duracion,
+    duracion_como_texto,
+    duracion_entre,
     porcentaje_entero,
-    promedio_en_dias,
+    promedio_de_duraciones,
 )
 
 # Lo que puede salir mal al consultar Bonita, segun el contrato de errores.
@@ -63,11 +64,11 @@ class TiempoDeEtapa:
 
     etapa: Etapa
     casos: int
-    promedio: Decimal | None
+    promedio: timedelta | None
 
     @property
     def promedio_como_texto(self) -> str:
-        return SIN_OCURRENCIAS if self.promedio is None else dias_como_texto(self.promedio)
+        return SIN_OCURRENCIAS if self.promedio is None else duracion_como_texto(self.promedio)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,27 +78,28 @@ class EtapasDelProceso:
     filas: tuple[TiempoDeEtapa, ...]
 
     def grafico(self) -> dict[str, Any]:
-        return graficos.barras(
+        return graficos.barras_de_duracion(
             [fila.etapa.etiqueta for fila in self.filas],
             [fila.promedio for fila in self.filas],
             tonos=["serie-1"] * len(self.filas),
-            unidad=graficos.DIAS,
             detalles=[
                 f"{fila.casos} {'caso' if fila.casos == 1 else 'casos'}" for fila in self.filas
             ],
             horizontal=True,
-            decimales=1,
             sin_dato=SIN_OCURRENCIAS,
         )
 
     def tabla(self) -> TablaExportable:
         """Una fila por etapa, como el grafico. Sin casos terminados queda vacia."""
-        columnas = ("etapa", "casos", "tiempo_promedio_dias")
+        columnas = ("etapa", "casos", "tiempo_promedio_segundos", "tiempo_promedio")
         if not self.casos_terminados:
             return TablaExportable(columnas=columnas)
         return TablaExportable(
             columnas=columnas,
-            filas=tuple((fila.etapa.etiqueta, fila.casos, fila.promedio) for fila in self.filas),
+            filas=tuple(
+                (fila.etapa.etiqueta, fila.casos, *columnas_de_duracion(fila.promedio))
+                for fila in self.filas
+            ),
         )
 
     def a_diccionario(self) -> dict[str, Any]:
@@ -117,15 +119,23 @@ class ResolucionDeGravedad:
     plazo_dias: int
     casos: int
     en_termino: int
-    tiempo_medio: Decimal | None
+    tiempo_medio: timedelta | None
 
     @property
     def etiqueta(self) -> str:
         return etiqueta_gravedad(self.gravedad)
 
     @property
+    def plazo(self) -> timedelta:
+        return timedelta(days=self.plazo_dias)
+
+    @property
     def porcentaje_en_termino(self) -> int | None:
         return porcentaje_entero(self.en_termino, self.casos)
+
+    @property
+    def tiempo_medio_como_texto(self) -> str:
+        return SIN_CASOS if self.tiempo_medio is None else duracion_como_texto(self.tiempo_medio)
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,17 +175,13 @@ class ResolucionEnTermino:
         Va aparte del porcentaje (otra medida, otra unidad). La marca del plazo deja ver de un
         vistazo que gravedades se resuelven, en promedio, fuera de termino.
         """
-        return graficos.barras(
+        return graficos.barras_de_duracion(
             [fila.etiqueta for fila in self.filas],
             [fila.tiempo_medio for fila in self.filas],
             tonos=self._tonos(),
-            unidad=graficos.DIAS,
             detalles=[f"Plazo objetivo: {fila.plazo_dias} días" for fila in self.filas],
-            decimales=1,
             sin_dato=SIN_CASOS,
-            marcadores=graficos.Marcadores(
-                "Plazo objetivo", [fila.plazo_dias for fila in self.filas]
-            ),
+            marcadores=graficos.Marcadores("Plazo objetivo", [fila.plazo for fila in self.filas]),
         )
 
     def tabla(self) -> TablaExportable:
@@ -185,7 +191,8 @@ class ResolucionEnTermino:
             "casos_terminados",
             "casos_en_termino",
             "porcentaje_en_termino",
-            "tiempo_medio_dias",
+            "tiempo_medio_segundos",
+            "tiempo_medio",
         )
         if not self.casos_terminados:
             return TablaExportable(columnas=columnas)
@@ -198,7 +205,7 @@ class ResolucionEnTermino:
                     fila.casos,
                     fila.en_termino,
                     fila.porcentaje_en_termino,
-                    fila.tiempo_medio,
+                    *columnas_de_duracion(fila.tiempo_medio),
                 )
                 for fila in self.filas
             ),
@@ -232,10 +239,12 @@ def _etapas(
     casos: list[consultas.CasoArchivado], gravedad: NivelGravedad | None
 ) -> EtapasDelProceso:
     lineas = consultas.lineas_de_tiempo(casos)
-    duraciones: dict[str, list[Decimal]] = defaultdict(list)
+    duraciones: dict[str, list[timedelta]] = defaultdict(list)
     for caso in casos:
-        for nombre, dias in duraciones_por_tarea(lineas[caso.caso_id], caso.iniciado_en).items():
-            duraciones[nombre].append(dias)
+        for nombre, duracion in duraciones_por_tarea(
+            lineas[caso.caso_id], caso.iniciado_en
+        ).items():
+            duraciones[nombre].append(duracion)
     return EtapasDelProceso(
         gravedad=gravedad,
         casos_terminados=len(casos),
@@ -243,7 +252,7 @@ def _etapas(
             TiempoDeEtapa(
                 etapa=etapa,
                 casos=len(duraciones[etapa.nombre_en_bonita]),
-                promedio=promedio_en_dias(duraciones[etapa.nombre_en_bonita]),
+                promedio=promedio_de_duraciones(duraciones[etapa.nombre_en_bonita]),
             )
             for etapa in ETAPAS
         ),
@@ -253,21 +262,22 @@ def _etapas(
 def _resolucion(
     terminados: list[tuple[NivelGravedad, consultas.CasoArchivado]], casos_abiertos: int
 ) -> ResolucionEnTermino:
-    duraciones: dict[NivelGravedad, list[Decimal]] = defaultdict(list)
+    duraciones: dict[NivelGravedad, list[timedelta]] = defaultdict(list)
     for gravedad, caso in terminados:
-        duraciones[gravedad].append(duracion_en_dias(caso.iniciado_en, caso.finalizado_en))
+        duraciones[gravedad].append(duracion_entre(caso.iniciado_en, caso.finalizado_en))
 
     filas = []
     for gravedad in NivelGravedad:
-        plazo = PLAZO_OBJETIVO_DIAS[gravedad]
-        dias = duraciones[gravedad]
+        plazo_dias = PLAZO_OBJETIVO_DIAS[gravedad]
+        plazo = timedelta(days=plazo_dias)
+        de_la_gravedad = duraciones[gravedad]
         filas.append(
             ResolucionDeGravedad(
                 gravedad=gravedad,
-                plazo_dias=plazo,
-                casos=len(dias),
-                en_termino=sum(duracion <= plazo for duracion in dias),
-                tiempo_medio=promedio_en_dias(dias),
+                plazo_dias=plazo_dias,
+                casos=len(de_la_gravedad),
+                en_termino=sum(duracion <= plazo for duracion in de_la_gravedad),
+                tiempo_medio=promedio_de_duraciones(de_la_gravedad),
             )
         )
     return ResolucionEnTermino(filas=tuple(filas), casos_abiertos=casos_abiertos)
