@@ -142,9 +142,7 @@ def test_la_seleccion_admite_hasta_el_150_por_ciento(
         db.session.commit()
 
         if permitida:
-            resultado = servicios.seleccionar_lineas(
-                convocatoria, [linea_id, segunda_linea.id]
-            )
+            resultado = servicios.seleccionar_lineas(convocatoria, [linea_id, segunda_linea.id])
             assert len(resultado) == 2
         else:
             with pytest.raises(ReglaDeNegocioIncumplida) as error:
