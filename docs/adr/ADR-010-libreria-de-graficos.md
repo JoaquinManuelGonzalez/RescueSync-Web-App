@@ -115,3 +115,28 @@ lado del otro y con las categorías en el mismo orden. Es una regla para todo gr
 **Responsive.** Las etiquetas largas se acortan (horizontal; el tooltip muestra la completa) o se
 parten en líneas (vertical) según el ancho del lienzo, la tipografía baja un punto por debajo de
 640 px y los gráficos con leyenda ganan altura en el teléfono.
+
+## Actualización: duraciones con precisión de segundos
+
+Los tiempos del panel (tiempos de respuesta, etapas del proceso, resolución en término y tiempo
+medio de ejecución del ranking de ONGs) se informaban en días con un decimal. Ese redondeo es de
+2,4 horas: una emergencia resuelta en 15 minutos se mostraba como "0,0 días". Ahora:
+
+- **Cálculo.** Las duraciones son `timedelta`, exactas hasta que se promedian; el promedio se
+  redondea al segundo, mitad hacia arriba (`app/modulos/indicadores/tiempos.py`).
+- **Texto.** Una duración se escribe con días, horas, minutos y segundos, omitiendo los que valen
+  cero: "1 d 4 h 12 min 5 s", "15 min 32 s", "2 d 5 min". Así aparece en las cifras destacadas,
+  las tablas, los tooltips y las tarjetas. Entre el número y su unidad va un espacio duro, para
+  que un renglón nunca separe "59" de "min". Sobre las barras, donde no entra la completa, va
+  abreviada a las dos unidades mayores y redondeada a la segunda ("1 d 4 h").
+- **Eje.** `barras_de_duracion()` (en `graficos.py`) dibuja los valores en la mayor unidad en la
+  que el más alto (contando las marcas de referencia) llega a 2: hasta 1 h 59 min se lee en
+  minutos y hasta 47 h en horas, en vez de "1,9 d". Los números del eje llevan la abreviatura
+  ("12 h").
+- **Contrato de `graficos.js`.** Suma `textos` (el tooltip de cada barra), `textosCortos` (la
+  etiqueta sobre la barra), `unidadDelEje` y `marcadores.textos`, todos opcionales. El texto lo
+  arma el servidor: el navegador no formatea ni redondea un tiempo, así que no hay un segundo
+  formateador que pueda dar otro resultado, y los tests lo verifican sin navegador.
+- **Exportación.** Una duración ocupa dos columnas: los segundos exactos (`*_segundos`, entero,
+  para calcular en una planilla) y el texto, con espacios comunes. Reemplazan a las columnas
+  `*_dias`. Los plazos objetivo siguen en días (`plazo_objetivo_dias`), porque se definen así.
