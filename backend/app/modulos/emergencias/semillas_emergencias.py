@@ -73,7 +73,7 @@ EMERGENCIAS: list[dict] = [
         "titulo": "PRUEBA - Selección municipal de ofertas en Pergamino",
         "descripcion": (
             "Caso de prueba para validar la selección por línea de oferta, "
-            "el margen del 25% y la cobertura mínima del 75%."
+            "el margen del 50% y la cobertura mínima del 75%."
         ),
         "nivel_gravedad": NivelGravedad.media,
         "zona_afectada": "Barrios periféricos de Pergamino",

@@ -12,7 +12,7 @@ import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import ROUND_CEILING, Decimal
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 
 from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.orm import selectinload
@@ -92,7 +92,7 @@ def listar_convocatorias_pendientes(municipio_id: uuid.UUID) -> list[Convocatori
 
 
 def _limite_con_margen(cantidad: int) -> int:
-    return int((Decimal(cantidad) * Decimal("1.25")).to_integral_value(rounding=ROUND_CEILING))
+    return int((Decimal(cantidad) * Decimal("1.50")).to_integral_value(rounding=ROUND_FLOOR))
 
 
 def _cobertura_minima(cantidad: int) -> int:
@@ -160,7 +160,7 @@ def seleccionar_lineas(convocatoria: Convocatoria, linea_ids: list[uuid.UUID]) -
     ]
     if excedentes:
         raise ReglaDeNegocioIncumplida(
-            "La selección supera el margen del 25% permitido para un lote de necesidad.",
+            "La selección supera el margen del 50% permitido para un lote de necesidad.",
             detalle={"lote_item_ids": excedentes},
             codigo="SELECCION_SUPERA_MARGEN",
         )

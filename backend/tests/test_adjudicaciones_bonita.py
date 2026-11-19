@@ -12,14 +12,14 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.core.errores import SistemaExternoRechazo
+from app.core.errores import ReglaDeNegocioIncumplida, SistemaExternoRechazo
 from app.core.integraciones.bonita.sesion import BONITA_USER
 from app.extensiones import db
 from app.modulos.adjudicaciones import servicios
 from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
 from app.modulos.emergencias.modelos import Emergencia, EstadoEmergencia
 from app.modulos.notificaciones.modelos import Notificacion
-from app.modulos.ofertas.modelos import EstadoOferta, Oferta, OfertaLinea
+from app.modulos.ofertas.modelos import EstadoOferta, Oferta, OfertaLinea, TipoAsignacion
 
 from .conftest import CABECERA_NAVEGADOR, EMAIL_OPERADOR
 
@@ -103,6 +103,53 @@ def test_la_seleccion_completa_la_tarea_de_bonita_con_ids_uuid(
     compromisos = json.loads(llamada["compromisos_json"])
     assert compromisos["emergencia_externa_id"] == str(emergencia_id)
     assert [aporte["cantidad"] for aporte in compromisos["aportes"]] == [100]
+
+
+@pytest.mark.parametrize(
+    ("requerida", "cantidades", "permitida"),
+    [
+        (100, (74, 74), True),
+        (100, (75, 75), True),
+        (100, (76, 75), False),
+        (3, (2, 2), True),
+        (3, (2, 3), False),
+    ],
+)
+def test_la_seleccion_admite_hasta_el_150_por_ciento(
+    app, convocatoria_evaluada, selecciones_enviadas, requerida, cantidades, permitida
+) -> None:
+    convocatoria_id, linea_id, oferta_id, _ = convocatoria_evaluada
+
+    with app.app_context():
+        convocatoria = db.session.get(Convocatoria, convocatoria_id)
+        oferta = db.session.get(Oferta, oferta_id)
+        linea = db.session.get(OfertaLinea, linea_id)
+        linea.lote_item.cantidad_solicitada = requerida
+        linea.cantidad_ofrecida = cantidades[0]
+        segunda_oferta = Oferta(
+            convocatoria_id=convocatoria_id,
+            usuario_id=oferta.usuario_id,
+            estado=EstadoOferta.presentada,
+        )
+        segunda_linea = OfertaLinea(
+            oferta=segunda_oferta,
+            lote_item_id=linea.lote_item_id,
+            organizacion_id=linea.organizacion_id,
+            cantidad_ofrecida=cantidades[1],
+            tipo_asignacion=TipoAsignacion.principal,
+        )
+        db.session.add(segunda_oferta)
+        db.session.commit()
+
+        if permitida:
+            resultado = servicios.seleccionar_lineas(
+                convocatoria, [linea_id, segunda_linea.id]
+            )
+            assert len(resultado) == 2
+        else:
+            with pytest.raises(ReglaDeNegocioIncumplida) as error:
+                servicios.seleccionar_lineas(convocatoria, [linea_id, segunda_linea.id])
+            assert error.value.codigo == "SELECCION_SUPERA_MARGEN"
 
 
 def test_si_bonita_rechaza_la_seleccion_no_se_guarda_ningun_cambio(
