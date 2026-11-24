@@ -27,12 +27,15 @@ MEDIADOS_DE_MARZO = datetime(2025, 3, 15, 15, tzinfo=UTC)
 def test_suma_las_unidades_de_cada_emergencia_en_una_sola_consulta(
     app, crear_emergencias, cargar_necesidades
 ) -> None:
-    primera, segunda, sin_lotes = crear_emergencias(
-        *[(MEDIADOS_DE_MARZO, EstadoEmergencia.finalizada)] * 3
+    primera, segunda, tercera, sin_lotes = crear_emergencias(
+        *[(MEDIADOS_DE_MARZO, EstadoEmergencia.finalizada)] * 4
     )
     cargar_necesidades(primera, (100, 100), (50, 80))  # el excedente no suma: 150 de 150
+    # Solo cuenta la ultima ronda adjudicada: ni la reabierta ni la adjudicacion anterior.
+    cargar_necesidades(segunda, (60, 0), reabierta=True)
     cargar_necesidades(segunda, (40, 10))
-    cargar_necesidades(segunda, (60, 0))
+    cargar_necesidades(tercera, (20, 20), adjudicada_en=datetime(2025, 1, 3, tzinfo=UTC))
+    cargar_necesidades(tercera, (30, 15), adjudicada_en=datetime(2025, 2, 3, tzinfo=UTC))
 
     consultas: list[str] = []
     with app.app_context():
@@ -49,7 +52,8 @@ def test_suma_las_unidades_de_cada_emergencia_en_una_sola_consulta(
 
     assert unidades == [
         UnidadesDeEmergencia(emergencia_id=primera, requeridas=150, adjudicadas=150),
-        UnidadesDeEmergencia(emergencia_id=segunda, requeridas=100, adjudicadas=10),
+        UnidadesDeEmergencia(emergencia_id=segunda, requeridas=40, adjudicadas=10),
+        UnidadesDeEmergencia(emergencia_id=tercera, requeridas=30, adjudicadas=15),
     ]
     assert sin_lotes not in {u.emergencia_id for u in unidades}
     assert len(consultas) == 1

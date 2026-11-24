@@ -139,10 +139,11 @@ class EmergenciaConFaltantes:
 
 @dataclass(frozen=True, slots=True)
 class CoberturaDeFinalizadas:
-    """Cobertura de las emergencias finalizadas.
+    """Cobertura de las emergencias finalizadas, medida sobre su ultima ronda adjudicada.
 
-    `sin_necesidades` son las finalizadas que nunca cargaron lotes: no tienen cobertura y quedan
-    fuera de la torta. `con_faltantes` lista las parciales de peor a mejor cobertura.
+    `sin_necesidades` son las finalizadas sin lotes en una convocatoria adjudicada (en el
+    proceso, las que nunca cargaron lotes): no tienen cobertura y quedan fuera de la torta.
+    `con_faltantes` lista las parciales de peor a mejor cobertura.
     """
 
     finalizadas: int

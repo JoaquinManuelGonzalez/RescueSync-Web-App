@@ -97,16 +97,46 @@ def test_ca02_clasifica_las_finalizadas_en_cobertura_total_y_parcial(
     assert [(e.id, e.porcentaje) for e in cobertura.con_faltantes] == [(incompleta, 60)]
 
 
-def test_la_cobertura_suma_todos_los_lotes_de_la_emergencia(
+def test_la_cobertura_se_mide_sobre_la_ronda_adjudicada(
     app, crear_emergencias, cargar_necesidades
 ) -> None:
+    """Pidio 100 y nadie ofrecio: se reabrio, pidio 10 de otra cosa y le dieron 8. Cubrio el 80 %,
+    no 8 de 110: lo de la ronda reabierta se reformulo en la siguiente."""
     (emergencia_id,) = crear_emergencias((MEDIADOS_DE_MARZO, FINALIZADA))
-    cargar_necesidades(emergencia_id, (30, 30))
-    cargar_necesidades(emergencia_id, (70, 35))
+    cargar_necesidades(emergencia_id, (100, 0), reabierta=True)
+    cargar_necesidades(emergencia_id, (10, 8))
 
     cobertura = _cobertura(app)
 
-    assert cobertura.con_faltantes[0].porcentaje == 65  # 65 de 100
+    assert cobertura.parcial.cantidad == 1
+    assert cobertura.con_faltantes[0].porcentaje == 80
+
+
+def test_una_reapertura_cubierta_en_la_ultima_ronda_es_cobertura_total(
+    app, crear_emergencias, cargar_necesidades
+) -> None:
+    (emergencia_id,) = crear_emergencias((MEDIADOS_DE_MARZO, FINALIZADA))
+    cargar_necesidades(emergencia_id, (100, 0), reabierta=True)
+    cargar_necesidades(emergencia_id, (50, 20), reabierta=True)
+    cargar_necesidades(emergencia_id, (10, 10))
+
+    cobertura = _cobertura(app)
+
+    assert cobertura.total == PorcionDeCobertura(cantidad=1, porcentaje=100)
+    assert cobertura.con_faltantes == ()
+
+
+def test_con_dos_rondas_adjudicadas_cuenta_la_ultima(
+    app, crear_emergencias, cargar_necesidades
+) -> None:
+    """Manda la fecha de adjudicacion, no el orden en que se cargaron."""
+    (emergencia_id,) = crear_emergencias((MEDIADOS_DE_MARZO, FINALIZADA))
+    cargar_necesidades(emergencia_id, (70, 35), adjudicada_en=datetime(2025, 2, 10, tzinfo=UTC))
+    cargar_necesidades(emergencia_id, (30, 30), adjudicada_en=datetime(2025, 1, 10, tzinfo=UTC))
+
+    cobertura = _cobertura(app)
+
+    assert cobertura.con_faltantes[0].porcentaje == 50  # 35 de 70, la de febrero
 
 
 def test_lo_que_sobra_de_un_item_no_tapa_lo_que_falta_de_otro(

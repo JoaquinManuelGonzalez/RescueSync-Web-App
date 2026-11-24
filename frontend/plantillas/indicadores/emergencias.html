@@ -75,7 +75,7 @@
         {% call tarjeta_grafico(
             "grafico-cobertura",
             "Cobertura de las finalizadas",
-            "Unidades adjudicadas sobre las requeridas, sumando todos los lotes.",
+            "Unidades adjudicadas sobre las pedidas en la última ronda adjudicada de cada emergencia" ~ con_gravedad ~ ".",
             seccion.grafico_de_cobertura(),
             filas_cobertura,
             vacio=vacio_cobertura,

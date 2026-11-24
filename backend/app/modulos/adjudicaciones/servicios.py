@@ -345,8 +345,10 @@ def construir_ongs_no_seleccionadas_json(convocatoria: Convocatoria) -> str:
 
 @dataclass(frozen=True, slots=True)
 class UnidadesDeEmergencia:
-    """Unidades que pidio una emergencia, sumando todos sus lotes, y cuantas se le adjudicaron.
+    """Unidades que pidio una emergencia en su ultima ronda adjudicada y cuantas se le adjudicaron.
 
+    Una ronda es una convocatoria con sus lotes. Las rondas anteriores que se reabrieron por
+    cobertura insuficiente no cuentan: sus lotes se reformularon en la ronda siguiente.
     `adjudicadas` nunca supera a `requeridas`: cada item cuenta como mucho lo que pidio, asi lo
     que sobra de un item no tapa lo que falta de otro.
     """
@@ -401,35 +403,67 @@ def consultar_unidades_por_emergencia(
 ) -> list[UnidadesDeEmergencia]:
     """Unidades requeridas y adjudicadas de cada una de esas emergencias, en una sola consulta.
 
-    Las emergencias sin necesidades cargadas no aparecen: no tienen nada que cubrir.
-    "Adjudicadas" son las unidades de las lineas que el municipio selecciono en ofertas
-    adjudicadas.
+    Se mide sobre los lotes de la ultima ronda adjudicada de cada emergencia: la convocatoria
+    adjudicada mas reciente que tiene lotes vigentes. Si una emergencia se reabrio cinco veces y
+    en la ultima pidio 10 unidades y recibio 8, cubrio el 80 %: lo pedido en las rondas
+    reabiertas se reformulo en la siguiente y no se suma. Con dos rondas adjudicadas, cuenta la
+    ultima. "Mas reciente" es la mayor `adjudicada_en`; una adjudicacion vieja sin fecha cuenta
+    como anterior a cualquier fechada, entre ellas manda la publicacion y el id desempata.
+
+    Las emergencias sin lotes en una convocatoria adjudicada no aparecen: no tienen una ronda
+    que medir. "Adjudicadas" son las unidades de las lineas que el municipio selecciono en
+    ofertas adjudicadas.
     """
     requeridas = servicios_de_emergencias.consultar_unidades_requeridas(
         emergencia_ids=emergencia_ids
     ).subquery()
+    adjudicaciones = servicios_de_convocatorias.consultar_adjudicaciones(
+        emergencia_ids=emergencia_ids
+    ).subquery()
+    # Se rankean las filas que ya tienen lotes pedidos: una convocatoria adjudicada sin lotes
+    # vigentes no puede tapar a la ronda que si pidio algo.
+    ronda = func.dense_rank().over(
+        partition_by=requeridas.c.emergencia_id,
+        order_by=(
+            adjudicaciones.c.adjudicada_en.desc().nulls_last(),
+            adjudicaciones.c.creado_en.desc(),
+            adjudicaciones.c.convocatoria_id.desc(),
+        ),
+    )
+    por_ronda = (
+        select(
+            requeridas.c.lote_item_id,
+            requeridas.c.emergencia_id,
+            requeridas.c.cantidad_requerida,
+            ronda.label("ronda"),
+        )
+        .join(adjudicaciones, adjudicaciones.c.convocatoria_id == requeridas.c.convocatoria_id)
+        .subquery()
+    )
+    ultima_ronda = select(por_ronda).where(por_ronda.c.ronda == 1).subquery()
+
     seleccionadas = servicios_de_ofertas.consultar_unidades_seleccionadas(
-        lote_item_ids=select(requeridas.c.lote_item_id)
+        lote_item_ids=select(ultima_ronda.c.lote_item_id)
     ).subquery()
 
     cantidad_seleccionada = func.coalesce(seleccionadas.c.cantidad_seleccionada, 0)
     # min(seleccionada, requerida) por item, escrito con CASE para que funcione igual en
     # PostgreSQL y en el SQLite de los tests (SQLite no tiene LEAST).
     cubiertas_del_item = case(
-        (cantidad_seleccionada < requeridas.c.cantidad_requerida, cantidad_seleccionada),
-        else_=requeridas.c.cantidad_requerida,
+        (cantidad_seleccionada < ultima_ronda.c.cantidad_requerida, cantidad_seleccionada),
+        else_=ultima_ronda.c.cantidad_requerida,
     )
 
     filas = db.session.execute(
         select(
-            requeridas.c.emergencia_id,
-            func.sum(requeridas.c.cantidad_requerida),
+            ultima_ronda.c.emergencia_id,
+            func.sum(ultima_ronda.c.cantidad_requerida),
             func.sum(cubiertas_del_item),
         )
-        .select_from(requeridas)
-        .outerjoin(seleccionadas, seleccionadas.c.lote_item_id == requeridas.c.lote_item_id)
-        .group_by(requeridas.c.emergencia_id)
-        .order_by(requeridas.c.emergencia_id)
+        .select_from(ultima_ronda)
+        .outerjoin(seleccionadas, seleccionadas.c.lote_item_id == ultima_ronda.c.lote_item_id)
+        .group_by(ultima_ronda.c.emergencia_id)
+        .order_by(ultima_ronda.c.emergencia_id)
     ).all()
 
     return [
