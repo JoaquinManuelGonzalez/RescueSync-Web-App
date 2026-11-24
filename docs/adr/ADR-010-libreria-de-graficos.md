@@ -94,8 +94,8 @@ del mismo contrato JSON (documentado en su encabezado):
   objetivo de cada gravedad junto al tiempo medio de resolución).
 - **Sin dato** (`sinDato`): un valor `null` no dibuja barra y escribe el texto indicado
   ("Sin ocurrencias"), para que no se lea como un cero.
-- **Imagen PNG**: el menú de exportación de cada gráfico descarga la imagen del lienzo (con fondo
-  blanco) para usarla en informes.
+- **Imagen PNG**: el menú de exportación de cada gráfico descarga una imagen para informes, con
+  fondo blanco (ver "Actualización: imagen PNG para informes").
 
 Las definiciones se arman del lado del servidor (`app/modulos/indicadores/graficos.py`), no en las
 plantillas: así se verifican en pytest sin navegador.
@@ -140,3 +140,30 @@ medio de ejecución del ranking de ONGs) se informaban en días con un decimal. 
 - **Exportación.** Una duración ocupa dos columnas: los segundos exactos (`*_segundos`, entero,
   para calcular en una planilla) y el texto, con espacios comunes. Reemplazan a las columnas
   `*_dias`. Los plazos objetivo siguen en días (`plazo_objetivo_dias`), porque se definen así.
+
+## Actualización: imagen PNG para informes
+
+La opción PNG copiaba el lienzo tal como se ve en pantalla (`toBase64Image()`). En las donas, la
+cifra del centro y la leyenda con valores son HTML encima del lienzo, así que la imagen salía solo
+con el anillo. Además, ninguna imagen decía qué mostraba ni de qué período era, la resolución
+dependía de la pantalla y en el teléfono las etiquetas salían recortadas. Ahora:
+
+- **Se vuelve a dibujar.** `graficos.js::imagen(canvas, { titulo, descripcion, contexto })` arma
+  el mismo gráfico, con la misma definición y la misma configuración, en un lienzo aparte de
+  ancho fijo (1200 px; 880 las donas) y al doble de resolución, sin animación ni eventos. Con
+  `responsive: false`, Chart.js dibuja en el acto aunque el lienzo no esté en la página. El
+  resultado no depende de la ventana: en un teléfono la imagen sale igual que en el escritorio.
+- **Encabezado.** Título, descripción de la tarjeta (en renglones según el ancho) y período, con
+  los plugins `title` y `subtitle` de Chart.js. Llegan en los `data-titulo`, `data-descripcion`
+  y `data-contexto` del botón PNG; el período (`exportacion(...).contexto`) lo escribe el
+  servidor igual que el resumen de la pantalla. Las descripciones de los gráficos con filtro
+  propio lo nombran ("con gravedad alta", "de alimentos"), así la imagen lo dice, y no llevan
+  indicaciones de uso, que van en notas debajo del gráfico.
+- **Donas.** Suman su leyenda con valores ("Cobertura total: 4 (80 %)", el mismo texto que la
+  leyenda HTML) y la cifra del centro, que viaja en los `data-centro-cifra` y
+  `data-centro-texto` del `<canvas>`.
+- **Lo que se ve.** Las series ocultas desde la leyenda tampoco salen en la imagen.
+- **Respaldo.** Si algo falla al armarla, se descarga el lienzo de la pantalla como antes.
+
+También: una dona con una sola porción con valor se dibuja sin borde entre porciones, porque el
+borde de la porción en 0 quedaba como una muesca blanca en el anillo.

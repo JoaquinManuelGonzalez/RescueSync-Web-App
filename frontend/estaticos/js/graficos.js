@@ -54,12 +54,21 @@
  *
  * Expone `window.RescueSync.graficos` con `iniciar(raiz)`, `destruir(raiz)` (para volver a
  * dibujar cuando una pantalla reemplaza parte de la pagina, lo usa indicadores.js) e
- * `imagen(canvas)`, que devuelve el grafico como PNG (data URL) para descargarlo.
+ * `imagen(canvas, { titulo, descripcion, contexto })`, que devuelve el grafico como PNG (data
+ * URL) para descargarlo.
+ *
+ * Imagen para informes: no se copia el lienzo de la pantalla, que depende del ancho de la
+ * ventana y deja afuera lo que la pagina escribe en HTML (la cifra del centro de una dona, su
+ * leyenda, el titulo). Se vuelve a dibujar el mismo grafico, con la misma definicion, en un
+ * lienzo aparte de ancho fijo y al doble de resolucion, con el titulo, la descripcion y el
+ * periodo como encabezado; las donas suman su leyenda con valores y la cifra del centro (que
+ * llega en los data-centro-cifra / data-centro-texto del <canvas>). Las series que la persona
+ * oculto en la leyenda tampoco salen. Si algo falla, se descarga el lienzo tal como se ve.
  */
 (() => {
   "use strict";
 
-  const instancias = new Map(); // canvas -> Chart
+  const instancias = new Map(); // canvas -> { grafico: Chart, definicion }
   const sinMovimiento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const formatos = new Map();
 
@@ -392,6 +401,9 @@
 
   function configuracionDeDona(definicion, colores) {
     const coloresDelGrafico = definicion.tonos.map((tono) => colores[tono] || colores.primario);
+    // El borde separa porciones: con una sola porcion con valor, el de la porcion en 0 quedaria
+    // como una muesca blanca en el anillo.
+    const conValor = definicion.valores.filter((valor) => valor > 0).length;
     const opciones = opcionesComunes(definicion);
     opciones.cutout = "72%";
     opciones.layout = { padding: 4 };
@@ -412,7 +424,7 @@
             backgroundColor: coloresDelGrafico,
             hoverBackgroundColor: coloresDelGrafico,
             borderColor: variableCss("--color-superficie", "#ffffff"),
-            borderWidth: 3,
+            borderWidth: conValor > 1 ? 3 : 0,
             hoverOffset: 6,
           },
         ],
@@ -510,7 +522,8 @@
     // El lienzo tiene que estar visible antes de crear el grafico, para que tome su tamaño.
     lienzo.hidden = false;
     ajustarAltura(lienzo, definicion);
-    instancias.set(canvas, new window.Chart(canvas, configurar(definicion, paleta())));
+    const grafico = new window.Chart(canvas, configurar(definicion, paleta()));
+    instancias.set(canvas, { grafico, definicion });
     contenedor.querySelector("[data-grafico-respaldo]")?.classList.add("sr-only");
   }
 
@@ -529,13 +542,212 @@
 
   function destruir(raiz = document) {
     raiz.querySelectorAll("[data-grafico-contenedor] canvas").forEach((canvas) => {
-      instancias.get(canvas)?.destroy();
+      instancias.get(canvas)?.grafico.destroy();
       instancias.delete(canvas);
     });
   }
 
-  function imagen(canvas) {
-    return instancias.get(canvas)?.toBase64Image("image/png", 1) ?? null;
+  // --- Imagen para informes -----------------------------------------------------------
+
+  // Medidas en px de CSS. La imagen se dibuja al doble (`escala`) para que se lea nitida
+  // impresa o proyectada, y con ancho fijo para que no dependa de la ventana: en un telefono las
+  // etiquetas no salen recortadas.
+  const IMAGEN = {
+    ancho: 1200,
+    anchoDona: 880,
+    escala: 2,
+    margen: 32,
+    letra: 13,
+    letraTitulo: 20,
+    letraSubtitulo: 14,
+    renglonSubtitulo: 1.45,
+  };
+
+  // Parte un texto en renglones que entren en `ancho` px con esa fuente, sin cortar palabras.
+  function renglones(texto, ancho, fuente) {
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = fuente;
+    const lineas = [];
+    let actual = "";
+    for (const palabra of texto.split(/\s+/).filter(Boolean)) {
+      const candidata = actual ? `${actual} ${palabra}` : palabra;
+      if (actual && ctx.measureText(candidata).width > ancho) {
+        lineas.push(actual);
+        actual = palabra;
+      } else {
+        actual = candidata;
+      }
+    }
+    if (actual) lineas.push(actual);
+    return lineas;
+  }
+
+  // Alto del trazado (ejes, barras, leyenda), sin el encabezado.
+  function altoDelTrazado(definicion) {
+    if (definicion.tipo === "dona") return 460;
+    if (definicion.orientacion === "horizontal") {
+      const conLeyenda = definicion.marcadores ? 36 : 0;
+      return Math.max(220, definicion.etiquetas.length * 44 + 64 + conLeyenda);
+    }
+    return definicion.series ? 500 : 460;
+  }
+
+  // La cifra del hueco de la dona, que en pantalla es HTML encima del lienzo.
+  function pluginDeCentro(cifra, texto) {
+    return {
+      id: "centro",
+      afterDatasetsDraw(grafico) {
+        const arco = grafico.getDatasetMeta(0).data[0];
+        if (!arco || !cifra) return;
+        const { x, y, innerRadius } = arco;
+        const familia = window.Chart.defaults.font.family;
+        const tamanoCifra = Math.round(innerRadius * 0.42);
+        const tamanoTexto = Math.max(IMAGEN.letra, Math.round(innerRadius * 0.12));
+        const base = texto ? y + tamanoCifra * 0.2 : y + tamanoCifra * 0.35;
+        const { ctx } = grafico;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "alphabetic";
+        ctx.fillStyle = TINTA;
+        ctx.font = `700 ${tamanoCifra}px ${familia}`;
+        ctx.fillText(cifra, x, base);
+        if (texto) {
+          ctx.textBaseline = "top";
+          ctx.fillStyle = TINTA_SECUNDARIA;
+          ctx.font = `${tamanoTexto}px ${familia}`;
+          ctx.fillText(texto, x, base + tamanoTexto * 0.6);
+        }
+        ctx.restore();
+      },
+    };
+  }
+
+  // La leyenda de la dona con sus valores, como la que la pagina escribe en HTML:
+  // "Cobertura total: 4 (80 %)".
+  function leyendaDeDona(definicion, colores) {
+    return {
+      display: true,
+      position: "bottom",
+      labels: {
+        usePointStyle: true,
+        boxWidth: 10,
+        boxHeight: 10,
+        padding: 18,
+        color: TINTA,
+        font: { size: IMAGEN.letraSubtitulo },
+        generateLabels: () =>
+          definicion.etiquetas.map((etiqueta, indice) => {
+            const valor = formato(definicion.decimales || 0).format(definicion.valores[indice] ?? 0);
+            const porcentaje = definicion.porcentajes?.[indice];
+            return {
+              text: porcentaje === undefined ? `${etiqueta}: ${valor}` : `${etiqueta}: ${valor} (${porcentaje} %)`,
+              fillStyle: colores[indice],
+              strokeStyle: colores[indice],
+              lineWidth: 0,
+              pointStyle: "circle",
+              hidden: false,
+              index: indice,
+            };
+          }),
+      },
+    };
+  }
+
+  function rellenoDe(opciones) {
+    const relleno = opciones.layout?.padding ?? 0;
+    const lado = (nombre) => (typeof relleno === "number" ? relleno : relleno[nombre] ?? 0);
+    return {
+      top: lado("top") + 8,
+      right: lado("right") + IMAGEN.margen,
+      bottom: lado("bottom") + IMAGEN.margen,
+      left: lado("left") + IMAGEN.margen,
+    };
+  }
+
+  function configuracionParaInforme({ grafico, definicion }, { titulo, descripcion, contexto }, centro) {
+    const config = CONFIGURACIONES[definicion.tipo](definicion, paleta());
+    const opciones = config.options;
+    const dona = definicion.tipo === "dona";
+    const ancho = dona ? IMAGEN.anchoDona : IMAGEN.ancho;
+    const familia = window.Chart.defaults.font.family;
+
+    const subtitulo = [
+      ...(descripcion ? renglones(descripcion, ancho - 2 * IMAGEN.margen, `${IMAGEN.letraSubtitulo}px ${familia}`) : []),
+      ...(contexto ? [contexto] : []),
+    ];
+    const altoDelTitulo = titulo ? IMAGEN.letraTitulo * 1.2 + IMAGEN.margen - 8 + 6 : 0;
+    const altoDelSubtitulo = subtitulo.length
+      ? subtitulo.length * IMAGEN.letraSubtitulo * IMAGEN.renglonSubtitulo + 24
+      : 0;
+    const alto = Math.ceil(altoDelTitulo + altoDelSubtitulo + altoDelTrazado(definicion) + IMAGEN.margen + 8);
+
+    Object.assign(opciones, {
+      responsive: false,
+      maintainAspectRatio: false,
+      animation: false,
+      events: [],
+      devicePixelRatio: IMAGEN.escala,
+    });
+    opciones.layout = { padding: rellenoDe(opciones) };
+    opciones.plugins.tooltip = { enabled: false };
+    opciones.plugins.title = {
+      display: Boolean(titulo),
+      text: titulo,
+      align: "start",
+      color: TINTA,
+      font: { size: IMAGEN.letraTitulo, weight: "600" },
+      padding: { top: IMAGEN.margen - 8, bottom: 6 },
+    };
+    opciones.plugins.subtitle = {
+      display: subtitulo.length > 0,
+      text: subtitulo,
+      align: "start",
+      color: TINTA_SECUNDARIA,
+      font: { size: IMAGEN.letraSubtitulo, lineHeight: IMAGEN.renglonSubtitulo },
+      padding: { bottom: 24 },
+    };
+    // Letra fija: en pantalla baja un punto en los telefonos, la imagen no.
+    Object.values(opciones.scales || {}).forEach((escala) => {
+      escala.ticks = { ...escala.ticks, font: { size: IMAGEN.letra } };
+    });
+    if (opciones.plugins.legend?.display) {
+      opciones.plugins.legend.labels = { ...opciones.plugins.legend.labels, font: { size: IMAGEN.letra } };
+    }
+
+    if (dona) {
+      opciones.plugins.legend = leyendaDeDona(definicion, config.data.datasets[0].backgroundColor);
+      config.plugins.push(pluginDeCentro(centro.cifra, centro.texto));
+    }
+    // Lo exportado es lo que se ve: las series ocultas desde la leyenda no salen.
+    config.data.datasets.forEach((dataset, indice) => {
+      if (!grafico.isDatasetVisible(indice)) dataset.hidden = true;
+    });
+
+    return { config, ancho, alto };
+  }
+
+  function imagen(canvas, metadatos = {}) {
+    const registro = instancias.get(canvas);
+    if (!registro) return null;
+    let copia = null;
+    try {
+      const { config, ancho, alto } = configuracionParaInforme(registro, metadatos, {
+        cifra: canvas.dataset.centroCifra,
+        texto: canvas.dataset.centroTexto,
+      });
+      // Con `responsive: false` Chart.js dibuja en el acto, aunque el lienzo no este en la pagina.
+      const lienzo = document.createElement("canvas");
+      lienzo.width = ancho;
+      lienzo.height = alto;
+      copia = new window.Chart(lienzo, config);
+      return copia.toBase64Image("image/png", 1);
+    } catch (error) {
+      // Mejor la imagen de la pantalla que ninguna.
+      console.error("No se pudo armar la imagen para el informe", error);
+      return registro.grafico.toBase64Image("image/png", 1);
+    } finally {
+      copia?.destroy();
+    }
   }
 
   // Al cruzar el ancho de un telefono, la tipografia cambia: se vuelve a dibujar todo.
@@ -545,7 +757,7 @@
     if (angosto === eraAngosto || !window.Chart) return;
     eraAngosto = angosto;
     aplicarTipografia();
-    instancias.forEach((grafico) => grafico.update("none"));
+    instancias.forEach(({ grafico }) => grafico.update("none"));
   });
 
   window.RescueSync = window.RescueSync || {};

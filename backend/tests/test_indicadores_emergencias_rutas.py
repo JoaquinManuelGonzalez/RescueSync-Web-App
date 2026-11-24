@@ -15,6 +15,7 @@ import pytest
 
 from app.modulos.emergencias.modelos import EstadoEmergencia, NivelGravedad
 from app.modulos.indicadores import rutas as rutas_de_indicadores
+from app.modulos.indicadores.exportacion import BOM_UTF8
 from app.modulos.indicadores.formularios import MENSAJE_GRAVEDAD_INVALIDA
 
 from .conftest import EMAIL_AUDITOR, EMAIL_OPERADOR
@@ -234,3 +235,73 @@ def test_ca03_una_gravedad_invalida_en_el_navegador_no_se_aplica(
     # Se muestran todas las emergencias: "Todas" queda marcada.
     assert re.search(r'href="/auditoria/emergencias"\s+aria-current="true"', cuerpo)
     assert _graficos(cuerpo)[0]["valores"] == [0, 2, 3, 5, 0]
+
+
+# --- Exportacion de las finalizadas con faltantes ----------------------------------
+
+
+def test_la_tabla_de_faltantes_se_exporta_en_csv_con_la_ultima_ronda(
+    cliente_sembrado, ingresar, crear_emergencias, cargar_necesidades
+) -> None:
+    """El caso del bug: pidio 100 y se reabrio; en la ronda adjudicada pidio 10 y recibio 8."""
+    (emergencia_id,) = crear_emergencias((EN_EL_PERIODO, FINALIZADA))
+    cargar_necesidades(emergencia_id, (100, 0), reabierta=True)
+    cargar_necesidades(emergencia_id, (10, 8))
+    ingresar(EMAIL_AUDITOR)
+
+    respuesta = cliente_sembrado.get("/auditoria/exportaciones/finalizadas-con-faltantes.csv")
+
+    assert respuesta.status_code == 200
+    assert respuesta.headers["Content-Disposition"] == (
+        'attachment; filename="rescuesync-finalizadas-con-faltantes-2025-03-17_2025-04-15.csv"'
+    )
+    encabezado, fila = _texto(respuesta).removeprefix(BOM_UTF8).splitlines()
+    assert encabezado == (
+        "emergencia,gravedad,unidades_requeridas,unidades_adjudicadas,porcentaje_cubierto"
+    )
+    assert fila.endswith(",Media,10,8,80")
+
+
+def test_la_tabla_de_faltantes_tiene_su_menu_de_exportacion_con_la_gravedad(
+    ingresar_por_formulario, navegar, escenario_de_la_hu
+) -> None:
+    ingresar_por_formulario(EMAIL_AUDITOR)
+
+    cuerpo = _texto(navegar(f"{URL}?gravedad=alta"))
+
+    assert re.search(
+        r'href="/auditoria/exportaciones/finalizadas-con-faltantes\.csv\?[^"]*gravedad=alta"',
+        cuerpo,
+    )
+    assert "los datos de Finalizadas con faltantes" in cuerpo
+
+
+# --- Imagen PNG para informes ------------------------------------------------------
+
+
+def test_el_boton_png_lleva_el_encabezado_de_la_imagen(
+    ingresar_por_formulario, navegar, escenario_de_la_hu
+) -> None:
+    """graficos.js escribe titulo, descripcion y periodo en la imagen: llegan en el boton."""
+    ingresar_por_formulario(EMAIL_AUDITOR)
+
+    cuerpo = _texto(navegar(f"{URL}?desde=2025-04-01&hasta=2025-04-15&gravedad=alta"))
+
+    boton = re.search(r'<button[^>]*data-exportar-imagen="grafico-cobertura"[^>]*>', cuerpo)
+    assert boton, "la dona tiene su opcion PNG"
+    assert 'data-titulo="Cobertura de las finalizadas"' in boton.group(0)
+    assert 'data-contexto="Emergencias registradas del 01/04/2025 al 15/04/2025"' in boton.group(0)
+    assert re.search(r'data-descripcion="[^"]*con gravedad alta\."', boton.group(0))
+
+
+def test_la_cifra_del_centro_de_la_dona_viaja_en_el_lienzo(
+    ingresar_por_formulario, navegar, escenario_de_la_hu
+) -> None:
+    """En pantalla es HTML encima del lienzo; la imagen la toma de estos atributos."""
+    ingresar_por_formulario(EMAIL_AUDITOR)
+
+    cuerpo = _texto(navegar(URL))
+
+    lienzo = re.search(r'<canvas id="grafico-cobertura"[^>]*>', cuerpo).group(0)
+    assert 'data-centro-cifra="80 %"' in lienzo
+    assert 'data-centro-texto="con cobertura total"' in lienzo

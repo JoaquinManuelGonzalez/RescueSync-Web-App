@@ -18,7 +18,9 @@
  *
  * 4. Menu de exportacion (details[data-exportar-menu]): se cierra al hacer clic afuera, al
  *    elegir una descarga o con Escape. La opcion [data-exportar-imagen="id del canvas"] (oculta
- *    sin JavaScript) descarga el grafico como PNG con el nombre de `data-nombre-archivo`.
+ *    sin JavaScript) descarga el grafico como PNG con el nombre de `data-nombre-archivo`. La
+ *    imagen la arma graficos.js con `data-titulo`, `data-descripcion` y `data-contexto` (el
+ *    periodo) como encabezado.
  *
  * 5. Pestañas: en pantallas angostas la barra se desplaza de costado; al cargar, la pestaña
  *    activa queda a la vista.
@@ -302,7 +304,8 @@
     const boton = evento.target.closest?.("[data-exportar-imagen]");
     if (!boton) return;
     const canvas = document.getElementById(boton.dataset.exportarImagen);
-    const datos = canvas && window.RescueSync?.graficos?.imagen(canvas);
+    const { titulo, descripcion, contexto } = boton.dataset;
+    const datos = canvas && window.RescueSync?.graficos?.imagen(canvas, { titulo, descripcion, contexto });
     boton.closest("details")?.removeAttribute("open");
     if (!datos) return;
     const enlace = document.createElement("a");

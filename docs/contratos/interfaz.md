@@ -108,9 +108,10 @@ leer, los enlaces y formularios usan el id completo); globales `requisitos_de_co
 `url_de_pagina(n)`.
 
 Las plantillas del panel de auditoría reciben además `exportacion(slug, imagen=None)`, que
-devuelve las URLs de descarga CSV y JSON del indicador con el período y los filtros vigentes, y el
-nombre del PNG del gráfico; `imagen` distingue ese nombre cuando dos gráficos comparten un
-indicador (`app/modulos/indicadores/rutas.py`). El CSV empieza con el BOM de UTF-8 para que Excel
+devuelve las URLs de descarga CSV y JSON del indicador con el período y los filtros vigentes, el
+nombre del PNG del gráfico y `contexto`, el período escrito como en la pantalla ("Emergencias
+registradas del 01/10/2026 al 31/10/2026") para el encabezado de esa imagen; `imagen` distingue
+el nombre del PNG cuando dos gráficos comparten un indicador (`app/modulos/indicadores/rutas.py`). El CSV empieza con el BOM de UTF-8 para que Excel
 en Windows lea bien los acentos. Una duración se exporta en dos columnas: los segundos exactos
 (`tiempo_medio_segundos`) y el texto que se ve en pantalla (`tiempo_medio`: "1 d 4 h 12 min 5 s");
 ver ADR-010.
@@ -136,9 +137,9 @@ Las pantallas con un comportamiento propio cargan su script al final de su bloqu
 |---|---|---|
 | `estaticos/js/indicadores.js` | `form[data-filtro-periodo]` + `data-mensaje-invertido` | Antes de enviar, avisa si la fecha "desde" es posterior a la "hasta" (el mismo mensaje que el servidor) y sincroniza los `min`/`max` de las dos fechas |
 | `estaticos/js/indicadores.js` | `[data-filtro-de-seccion]` (sus enlaces) + `[data-panel-actualizable="nombre"]` | Aplica el filtro de la sección sin recargar: trae la pantalla del enlace, reemplaza solo las regiones actualizables, vuelve a dibujar los gráficos y cambia la URL. Si algo falla, sigue el enlace |
-| `estaticos/js/graficos.js` (+ `vendor/chart-4.4.9.umd.js`) | `[data-grafico-contenedor]` con `script[data-grafico]` | Dibuja el gráfico de la definición JSON con los colores y la tipografía del sitio, y deja la tabla de respaldo solo para lectores de pantalla. Con `enlaces` en la definición, tocar una barra activa el enlace del filtro de la sección que lleva a esa URL (la sección "Convocatorias" lo usa para elegir la decisión del detalle). Expone `RescueSync.graficos.iniciar(raiz)` / `destruir(raiz)` |
+| `estaticos/js/graficos.js` (+ `vendor/chart-4.4.9.umd.js`) | `[data-grafico-contenedor]` con `script[data-grafico]` | Dibuja el gráfico de la definición JSON con los colores y la tipografía del sitio, y deja la tabla de respaldo solo para lectores de pantalla. Con `enlaces` en la definición, tocar una barra activa el enlace del filtro de la sección que lleva a esa URL (la sección "Convocatorias" lo usa para elegir la decisión del detalle). Expone `RescueSync.graficos.iniciar(raiz)` / `destruir(raiz)` e `imagen(canvas, { titulo, descripcion, contexto })`, que vuelve a dibujar el gráfico para un informe (ancho fijo, doble resolución, con encabezado y, en las donas, leyenda con valores y la cifra de `data-centro-cifra` / `data-centro-texto` del `<canvas>`) y lo devuelve como PNG |
 | `estaticos/js/indicadores.js` | `[data-carga-diferida="url"]` + `data-mensaje-error`; `[data-reintentar]` | Completa la región con el fragmento HTML de esa URL apenas se muestra la pantalla (la sección "Proceso", que consulta Bonita) y vuelve a pedirlo con el botón de reintento. Si falla la red, muestra `data-mensaje-error` con un reintento |
-| `estaticos/js/indicadores.js` | `details[data-exportar-menu]`; `[data-exportar-imagen="id del canvas"]` + `data-nombre-archivo` | Cierra el menú de exportación al hacer clic afuera, al elegir una descarga o con Escape. Muestra la opción de imagen (oculta sin JavaScript) y descarga el gráfico como PNG |
+| `estaticos/js/indicadores.js` | `details[data-exportar-menu]`; `[data-exportar-imagen="id del canvas"]` + `data-nombre-archivo`, `data-titulo`, `data-descripcion`, `data-contexto` | Cierra el menú de exportación al hacer clic afuera, al elegir una descarga o con Escape. Muestra la opción de imagen (oculta sin JavaScript) y descarga el gráfico como PNG, con título, descripción y período como encabezado (ADR-010) |
 | `estaticos/js/indicadores.js` | `.panel-pestanas` | En pantallas angostas desplaza la barra de pestañas hasta centrar la activa, sin mover la página |
 
 Nada de esto es seguridad: el servidor valida y autoriza todo por su cuenta.

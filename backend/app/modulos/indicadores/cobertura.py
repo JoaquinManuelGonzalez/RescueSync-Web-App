@@ -1,8 +1,10 @@
 """Reglas de la cobertura de una emergencia, sin base de datos.
 
-Cobertura = unidades adjudicadas / unidades requeridas, sumando todos los lotes. Es total cuando
-llega al 100 % y parcial cuando queda por debajo. Una emergencia que no pidio nada no tiene
-cobertura: no es ni total ni parcial.
+Cobertura = unidades adjudicadas / unidades requeridas, sobre los lotes de la ultima ronda
+adjudicada de la emergencia (ver `adjudicaciones.servicios.consultar_unidades_por_emergencia`):
+lo pedido en una convocatoria que se reabrio se reformulo en la siguiente y no se suma. Es total
+cuando llega al 100 % y parcial cuando queda por debajo. Una emergencia que no pidio nada no
+tiene cobertura: no es ni total ni parcial.
 """
 
 from __future__ import annotations

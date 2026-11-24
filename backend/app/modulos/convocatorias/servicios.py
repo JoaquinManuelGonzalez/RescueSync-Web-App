@@ -521,17 +521,19 @@ def _notificar_bonita_timer(
 
 def consultar_adjudicaciones(
     *, emergencia_ids: Select[tuple[uuid.UUID]]
-) -> Select[tuple[uuid.UUID, uuid.UUID, datetime | None]]:
+) -> Select[tuple[uuid.UUID, uuid.UUID, datetime | None, datetime]]:
     """Subconsulta con las convocatorias adjudicadas de esas emergencias.
 
-    Columnas: `convocatoria_id`, `emergencia_id` y `adjudicada_en`, el momento en que el
-    municipio confirmo la seleccion. Es un `Select` para que quien la use la combine con sus
-    propios datos en una sola consulta.
+    Columnas: `convocatoria_id`, `emergencia_id`, `adjudicada_en` (el momento en que el
+    municipio confirmo la seleccion) y `creado_en` (cuando se publico, para ordenar las rondas
+    viejas que no tienen fecha de adjudicacion). Es un `Select` para que quien la use la combine
+    con sus propios datos en una sola consulta.
     """
     return select(
         Convocatoria.id.label("convocatoria_id"),
         Convocatoria.emergencia_id.label("emergencia_id"),
         Convocatoria.adjudicada_en.label("adjudicada_en"),
+        Convocatoria.creado_en.label("creado_en"),
     ).where(
         Convocatoria.emergencia_id.in_(emergencia_ids),
         Convocatoria.estado == EstadoConvocatoria.adjudicada,

@@ -367,19 +367,21 @@ def consultar_ids_de_emergencias_registradas(
 
 def consultar_unidades_requeridas(
     *, emergencia_ids: Select[tuple[uuid.UUID]]
-) -> Select[tuple[uuid.UUID, uuid.UUID, uuid.UUID, int, TipoNecesidad]]:
+) -> Select[tuple[uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID | None, int, TipoNecesidad]]:
     """Subconsulta con las unidades que pide cada item de lote de esas emergencias.
 
-    Columnas: `lote_item_id`, `emergencia_id`, `lote_id`, `cantidad_requerida` y `categoria` (el
-    rubro del item del catalogo). Los lotes cancelados no cuentan: lo que se dejo de pedir ya no
-    es una necesidad. Es un `Select` para que quien la use la combine con sus propios datos en
-    una sola consulta, tomando solo las columnas que necesite.
+    Columnas: `lote_item_id`, `emergencia_id`, `lote_id`, `convocatoria_id` (la ronda en la que se
+    pidio el lote, o None si todavia no se publico), `cantidad_requerida` y `categoria` (el rubro
+    del item del catalogo). Los lotes cancelados no cuentan: lo que se dejo de pedir ya no es una
+    necesidad. Es un `Select` para que quien la use la combine con sus propios datos en una sola
+    consulta, tomando solo las columnas que necesite.
     """
     return (
         select(
             LoteItem.id.label("lote_item_id"),
             LoteNecesidad.emergencia_id.label("emergencia_id"),
             LoteItem.lote_id.label("lote_id"),
+            LoteNecesidad.convocatoria_id.label("convocatoria_id"),
             LoteItem.cantidad_solicitada.label("cantidad_requerida"),
             Item.categoria.label("categoria"),
         )

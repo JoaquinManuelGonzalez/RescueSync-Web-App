@@ -93,6 +93,11 @@ EMERGENCIAS = SeccionDelPanel(
             "Cobertura de las finalizadas",
             servicios.SeccionDeEmergencias.tabla_de_cobertura,
         ),
+        IndicadorExportable(
+            "finalizadas-con-faltantes",
+            "Finalizadas con faltantes",
+            servicios.SeccionDeEmergencias.tabla_de_faltantes,
+        ),
     ),
 )
 

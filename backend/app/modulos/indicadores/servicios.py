@@ -120,11 +120,16 @@ class PorcionDeCobertura:
 
 @dataclass(frozen=True, slots=True)
 class EmergenciaConFaltantes:
-    """Una emergencia que se cerro sin cubrir todo lo que pidio."""
+    """Una emergencia que se cerro sin cubrir todo lo que pidio en su ultima ronda adjudicada.
+
+    `requeridas` y `adjudicadas` son las unidades de esa ronda; `porcentaje`, el que se muestra.
+    """
 
     id: uuid.UUID
     titulo: str
     gravedad: NivelGravedad
+    requeridas: int
+    adjudicadas: int
     porcentaje: int
 
     def a_diccionario(self) -> dict[str, Any]:
@@ -133,16 +138,19 @@ class EmergenciaConFaltantes:
             "titulo": self.titulo,
             "gravedad": self.gravedad.value,
             "gravedad_etiqueta": etiqueta_gravedad(self.gravedad),
+            "unidades_requeridas": self.requeridas,
+            "unidades_adjudicadas": self.adjudicadas,
             "porcentaje": self.porcentaje,
         }
 
 
 @dataclass(frozen=True, slots=True)
 class CoberturaDeFinalizadas:
-    """Cobertura de las emergencias finalizadas.
+    """Cobertura de las emergencias finalizadas, medida sobre su ultima ronda adjudicada.
 
-    `sin_necesidades` son las finalizadas que nunca cargaron lotes: no tienen cobertura y quedan
-    fuera de la torta. `con_faltantes` lista las parciales de peor a mejor cobertura.
+    `sin_necesidades` son las finalizadas sin lotes en una convocatoria adjudicada (en el
+    proceso, las que nunca cargaron lotes): no tienen cobertura y quedan fuera de la torta.
+    `con_faltantes` lista las parciales de peor a mejor cobertura.
     """
 
     finalizadas: int
@@ -235,6 +243,28 @@ class SeccionDeEmergencias:
             else (),
         )
 
+    def tabla_de_faltantes(self) -> TablaExportable:
+        """Las finalizadas con faltantes como en la pantalla: de peor a mejor cobertura."""
+        return TablaExportable(
+            columnas=(
+                "emergencia",
+                "gravedad",
+                "unidades_requeridas",
+                "unidades_adjudicadas",
+                "porcentaje_cubierto",
+            ),
+            filas=tuple(
+                (
+                    emergencia.titulo,
+                    etiqueta_gravedad(emergencia.gravedad),
+                    emergencia.requeridas,
+                    emergencia.adjudicadas,
+                    emergencia.porcentaje,
+                )
+                for emergencia in self.cobertura.con_faltantes
+            ),
+        )
+
 
 def obtener_seccion_de_emergencias(
     periodo: Periodo, gravedad: NivelGravedad | None = None
@@ -291,6 +321,8 @@ def _con_faltantes(
             id=u.emergencia_id,
             titulo=datos[u.emergencia_id].titulo,
             gravedad=datos[u.emergencia_id].nivel_gravedad,
+            requeridas=u.requeridas,
+            adjudicadas=u.adjudicadas,
             porcentaje=porcentaje_cubierto(u),
         )
         for u in parciales

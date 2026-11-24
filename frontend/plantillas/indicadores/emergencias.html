@@ -1,7 +1,7 @@
 {% extends "indicadores/base.html" %}
 {% from "componentes/alertas.html" import alerta %}
 {% from "componentes/iconos.html" import icono %}
-{% from "componentes/indicadores.html" import tarjeta_grafico, encabezado_de_seccion, filtro_segmentado, insignia_gravedad %}
+{% from "componentes/indicadores.html" import tarjeta_grafico, encabezado_de_seccion, filtro_segmentado, insignia_gravedad, menu_exportar %}
 {% from "componentes/tablas.html" import tabla, celda %}
 
 {% block title %}Emergencias · Panel de auditoría{% endblock %}
@@ -75,7 +75,7 @@
         {% call tarjeta_grafico(
             "grafico-cobertura",
             "Cobertura de las finalizadas",
-            "Unidades adjudicadas sobre las requeridas, sumando todos los lotes.",
+            "Unidades adjudicadas sobre las pedidas en la última ronda adjudicada de cada emergencia" ~ con_gravedad ~ ".",
             seccion.grafico_de_cobertura(),
             filas_cobertura,
             vacio=vacio_cobertura,
@@ -107,8 +107,11 @@
     {#- --- Detalle: las finalizadas que se cerraron con faltantes ---------------------- -#}
     <section class="space-y-3" aria-labelledby="faltantes-titulo">
       <div class="grafico-cabecera">
-        <h3 id="faltantes-titulo" class="grafico-titulo">Finalizadas con faltantes</h3>
-        <p class="grafico-descripcion">Emergencias cerradas sin cubrir todas las unidades que pidieron, de menor a mayor cobertura.</p>
+        <div class="grafico-cabecera-fila">
+          <h3 id="faltantes-titulo" class="grafico-titulo">Finalizadas con faltantes</h3>
+          {{ menu_exportar(exportacion("finalizadas-con-faltantes"), "Finalizadas con faltantes") }}
+        </div>
+        <p class="grafico-descripcion">Emergencias cerradas sin cubrir todas las unidades que pidieron en su última ronda adjudicada, de menor a mayor cobertura.</p>
       </div>
       {%- if cobertura.con_faltantes %}
       {% call tabla(["Emergencia", "Gravedad", "Cobertura"]) %}

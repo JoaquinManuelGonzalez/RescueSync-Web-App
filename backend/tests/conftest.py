@@ -245,13 +245,21 @@ def cargar_necesidades(app, base_de_datos: None) -> Callable[..., int]:
     catalogo por linea; sin ella se toman los primeros items). La oferta es de la ONG `ong` (por
     nombre; sin ella, la del representante) y `consorcio` suma otras ONGs participantes
     aceptadas. Devuelve el id de la oferta.
+
+    Con `reabierta`, la convocatoria queda como la deja una reapertura por cobertura
+    insuficiente: cerrada, evaluada y sin adjudicar, con la oferta presentada y ninguna linea
+    seleccionada (el municipio nunca llego a elegir).
     """
     from datetime import UTC, datetime
 
     from sqlalchemy import select
 
     from app.extensiones import db
-    from app.modulos.convocatorias.modelos import Convocatoria, EstadoConvocatoria
+    from app.modulos.convocatorias.modelos import (
+        Convocatoria,
+        DecisionCobertura,
+        EstadoConvocatoria,
+    )
     from app.modulos.emergencias.modelos import EstadoLote, Item, LoteItem, LoteNecesidad
     from app.modulos.ofertas.modelos import (
         EstadoOferta,
@@ -291,6 +299,7 @@ def cargar_necesidades(app, base_de_datos: None) -> Callable[..., int]:
         categorias=None,
         ong: str | None = None,
         consorcio: tuple[str, ...] = (),
+        reabierta: bool = False,
     ) -> int:
         with app.app_context():
             coordinador = db.session.execute(
@@ -309,6 +318,11 @@ def cargar_necesidades(app, base_de_datos: None) -> Callable[..., int]:
                 estado=EstadoConvocatoria.adjudicada,
                 adjudicada_en=adjudicada_en,
             )
+            if reabierta:
+                convocatoria.estado = EstadoConvocatoria.cerrada
+                convocatoria.adjudicada_en = None
+                convocatoria.cobertura_evaluada_en = datetime(2025, 1, 2, 12, tzinfo=UTC)
+                convocatoria.decision_cobertura = DecisionCobertura.convocatoria_reabierta
             lote = LoteNecesidad(
                 emergencia_id=emergencia_id, convocatoria=convocatoria, estado=estado_del_lote
             )
@@ -337,7 +351,7 @@ def cargar_necesidades(app, base_de_datos: None) -> Callable[..., int]:
                 db.session.add(lote_item)
                 if ofrecida:
                     clasificacion = resto[0] if resto else TipoAsignacion.principal
-                    seleccionada = clasificacion in habilitadas
+                    seleccionada = clasificacion in habilitadas and not reabierta
                     db.session.add(
                         OfertaLinea(
                             oferta=oferta,
