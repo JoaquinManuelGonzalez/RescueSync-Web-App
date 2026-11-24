@@ -252,6 +252,7 @@ def test_un_periodo_invalido_no_se_exporta(cliente_sembrado, ingresar) -> None:
     [
         ("emergencias-por-estado", "gravedad", "alta"),
         ("cobertura-de-finalizadas", "gravedad", "critica"),
+        ("finalizadas-con-faltantes", "gravedad", "critica"),
         ("ranking-de-ongs", "orden", "tiempo"),
         ("recursos-movilizados", "rubro", "alimentos"),
     ],

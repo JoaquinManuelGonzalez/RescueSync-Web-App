@@ -275,6 +275,8 @@ def test_la_seccion_se_serializa_con_el_contrato_del_json(
             "titulo": faltante[0]["titulo"],
             "gravedad": "alta",
             "gravedad_etiqueta": "Alta",
+            "unidades_requeridas": 10,
+            "unidades_adjudicadas": 6,
             "porcentaje": 60,
         }
     ]
