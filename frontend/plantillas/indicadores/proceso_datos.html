@@ -28,7 +28,7 @@
   {% call tarjeta_grafico(
       "grafico-etapas",
       "Tiempo promedio por etapa",
-      "Si una tarea se ejecutó más de una vez en un caso (por ejemplo, tras una reapertura), se suman sus ejecuciones. Una etapa por la que no pasó ningún caso figura como «Sin ocurrencias».",
+      "Sobre los casos terminados" ~ con_gravedad ~ ". Si una tarea se ejecutó más de una vez en un caso (por ejemplo, tras una reapertura), se suman sus ejecuciones. Una etapa por la que no pasó ningún caso figura como «Sin ocurrencias».",
       etapas.grafico(),
       filas_etapas,
       encabezados=["Etapa", "Casos", "Tiempo promedio"],

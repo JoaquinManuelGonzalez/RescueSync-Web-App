@@ -52,17 +52,26 @@
     {%- for rubro in movilizados.rubros %}{% set _ = fila.append(movilizados.unidades_de(mes, rubro)|numero) %}{% endfor %}
     {%- set _ = filas.append(fila) %}
     {%- endfor %}
-    {{ tarjeta_grafico(
+    {#- La descripcion tambien encabeza la imagen PNG: dice el rubro filtrado y no lleva
+        indicaciones de uso, que van en la nota de abajo. -#}
+    {% call tarjeta_grafico(
         "grafico-movilizados",
         "Unidades adjudicadas por mes",
-        "Cada barra suma lo adjudicado en el mes; cada color es un rubro. Tocá un rubro de la leyenda para ocultarlo.",
+        "Cada barra suma las unidades" ~ del_rubro ~ " adjudicadas en el mes; cada color es un rubro.",
         movilizados.grafico(),
         filas,
         encabezados=encabezados,
         vacio=("Todavía no se adjudicaron recursos" ~ del_rubro ~ " a las emergencias de este período.") if movilizados.total == 0 else none,
         resumen="Unidades adjudicadas por mes y rubro, " ~ (movilizados.total|numero) ~ " en total.",
         exportacion=exportacion("recursos-movilizados"),
-    ) }}
+    ) %}
+    {%- if movilizados.total %}
+    <p class="grafico-nota">
+      {{ icono("info", "size-4") }}
+      <span>Tocá un rubro de la leyenda para ocultarlo; la imagen exportada respeta lo que se ve.</span>
+    </p>
+    {%- endif %}
+    {% endcall %}
   </div>
 </section>
 

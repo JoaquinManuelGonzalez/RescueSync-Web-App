@@ -168,7 +168,13 @@ def _enlaces_de_exportacion(solicitud: SolicitudDeSeccion) -> Callable[[str], di
     `csv` y `json` son las URLs de los datos; `png` es el nombre con que se guarda la imagen del
     grafico, que el navegador arma desde el lienzo (no pasa por el servidor). Cuando dos graficos
     comparten un indicador (y su tabla), `imagen` distingue el nombre del PNG de cada uno.
+    `contexto` es el periodo escrito como en la pantalla, para el encabezado de esa imagen.
     """
+    periodo = solicitud.periodo
+    contexto = (
+        f"Emergencias registradas del {periodo.desde.strftime('%d/%m/%Y')} "
+        f"al {periodo.hasta.strftime('%d/%m/%Y')}"
+    )
 
     def _enlaces(slug: str, imagen: str | None = None) -> dict[str, str]:
         enlaces = {
@@ -183,6 +189,7 @@ def _enlaces_de_exportacion(solicitud: SolicitudDeSeccion) -> Callable[[str], di
             for formato in FORMATOS_DE_EXPORTACION
         }
         enlaces["png"] = nombre_de_archivo(imagen or slug, solicitud.periodo, "png")
+        enlaces["contexto"] = contexto
         return enlaces
 
     return _enlaces

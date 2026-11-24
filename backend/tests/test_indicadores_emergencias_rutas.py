@@ -274,3 +274,34 @@ def test_la_tabla_de_faltantes_tiene_su_menu_de_exportacion_con_la_gravedad(
         cuerpo,
     )
     assert "los datos de Finalizadas con faltantes" in cuerpo
+
+
+# --- Imagen PNG para informes ------------------------------------------------------
+
+
+def test_el_boton_png_lleva_el_encabezado_de_la_imagen(
+    ingresar_por_formulario, navegar, escenario_de_la_hu
+) -> None:
+    """graficos.js escribe titulo, descripcion y periodo en la imagen: llegan en el boton."""
+    ingresar_por_formulario(EMAIL_AUDITOR)
+
+    cuerpo = _texto(navegar(f"{URL}?desde=2025-04-01&hasta=2025-04-15&gravedad=alta"))
+
+    boton = re.search(r'<button[^>]*data-exportar-imagen="grafico-cobertura"[^>]*>', cuerpo)
+    assert boton, "la dona tiene su opcion PNG"
+    assert 'data-titulo="Cobertura de las finalizadas"' in boton.group(0)
+    assert 'data-contexto="Emergencias registradas del 01/04/2025 al 15/04/2025"' in boton.group(0)
+    assert re.search(r'data-descripcion="[^"]*con gravedad alta\."', boton.group(0))
+
+
+def test_la_cifra_del_centro_de_la_dona_viaja_en_el_lienzo(
+    ingresar_por_formulario, navegar, escenario_de_la_hu
+) -> None:
+    """En pantalla es HTML encima del lienzo; la imagen la toma de estos atributos."""
+    ingresar_por_formulario(EMAIL_AUDITOR)
+
+    cuerpo = _texto(navegar(URL))
+
+    lienzo = re.search(r'<canvas id="grafico-cobertura"[^>]*>', cuerpo).group(0)
+    assert 'data-centro-cifra="80 %"' in lienzo
+    assert 'data-centro-texto="con cobertura total"' in lienzo

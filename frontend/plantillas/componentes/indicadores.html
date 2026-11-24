@@ -17,13 +17,16 @@
         par (etiqueta, valor) o, con `encabezados` (el nombre de cada columna), una tupla con un
         valor por columna. `resumen` es el texto alternativo del lienzo. Con `vacio` (un texto)
         no hay grafico: se explica por que. `centro` es un par (cifra, texto) que va en el hueco
-        de una dona. `exportacion` son los enlaces de descarga del indicador (la funcion
+        de una dona; tambien viaja en el lienzo (data-centro-*) para que la imagen PNG lo
+        escriba. `exportacion` son los enlaces de descarga del indicador (la funcion
         `exportacion(slug)` del contexto del panel). Con {% call %}, el contenido va debajo del
         grafico (leyendas, notas).
 
-    - menu_exportar(exportacion, titulo, grafico_id)
+    - menu_exportar(exportacion, titulo, grafico_id, descripcion)
         Boton "Exportar" con las descargas en CSV y JSON del indicador (no necesitan JavaScript)
-        y, con `grafico_id`, la imagen PNG del grafico (la arma indicadores.js desde el lienzo).
+        y, con `grafico_id`, la imagen PNG del grafico. La imagen la vuelve a dibujar graficos.js
+        para un informe, con `titulo`, `descripcion` y el periodo (`exportacion.contexto`) como
+        encabezado; viajan en los data-* del boton.
 
     - encabezado_de_seccion(id, titulo, texto, apilada)
         Titulo de una seccion del panel. Con {% call %}, sus filtros van a la derecha; con
@@ -87,7 +90,7 @@
 </article>
 {%- endmacro %}
 
-{% macro menu_exportar(exportacion, titulo, grafico_id=none) -%}
+{% macro menu_exportar(exportacion, titulo, grafico_id=none, descripcion=none) -%}
 <details class="exportar-menu" data-exportar-menu>
   <summary class="exportar-boton">
     {{ icono("descargar", "size-4") }}
@@ -111,7 +114,9 @@
     {%- if grafico_id %}
     {#- Sin JavaScript no hay grafico que descargar: indicadores.js muestra la opcion. -#}
     <li hidden data-opcion-imagen>
-      <button type="button" class="exportar-opcion" data-exportar-imagen="{{ grafico_id }}" data-nombre-archivo="{{ exportacion.png }}">
+      <button type="button" class="exportar-opcion" data-exportar-imagen="{{ grafico_id }}" data-nombre-archivo="{{ exportacion.png }}"
+              data-titulo="{{ titulo }}" data-contexto="{{ exportacion.contexto }}"
+              {%- if descripcion %} data-descripcion="{{ descripcion }}"{% endif %}>
         <span class="exportar-opcion-formato">PNG</span>
         <span class="exportar-opcion-texto">Imagen del gráfico para informes</span>
       </button>
@@ -127,7 +132,7 @@
     <div class="grafico-cabecera-fila">
       <h3 id="{{ id }}-titulo" class="grafico-titulo">{{ titulo }}</h3>
       {%- if exportacion %}
-      {{ menu_exportar(exportacion, titulo, none if vacio else id) }}
+      {{ menu_exportar(exportacion, titulo, none if vacio else id, descripcion) }}
       {%- endif %}
     </div>
     <p class="grafico-descripcion">{{ descripcion }}</p>
@@ -141,7 +146,8 @@
   <div class="grafico-cuerpo" data-grafico-contenedor>
     {#- Oculto hasta que graficos.js dibuja: sin JavaScript queda la tabla. -#}
     <div class="grafico-lienzo" hidden data-grafico-lienzo>
-      <canvas id="{{ id }}" role="img" aria-label="{{ resumen or titulo }}"></canvas>
+      <canvas id="{{ id }}" role="img" aria-label="{{ resumen or titulo }}"
+              {%- if centro %} data-centro-cifra="{{ centro[0] }}" data-centro-texto="{{ centro[1] }}"{% endif %}></canvas>
       {%- if centro %}
       <p class="grafico-centro" aria-hidden="true">
         <span class="grafico-centro-cifra">{{ centro[0] }}</span>
